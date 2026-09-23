@@ -1,0 +1,325 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./brandsetu.db"
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String
+  name          String
+  role          String    // ADMIN, SMM
+  status        String    @default("ACTIVE") // ACTIVE, INACTIVE
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  createdContent ContentItem[]     @relation("UserCreatedContent")
+  approvalRequests ApprovalRequest[] @relation("UserRequestedApproval")
+  approvalReviews  ApprovalRequest[] @relation("UserReviewedApproval")
+}
+
+model Client {
+  id                  String   @id @default(uuid())
+  businessName        String
+  category            String
+  location            String
+  phone               String?
+  email               String?
+  website             String?
+  description         String?
+  logo                String?
+  brandColors         String?  // e.g. JSON array: ["#4F46E5", "#06B6D4"]
+  timezone            String   @default("Asia/Kolkata")
+  driveRootFolderId   String?
+  approvalRequired    Boolean  @default(true)
+  requiredBufferDays  Int      @default(10)
+  status              String   @default("ACTIVE") // ACTIVE, INACTIVE
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  brandProfile        ClientBrandProfile?
+  socialAccounts      SocialAccount[]
+  driveFolders        DriveFolder[]
+  driveFiles          DriveFile[]
+  contentItems        ContentItem[]
+  recurringRules      RecurringContentRule[]
+  queueItems          ContentQueueItem[]
+  scheduledPosts      ScheduledPost[]
+  publishingLogs      PublishingLog[]
+  notifications       Notification[]
+  auditLogs           AuditLog[]
+  analytics           AnalyticsMetric[]
+  reports             ClientReport[]
+  documents           ClientDocument[]
+}
+
+model ClientBrandProfile {
+  id               String   @id @default(uuid())
+  clientId         String   @unique
+  client           Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  services         String   // JSON string array or text
+  products         String   // JSON string array or text
+  usp              String   // Unique Selling Proposition
+  targetAudience   String
+  brandTone        String   // e.g. "Friendly + Premium"
+  language         String   @default("Hindi + English")
+  keywords         String   // comma-separated
+  hashtags         String   // default hashtags
+  preferredCta     String?
+  openingHours     String?
+  restrictedClaims String?  // Words / claims to avoid
+  importantNotes   String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model ClientDocument {
+  id          String   @id @default(uuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  title       String
+  fileUrl     String
+  fileType    String   // PDF, DOC, TXT, IMAGE, BROCHURE
+  fileSize    Int      @default(0)
+  summary     String?  // AI-readable knowledge notes or extracted summary
+  createdAt   DateTime @default(now())
+}
+
+
+model SocialAccount {
+  id              String    @id @default(uuid())
+  clientId        String
+  client          Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  platform        String    // FACEBOOK, INSTAGRAM, GOOGLE_BUSINESS
+  accountName     String
+  accountId       String    // External Page ID / IG ID / Location ID
+  status          String    @default("CONNECTED") // CONNECTED, EXPIRED, ERROR
+  accessToken     String?   // Encrypted/secure token
+  tokenExpiresAt  DateTime?
+  lastHealthCheck DateTime  @default(now())
+  lastError       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  scheduledPosts  ScheduledPost[]
+}
+
+model DriveFolder {
+  id            String   @id @default(uuid())
+  clientId      String
+  client        Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  folderType    String   // ROOT, BRAND_ASSETS, RAW_CONTENT, FINAL_CONTENT, FINAL_POSTS, FINAL_REELS, FINAL_STORIES, PUBLISHED_ARCHIVE
+  driveFolderId String
+  folderName    String
+  folderPath    String
+  createdAt     DateTime @default(now())
+}
+
+model DriveFile {
+  id              String    @id @default(uuid())
+  clientId        String
+  client          Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  driveFileId     String    @unique
+  filename        String
+  mimeType        String
+  contentType     String    // POST, REEL, STORY, GOOGLE_BUSINESS_POST
+  driveUrl        String
+  thumbnailUrl    String?
+  folderPath      String
+  fileSize        Int       @default(0)
+  status          String    @default("NEW") // NEW, IMPORTED, ARCHIVED
+  driveModifiedAt DateTime?
+  createdAt       DateTime  @default(now())
+
+  contentItems    ContentItem[]
+}
+
+model ContentItem {
+  id            String    @id @default(uuid())
+  clientId      String
+  client        Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  driveFileId   String?
+  driveFile     DriveFile? @relation(fields: [driveFileId], references: [driveFileId], onDelete: SetNull)
+  title         String
+  contentType   String    // POST, REEL, STORY, GOOGLE_BUSINESS_POST
+  status        String    @default("NEW") // NEW, DRAFT, IN_REVIEW, CHANGES_REQUESTED, READY_FOR_APPROVAL, APPROVED, QUEUED, SCHEDULED, PUBLISHING, PUBLISHED, FAILED, CANCELLED
+  mediaUrl      String
+  thumbnailUrl  String?
+  aspectRatio   String?   // "1:1", "9:16", "16:9"
+  durationSec   Int?
+  source        String    @default("DRIVE") // DRIVE, MANUAL, AI_STUDIO
+  createdById   String?
+  createdBy     User?     @relation("UserCreatedContent", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  variants         ContentVariant[]
+  approvalRequests ApprovalRequest[]
+  queueItem        ContentQueueItem?
+  scheduledPosts   ScheduledPost[]
+}
+
+model ContentVariant {
+  id               String      @id @default(uuid())
+  contentItemId    String
+  contentItem      ContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+  platform         String      // FACEBOOK, INSTAGRAM, GOOGLE_BUSINESS
+  caption          String?
+  hashtags         String?
+  cta              String?
+  specificMediaUrl String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+}
+
+model ApprovalRequest {
+  id             String      @id @default(uuid())
+  contentItemId  String
+  contentItem    ContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+  requestedById  String
+  requestedBy    User        @relation("UserRequestedApproval", fields: [requestedById], references: [id])
+  reviewedById   String?
+  reviewedBy     User?       @relation("UserReviewedApproval", fields: [reviewedById], references: [id])
+  status         String      @default("PENDING") // PENDING, APPROVED, REJECTED, CHANGES_REQUESTED
+  feedbackNote   String?
+  requestedAt    DateTime    @default(now())
+  reviewedAt     DateTime?
+}
+
+model RecurringContentRule {
+  id             String     @id @default(uuid())
+  clientId       String
+  client         Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name           String
+  isActive       Boolean    @default(true)
+  startDate      DateTime   @default(now())
+  endDate        DateTime?
+  repeatInfinite Boolean    @default(true)
+  repeatCycles   Int        @default(1)
+  timezone       String     @default("Asia/Kolkata")
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  steps          RuleStep[]
+}
+
+model RuleStep {
+  id            String               @id @default(uuid())
+  ruleId        String
+  rule          RecurringContentRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  stepOrder     Int
+  stepType      String               // CONTENT, GAP
+  contentType   String?              // POST, REEL, STORY, GOOGLE_BUSINESS_POST
+  gapDays       Int?                 @default(1)
+  targetTime    String?              // "19:00"
+  platforms     String               // JSON array string: ["INSTAGRAM", "FACEBOOK"]
+  createdAt     DateTime             @default(now())
+}
+
+model ContentQueueItem {
+  id            String      @id @default(uuid())
+  clientId      String
+  client        Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  contentItemId String      @unique
+  contentItem   ContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+  contentType   String      // POST, REEL, STORY, GOOGLE_BUSINESS_POST
+  priority      Int         @default(0)
+  queuedAt      DateTime    @default(now())
+}
+
+model ScheduledPost {
+  id               String         @id @default(uuid())
+  clientId         String
+  client           Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  contentItemId    String
+  contentItem      ContentItem    @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+  platform         String         // FACEBOOK, INSTAGRAM, GOOGLE_BUSINESS
+  socialAccountId  String
+  socialAccount    SocialAccount  @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  scheduledAt      DateTime
+  timezone         String         @default("Asia/Kolkata")
+  status           String         @default("SCHEDULED") // SCHEDULED, PUBLISHING, PUBLISHED, FAILED, CANCELLED
+  idempotencyKey   String         @unique
+  attemptCount     Int            @default(0)
+  lastAttemptAt    DateTime?
+  publishedAt      DateTime?
+  lastError        String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  publishingLogs   PublishingLog[]
+}
+
+model PublishingLog {
+  id              String        @id @default(uuid())
+  scheduledPostId String
+  scheduledPost   ScheduledPost @relation(fields: [scheduledPostId], references: [id], onDelete: Cascade)
+  clientId        String
+  client          Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  platform        String
+  status          String        // SUCCESS, FAILED
+  errorCode       String?
+  errorMessage    String?
+  requestPayload  String?
+  responseSummary String?
+  latencyMs       Int           @default(0)
+  executedAt      DateTime      @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userRole  String?  // null for all, "ADMIN", "SMM"
+  clientId  String?
+  client    Client?  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  type      String   // DRIVE_NEW_CONTENT, PENDING_APPROVAL, CONTENT_REJECTED, CONTENT_CHANGES_REQUESTED, LOW_BUFFER, ACCOUNT_DISCONNECTED, PUBLISHING_FAILURE, DRIVE_SYNC_FAILURE, SYSTEM
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  actorName   String
+  actorRole   String   // ADMIN, SMM, SYSTEM
+  action      String   // e.g. "APPROVE_CONTENT", "SUBMIT_APPROVAL", "RESCHEDULE", "DRIVE_SYNC"
+  entityType  String   // CONTENT, SCHEDULE, RULE, CLIENT, ACCOUNT
+  entityId    String?
+  clientId    String?
+  client      Client?  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  detailsJson String?
+  createdAt   DateTime @default(now())
+}
+
+model AnalyticsMetric {
+  id             String   @id @default(uuid())
+  clientId       String
+  client         Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  platform       String   // FACEBOOK, INSTAGRAM, GOOGLE_BUSINESS
+  date           String   // "2026-09-17"
+  reach          Int      @default(0)
+  impressions    Int      @default(0)
+  likes          Int      @default(0)
+  comments       Int      @default(0)
+  shares         Int      @default(0)
+  saves          Int      @default(0)
+  engagementRate Float    @default(0.0)
+  createdAt      DateTime @default(now())
+}
+
+model ClientReport {
+  id                 String   @id @default(uuid())
+  clientId           String
+  client             Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  month              String   // e.g. "September"
+  year               Int      // e.g. 2026
+  totalPosts         Int      @default(0)
+  successRate        Float    @default(100.0)
+  topPostsJson       String?
+  metricsSummaryJson String?
+  generatedAt        DateTime @default(now())
+}
