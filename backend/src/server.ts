@@ -35,6 +35,39 @@ if (!fs.existsSync(uploadsDir)) {
 }
 app.use('/uploads', express.static(uploadsDir));
 
+// Status Landing Page
+app.get('/', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>BrandSetu Digital API</title>
+        <style>
+          * { box-sizing: border-box; }
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #0b0f19; color: #fff; padding: 20px; }
+          .card { background: #161f30; padding: 36px 32px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); text-align: center; max-width: 440px; width: 100%; border: 1px solid #1f2d47; }
+          .badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; background: rgba(16, 185, 129, 0.15); color: #10b981; border-radius: 99px; font-size: 13px; font-weight: 600; margin-bottom: 18px; border: 1px solid rgba(16, 185, 129, 0.3); }
+          .dot { width: 8px; height: 8px; background: #10b981; border-radius: 50%; box-shadow: 0 0 10px #10b981; }
+          h1 { margin: 0 0 10px 0; font-size: 20px; font-weight: 700; color: #f8fafc; }
+          p { color: #94a3b8; font-size: 13px; line-height: 1.5; margin: 0 0 20px 0; }
+          .btn { display: inline-block; background: #0172F4; color: #fff; padding: 10px 20px; border-radius: 12px; font-size: 13px; font-weight: 600; text-decoration: none; transition: 0.2s; }
+          .btn:hover { background: #005cd3; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <div class="badge"><div class="dot"></div> Server Live & Running</div>
+          <h1>BrandSetu Digital API Engine</h1>
+          <p>Social Media Automation & Publishing Engine is deployed successfully on Hostinger.</p>
+          <a class="btn" href="/api/health">Check API Health Status</a>
+        </div>
+      </body>
+    </html>
+  `);
+});
+
 // Health Check
 app.get('/api/health', (req, res) => {
   res.json({

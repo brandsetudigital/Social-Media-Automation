@@ -1,4 +1,12 @@
-const API_BASE = '/api';
+const RAW_API_BASE = ((import.meta as any).env?.VITE_API_URL as string) || '/api';
+const API_BASE = RAW_API_BASE.replace(/\/+$/, '');
+
+export const getMediaUrl = (url?: string | null): string => {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  const backendBase = API_BASE.replace(/\/api\/?$/, '');
+  return `${backendBase}${url.startsWith('/') ? url : '/' + url}`;
+};
 
 export const getAuthHeader = (): Record<string, string> => {
   const token = localStorage.getItem('brandsetu_token');
