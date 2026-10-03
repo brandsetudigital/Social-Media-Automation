@@ -27,9 +27,17 @@ export const RuleBuilderView: React.FC = () => {
   const [rules, setRules] = useState<RecurringRule[]>([]);
   const [selectedRuleId, setSelectedRuleId] = useState<string | null>(null);
 
+const getTodayDateStr = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
   // Form states for rule builder
   const [ruleName, setRuleName] = useState('Weekly Content Cycle (Story → Post → Post → Rest Day → Repeat)');
-  const [startDate, setStartDate] = useState('2026-09-10');
+  const [startDate, setStartDate] = useState(getTodayDateStr());
   const [repeatInfinite, setRepeatInfinite] = useState(true);
 
   // Steps in the cycle
@@ -87,7 +95,7 @@ export const RuleBuilderView: React.FC = () => {
   const calculateProjection = () => {
     setIsProjecting(true);
     const slots = [];
-    const base = new Date(startDate || '2026-09-10');
+    const base = new Date(startDate || getTodayDateStr());
     let current = new Date(base.getTime());
     let stepIdx = 0;
     const totalSteps = steps.length;

@@ -55,9 +55,9 @@ const MainShell: React.FC = () => {
     }
   }, [activeTab, role]);
 
-  const [postCalendarDate, setPostCalendarDate] = useState<Date>(new Date(2026, 8, 18));
+  const [postCalendarDate, setPostCalendarDate] = useState<Date>(new Date());
   const [postCalendarTab, setPostCalendarTab] = useState<'month' | 'week' | 'day'>('month');
-  const [postViewMode, setPostViewMode] = useState<'calendar' | 'list'>('calendar');
+  const [postViewMode, setPostViewMode] = useState<'calendar' | 'cards' | 'list'>('calendar');
   const [postStatusFilter, setPostStatusFilter] = useState<string>('ALL');
   const [targetPostId, setTargetPostId] = useState<string | null>(null);
 
@@ -68,7 +68,7 @@ const MainShell: React.FC = () => {
     setActiveTab('posts');
   };
 
-  const handleNavigateToPosts = (filter?: string, viewMode: 'calendar' | 'list' = 'list', postId?: string) => {
+  const handleNavigateToPosts = (filter?: string, viewMode: 'calendar' | 'cards' | 'list' = 'cards', postId?: string) => {
     if (filter) setPostStatusFilter(filter);
     if (postId) setTargetPostId(postId);
     setPostViewMode(viewMode);

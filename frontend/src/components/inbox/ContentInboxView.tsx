@@ -23,6 +23,7 @@ import {
   UploadCloud,
   Plus,
   Zap,
+  Trash2,
 } from 'lucide-react';
 
 export const ContentInboxView: React.FC = () => {
@@ -50,6 +51,21 @@ export const ContentInboxView: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
+const getTodayDateStr = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getCurrentTimeStr = () => {
+  const now = new Date();
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
+};
+
   // Direct / Manual Creative Upload State (for SMM when creative is not from Drive)
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadData, setUploadData] = useState({
@@ -61,8 +77,8 @@ export const ContentInboxView: React.FC = () => {
     caption: '',
     hashtags: '',
     publishMode: 'SCHEDULED' as 'IMMEDIATE' | 'SCHEDULED',
-    scheduledDate: '2026-09-20',
-    scheduledTime: '11:00',
+    scheduledDate: getTodayDateStr(),
+    scheduledTime: getCurrentTimeStr(),
     aiModelUsed: '',
   });
   const [filePreview, setFilePreview] = useState<string | null>(null);
@@ -127,8 +143,8 @@ export const ContentInboxView: React.FC = () => {
         caption: '',
         hashtags: '',
         publishMode: 'SCHEDULED',
-        scheduledDate: '2026-09-20',
-        scheduledTime: '11:00',
+        scheduledDate: getTodayDateStr(),
+        scheduledTime: getCurrentTimeStr(),
         aiModelUsed: '',
       });
       await fetchItems();
@@ -267,6 +283,22 @@ export const ContentInboxView: React.FC = () => {
       alert(`Action error: ${err.message}`);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteContent = async (id: string, title?: string) => {
+    const ok = window.confirm(`Are you sure you want to delete "${title || 'this creative'}"? This cannot be undone.`);
+    if (!ok) return;
+
+    try {
+      await api.deleteContentItem(id);
+      setItems((prev) => prev.filter((i) => i.id !== id));
+      if (reviewingItem?.id === id) setReviewingItem(null);
+      setActionSuccess(`"${title || 'Creative'}" was deleted successfully.`);
+      setTimeout(() => setActionSuccess(null), 4000);
+      await fetchItems();
+    } catch (err: any) {
+      alert(`Failed to delete creative: ${err?.message || 'Server error'}`);
     }
   };
 
@@ -457,13 +489,22 @@ export const ContentInboxView: React.FC = () => {
                     {new Date(item.createdAt).toLocaleDateString([], { day: 'numeric', month: 'short' })}
                   </span>
 
-                  <button
-                    onClick={() => openReviewDrawer(item)}
-                    className="flex items-center gap-1 text-xs font-semibold bg-brand-600 hover:bg-brand-500 text-white px-3 py-1.5 rounded-lg shadow-sm transition"
-                  >
-                    <Sparkles className="w-3 h-3 text-amber-300" />
-                    Review & Map
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => handleDeleteContent(item.id, item.title)}
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 border border-transparent hover:border-rose-900/60 transition cursor-pointer"
+                      title="Delete Creative"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => openReviewDrawer(item)}
+                      className="flex items-center gap-1 text-xs font-semibold bg-brand-600 hover:bg-brand-500 text-white px-3 py-1.5 rounded-lg shadow-sm transition cursor-pointer"
+                    >
+                      <Sparkles className="w-3 h-3 text-amber-300" />
+                      Review & Map
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -620,16 +661,23 @@ export const ContentInboxView: React.FC = () => {
 
             {/* Drawer Footer Actions */}
             <div className="p-4 border-t border-slate-800 bg-slate-950/90 flex items-center justify-between">
-              <span className="text-[11px] text-slate-400">
-                Governance: <strong className="text-amber-400">Admin Approval Required</strong> before publishing.
-              </span>
+              <button
+                type="button"
+                onClick={() => handleDeleteContent(reviewingItem.id, reviewingItem.title)}
+                disabled={isSubmitting}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-950/30 hover:bg-rose-900/50 border border-rose-800/60 text-rose-300 text-xs font-semibold transition cursor-pointer"
+                title="Delete this creative"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete</span>
+              </button>
 
               <div className="flex items-center gap-2.5">
                 <button
                   type="button"
                   onClick={() => handleSaveOrSubmit(false)}
                   disabled={isSubmitting}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-700 text-slate-300 text-xs font-semibold transition"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-700 text-slate-300 text-xs font-semibold transition cursor-pointer"
                 >
                   <Save className="w-3.5 h-3.5" />
                   Save Draft
@@ -881,7 +929,7 @@ export const ContentInboxView: React.FC = () => {
                     <Clock className="w-4 h-4 text-brand-400 shrink-0 mt-0.5" />
                     <div>
                       <div className="font-bold text-slate-100">Schedule for Date</div>
-                      <div className="text-[10px] text-slate-400 mt-0.5">Select specific date (e.g. 20 Sept) & time</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">Select specific date & time</div>
                     </div>
                   </button>
                 </div>
@@ -894,6 +942,7 @@ export const ContentInboxView: React.FC = () => {
                         type="date"
                         value={uploadData.scheduledDate}
                         onChange={(e) => setUploadData({ ...uploadData, scheduledDate: e.target.value })}
+                        min={getTodayDateStr()}
                         className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white font-mono text-xs"
                       />
                     </div>

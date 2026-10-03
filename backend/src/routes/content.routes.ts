@@ -385,5 +385,70 @@ router.post('/upload', authenticateToken, async (req: AuthRequest, res: Response
   }
 });
 
+// DELETE content item / post (For Admin and SMM)
+router.delete('/:id', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // 1. Try finding by contentItemId
+    const item = await prisma.contentItem.findUnique({
+      where: { id },
+      include: { client: true },
+    });
+
+    if (item) {
+      // Delete content item (cascades to variants, approvals, queue items, scheduled posts, logs)
+      await prisma.contentItem.delete({
+        where: { id },
+      });
+
+      await AuditService.logAction({
+        actorName: req.user?.name || 'User',
+        actorRole: req.user?.role || 'SMM',
+        action: 'DELETE_POST',
+        entityType: 'CONTENT_ITEM',
+        entityId: id,
+        clientId: item.clientId,
+        details: { title: item.title },
+      });
+
+      return res.json({ success: true, message: `Post "${item.title}" deleted successfully.` });
+    }
+
+    // 2. Fallback: check if id is a scheduledPostId
+    const scheduled = await prisma.scheduledPost.findUnique({
+      where: { id },
+      include: { contentItem: true, client: true },
+    });
+
+    if (scheduled) {
+      const postTitle = scheduled.contentItem?.title || 'Scheduled Post';
+      const cId = scheduled.contentItemId;
+      await prisma.scheduledPost.delete({ where: { id } });
+
+      const remaining = await prisma.scheduledPost.count({ where: { contentItemId: cId } });
+      if (remaining === 0 && cId) {
+        await prisma.contentItem.delete({ where: { id: cId } }).catch(() => null);
+      }
+
+      await AuditService.logAction({
+        actorName: req.user?.name || 'User',
+        actorRole: req.user?.role || 'SMM',
+        action: 'DELETE_SCHEDULED_POST',
+        entityType: 'SCHEDULED_POST',
+        entityId: id,
+        clientId: scheduled.clientId,
+        details: { title: postTitle },
+      });
+
+      return res.json({ success: true, message: `Post "${postTitle}" deleted successfully.` });
+    }
+
+    return res.status(404).json({ error: 'Post or content item not found.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
 

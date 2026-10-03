@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useClients } from '../../context/ClientContext';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../api';
@@ -39,7 +39,7 @@ import { NavTab } from '../layout/Sidebar';
 
 interface AgencyDashboardViewProps {
   onNavigate: (tab: NavTab) => void;
-  onNavigateToPosts?: (filter?: string, viewMode?: 'calendar' | 'list', postId?: string) => void;
+  onNavigateToPosts?: (filter?: string, viewMode?: 'calendar' | 'cards' | 'list', postId?: string) => void;
   onOpenCreatePost?: () => void;
 }
 
@@ -58,6 +58,19 @@ export const AgencyDashboardView: React.FC<AgencyDashboardViewProps> = ({
   const [showGettingStarted, setShowGettingStarted] = useState(true);
   const [contentTab, setContentTab] = useState<'posts' | 'engagement' | 'reach'>('posts');
   const [brandSearch, setBrandSearch] = useState('');
+
+  // Filter strictly future/upcoming posts that are not yet published
+  const upcomingEvents = useMemo(() => {
+    const now = new Date();
+    return calendarEvents
+      .filter((evt) => {
+        if (!evt.scheduledAt) return false;
+        const d = new Date(evt.scheduledAt);
+        const status = (evt.status || '').toUpperCase();
+        return d.getTime() >= now.getTime() && status !== 'PUBLISHED';
+      })
+      .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+  }, [calendarEvents]);
 
   const loadData = async () => {
     try {
@@ -1105,7 +1118,7 @@ export const AgencyDashboardView: React.FC<AgencyDashboardViewProps> = ({
             <div className="flex items-center gap-2">
               <span className="font-semibold text-gray-900 text-sm">Upcoming Posts</span>
               <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-[#0172F4]">
-                {calendarEvents.length} scheduled
+                {upcomingEvents.length} scheduled
               </span>
             </div>
             <button
@@ -1117,13 +1130,13 @@ export const AgencyDashboardView: React.FC<AgencyDashboardViewProps> = ({
             </button>
           </div>
 
-          {calendarEvents.length === 0 ? (
+          {upcomingEvents.length === 0 ? (
             <div className="py-10 flex flex-col items-center justify-center text-center">
               <div className="w-10 h-10 rounded-full bg-gray-50 text-gray-400 flex items-center justify-center mb-3">
                 <Clock className="w-5 h-5" />
               </div>
-              <p className="font-semibold text-gray-900 text-sm">No scheduled post</p>
-              <p className="text-xs text-gray-500 mt-1">Plan ahead by scheduling your first post.</p>
+              <p className="font-semibold text-gray-900 text-sm">No upcoming posts</p>
+              <p className="text-xs text-gray-500 mt-1">Plan ahead by scheduling your next post.</p>
 
               <button
                 onClick={() => (onOpenCreatePost ? onOpenCreatePost() : onNavigate('posts'))}
@@ -1135,7 +1148,7 @@ export const AgencyDashboardView: React.FC<AgencyDashboardViewProps> = ({
             </div>
           ) : (
             <div className="divide-y divide-gray-100 max-h-[340px] overflow-y-auto pr-1 my-2">
-              {calendarEvents.slice(0, 6).map((evt) => {
+              {upcomingEvents.slice(0, 6).map((evt: any) => {
                 const dateObj = new Date(evt.scheduledAt);
                 const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                 const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -1149,7 +1162,7 @@ export const AgencyDashboardView: React.FC<AgencyDashboardViewProps> = ({
                     key={evt.id}
                     onClick={() =>
                       onNavigateToPosts
-                        ? onNavigateToPosts(status === 'FAILED' ? 'FAILED' : undefined, 'list', evt.id || item.id)
+                        ? onNavigateToPosts(status === 'FAILED' ? 'FAILED' : undefined, 'cards', evt.id || item.id)
                         : onNavigate('posts')
                     }
                     className="py-2.5 px-2 flex items-center justify-between gap-3 hover:bg-gray-50/90 rounded-xl transition cursor-pointer group"

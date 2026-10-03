@@ -44,13 +44,13 @@ router.post('/:id/approve', authenticateToken, requireAdmin, async (req: AuthReq
 
     let approval = await prisma.approvalRequest.findFirst({
       where: { OR: [{ id }, { contentItemId: id }] },
-      include: { contentItem: { include: { client: true } } },
+      include: { contentItem: { include: { client: true, variants: true } } },
     });
 
     if (!approval) {
       const item = await prisma.contentItem.findUnique({
         where: { id },
-        include: { client: true },
+        include: { client: true, variants: true },
       });
       if (!item) return res.status(404).json({ error: 'Content item or approval request not found' });
 
@@ -61,7 +61,7 @@ router.post('/:id/approve', authenticateToken, requireAdmin, async (req: AuthReq
           status: 'PENDING',
           feedbackNote: feedbackNote || 'Approved directly by Admin',
         },
-        include: { contentItem: { include: { client: true } } },
+        include: { contentItem: { include: { client: true, variants: true } } },
       });
     }
 
@@ -86,8 +86,16 @@ router.post('/:id/approve', authenticateToken, requireAdmin, async (req: AuthReq
       },
     });
 
+    // CRITICAL FIX: Mark contentItem as APPROVED immediately so PublishingService does not block immediate publication
+    await prisma.contentItem.update({
+      where: { id: approval.contentItemId },
+      data: { status: 'APPROVED' },
+    });
+
     const targetPlatforms = (scheduleMeta?.platforms && scheduleMeta.platforms.length > 0)
       ? scheduleMeta.platforms
+      : (approval.contentItem?.variants && approval.contentItem.variants.length > 0)
+      ? [...new Set(approval.contentItem.variants.map((v: any) => v.platform))]
       : ['INSTAGRAM', 'FACEBOOK'];
 
     const existingSched = await prisma.scheduledPost.findFirst({
@@ -146,6 +154,10 @@ router.post('/:id/approve', authenticateToken, requireAdmin, async (req: AuthReq
         if (!pubResult.success) {
           allSuccess = false;
           lastFailureMsg = pubResult.message;
+          await prisma.scheduledPost.update({
+            where: { id: post.id },
+            data: { status: 'FAILED', lastError: pubResult.message },
+          }).catch(() => {});
         }
       }
 

@@ -158,6 +158,7 @@ export const api = {
     return apiFetch<any[]>(`/content/inbox${query}`);
   },
   getContentItem: (id: string) => apiFetch<any>(`/content/${id}`),
+  deleteContentItem: (id: string) => apiFetch<any>(`/content/${id}`, { method: 'DELETE' }),
   reviewContent: (id: string, data: any) =>
     apiFetch<any>(`/content/${id}/review`, { method: 'PUT', body: JSON.stringify(data) }),
   createManualContent: (data: any) =>
@@ -233,6 +234,8 @@ export const api = {
     apiFetch<any>(`/scheduler/retry/${id}`, { method: 'POST' }),
   publishNow: (id: string) =>
     apiFetch<any>(`/scheduler/publish-now/${id}`, { method: 'POST' }),
+  deleteScheduledPost: (id: string) =>
+    apiFetch<any>(`/scheduler/${id}`, { method: 'DELETE' }),
 
   // Social Accounts
   getSocialAccounts: (clientId?: string) => {

@@ -31,6 +31,7 @@ import {
   Globe,
   Play,
   Film,
+  Trash2,
 } from 'lucide-react';
 import { CreatePostModal } from '../posts/CreatePostModal';
 
@@ -166,6 +167,22 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = () => {
       await fetchData();
     } catch (err: any) {
       alert(`Error: ${err.message}`);
+    }
+  };
+
+  const handleDeletePost = async (post: any) => {
+    const postTitle = post.title || 'this content';
+    const ok = window.confirm(`Are you sure you want to delete "${postTitle}"? This will permanently remove it from the system.`);
+    if (!ok) return;
+
+    try {
+      await api.deleteContentItem(post.id);
+      setActionSuccess(`"${postTitle}" was deleted successfully.`);
+      setTimeout(() => setActionSuccess(null), 4000);
+      if (previewItem?.id === post.id) setPreviewItem(null);
+      await fetchData();
+    } catch (err: any) {
+      alert(`Failed to delete: ${err?.message || 'Server error'}`);
     }
   };
 
@@ -506,7 +523,7 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = () => {
                   {/* Media Header */}
                   <div
                     onClick={() => setPreviewItem(post)}
-                    className="h-44 w-full bg-slate-900 relative overflow-hidden group cursor-pointer flex items-center justify-center"
+                    className="h-56 w-full bg-slate-900 relative overflow-hidden group cursor-pointer flex items-center justify-center"
                   >
                     {isVideoMedia(post.mediaUrl, post.contentType) ? (
                       <div className="w-full h-full relative flex items-center justify-center bg-black">
@@ -516,7 +533,7 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = () => {
                           muted
                           playsInline
                           preload="metadata"
-                          className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                          className="w-full h-full object-cover object-top group-hover:scale-105 transition duration-300"
                           onError={(e) => {
                             (e.currentTarget as HTMLElement).style.display = 'none';
                           }}
@@ -528,7 +545,7 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = () => {
                             'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=800&auto=format&fit=crop&q=80'
                           }
                           alt=""
-                          className="w-full h-full object-cover absolute inset-0 -z-10 group-hover:scale-105 transition duration-300"
+                          className="w-full h-full object-cover object-top absolute inset-0 -z-10 group-hover:scale-105 transition duration-300"
                           onError={(e) => {
                             (e.currentTarget as HTMLImageElement).src =
                               'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=800&auto=format&fit=crop&q=80';
@@ -540,7 +557,7 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = () => {
                             <Play className="w-5 h-5 fill-current ml-0.5 text-gray-900" />
                           </div>
                         </div>
-                        <span className="absolute bottom-2 left-2 bg-black/75 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shadow-xs">
+                        <span className="absolute bottom-2 left-2 bg-black/75 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shadow-xs z-20">
                           <Film className="w-3 h-3 text-purple-400" /> Video Reel
                         </span>
                       </div>
@@ -552,7 +569,7 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = () => {
                           'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop&q=80'
                         }
                         alt=""
-                        className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                        className="w-full h-full object-cover object-top group-hover:scale-105 transition duration-300"
                         onError={(e) => {
                           (e.currentTarget as HTMLImageElement).src =
                             'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop&q=80';
@@ -560,14 +577,17 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = () => {
                       />
                     )}
 
+                    {/* Subtle top gradient shadow for badge contrast */}
+                    <div className="absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-black/50 via-black/10 to-transparent pointer-events-none z-10" />
+
                     {/* Brand Pill */}
-                    <span className="absolute top-2.5 left-2.5 bg-black/70 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-xs z-10">
+                    <span className="absolute top-2 left-2 bg-black/70 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-xs z-20">
                       {post.client?.businessName || 'BrandSetu Digital'}
                     </span>
 
                     {/* Status Pill */}
                     <span
-                      className={`absolute top-2.5 right-2.5 backdrop-blur-xs text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-xs ${
+                      className={`absolute top-2 right-2 backdrop-blur-xs text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-xs z-20 ${
                         isPending
                           ? 'bg-amber-500 text-white animate-pulse'
                           : post.status === 'SCHEDULED'
@@ -613,7 +633,7 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = () => {
                           <span>Publishing Failed</span>
                         </div>
                         <p className="text-[11px] text-rose-700 leading-normal">
-                          {post.scheduledPosts?.[0]?.lastError || post.lastError || 'Social platform token lacks required publishing permissions or expired.'}
+                          {post.scheduledPosts?.[0]?.lastError || post.lastError || 'Publishing attempt timed out. Click Retry Publish to post live.'}
                         </p>
                       </div>
                     ) : schedDate ? (
@@ -633,80 +653,85 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = () => {
                 </div>
 
                 {/* Card Footer Actions */}
-                <div className="px-4 py-3 border-t border-gray-100 bg-gray-50/50 flex flex-wrap items-center justify-between gap-2">
-                  <button
-                    onClick={() => setPreviewItem(post)}
-                    className="text-xs font-semibold text-gray-600 hover:text-gray-900 flex items-center gap-1"
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                    <span>Preview</span>
-                  </button>
+                <div className="p-3 border-t border-gray-100 bg-gray-50/60 flex flex-col gap-2.5">
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={() => setPreviewItem(post)}
+                      className="text-xs font-semibold text-gray-600 hover:text-gray-900 flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-white transition cursor-pointer"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-gray-500" />
+                      <span>Preview Post</span>
+                    </button>
+                    <button
+                      onClick={() => handleDeletePost(post)}
+                      className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition cursor-pointer"
+                      title="Delete Post"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
 
-                  <div className="flex items-center gap-2">
-                    {isPending ? (
-                      <>
-                        <button
-                          onClick={() => setChangesModalItem(post)}
-                          className="px-2.5 py-1.5 text-xs font-semibold border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 rounded-lg transition flex items-center gap-1"
-                          title="Request creative revisions"
-                        >
-                          <MessageSquare className="w-3 h-3 text-amber-700" />
-                          <span>Changes</span>
-                        </button>
-
-                        <button
-                          onClick={() => handleApprove(post, 'SCHEDULED')}
-                          className="px-2.5 py-1.5 text-xs font-semibold border border-blue-200 bg-blue-50 hover:bg-blue-100 text-[#0172F4] rounded-lg transition flex items-center gap-1"
-                          title="Approve and queue in Calendar"
-                        >
-                          <Calendar className="w-3 h-3 text-[#0172F4]" />
-                          <span>Schedule</span>
-                        </button>
-
-                        <button
-                          onClick={() => handleApprove(post, 'IMMEDIATE')}
-                          className="px-3 py-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition flex items-center gap-1 shadow-xs"
-                          title="Approve and publish live immediately to social channels"
-                        >
-                          <Send className="w-3 h-3" />
-                          <span>Publish Now</span>
-                        </button>
-                      </>
-                    ) : post.status === 'FAILED' ? (
+                  {isPending ? (
+                    <div className="grid grid-cols-3 gap-1.5 w-full">
                       <button
-                        onClick={() => handlePublishNow(post)}
-                        className="px-3 py-1.5 text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition flex items-center gap-1.5 shadow-xs"
-                        title="Retry publishing this creative now"
+                        onClick={() => setChangesModalItem(post)}
+                        className="py-2 px-1 text-xs font-semibold border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 rounded-xl transition flex items-center justify-center gap-1 min-w-0"
+                        title="Request creative revisions"
                       >
-                        <RefreshCw className="w-3 h-3" />
-                        <span>Retry Publish</span>
+                        <MessageSquare className="w-3 h-3 text-amber-700 shrink-0" />
+                        <span className="truncate">Changes</span>
                       </button>
-                    ) : post.status === 'SCHEDULED' ? (
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={() => handlePublishNow(post)}
-                          className="px-2.5 py-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition flex items-center gap-1 shadow-xs"
-                          title="Publish this scheduled post live immediately"
-                        >
-                          <Send className="w-3 h-3" />
-                          <span>Publish Now</span>
-                        </button>
-                      </div>
-                    ) : post.status === 'DRAFT' ? (
+
+                      <button
+                        onClick={() => handleApprove(post, 'SCHEDULED')}
+                        className="py-2 px-1 text-xs font-semibold border border-blue-200 bg-blue-50 hover:bg-blue-100 text-[#0172F4] rounded-xl transition flex items-center justify-center gap-1 min-w-0"
+                        title="Approve and queue in Calendar"
+                      >
+                        <Calendar className="w-3 h-3 text-[#0172F4] shrink-0" />
+                        <span className="truncate">Schedule</span>
+                      </button>
+
                       <button
                         onClick={() => handleApprove(post, 'IMMEDIATE')}
-                        className="px-3 py-1.5 text-xs font-semibold bg-blue-50 text-[#0172F4] hover:bg-blue-100 border border-blue-200 rounded-lg transition flex items-center gap-1"
+                        className="py-2 px-1 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition flex items-center justify-center gap-1 shadow-sm shadow-emerald-600/20 min-w-0"
+                        title="Approve and publish live immediately to social channels"
                       >
-                        <CheckCircle2 className="w-3 h-3" />
-                        <span>Approve & Publish</span>
+                        <Send className="w-3 h-3 shrink-0" />
+                        <span className="truncate">Publish</span>
                       </button>
-                    ) : (
-                      <span className="text-xs font-semibold text-emerald-700 flex items-center gap-1 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Live Published</span>
-                      </span>
-                    )}
-                  </div>
+                    </div>
+                  ) : post.status === 'FAILED' ? (
+                    <button
+                      onClick={() => handlePublishNow(post)}
+                      className="w-full py-2 px-3 text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white rounded-xl transition flex items-center justify-center gap-1.5 shadow-sm"
+                      title="Retry publishing this creative now"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5 shrink-0" />
+                      <span>Retry Publish Now</span>
+                    </button>
+                  ) : post.status === 'SCHEDULED' ? (
+                    <button
+                      onClick={() => handlePublishNow(post)}
+                      className="w-full py-2 px-3 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition flex items-center justify-center gap-1.5 shadow-sm"
+                      title="Publish this scheduled post live immediately"
+                    >
+                      <Send className="w-3.5 h-3.5 shrink-0" />
+                      <span>Publish Live Now</span>
+                    </button>
+                  ) : post.status === 'DRAFT' ? (
+                    <button
+                      onClick={() => handleApprove(post, 'IMMEDIATE')}
+                      className="w-full py-2 px-3 text-xs font-semibold bg-blue-50 text-[#0172F4] hover:bg-blue-100 border border-blue-200 rounded-xl transition flex items-center justify-center gap-1.5"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                      <span>Approve & Publish</span>
+                    </button>
+                  ) : (
+                    <div className="w-full py-1.5 px-3 text-xs font-semibold text-emerald-700 flex items-center justify-center gap-1.5 bg-emerald-50 rounded-xl border border-emerald-200">
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                      <span>Live Published</span>
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -828,22 +853,33 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = () => {
               )}
             </div>
 
-            <div className="pt-3 border-t border-gray-100 flex items-center justify-end gap-2">
+            <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
               <button
-                onClick={() => setPreviewItem(null)}
-                className="px-4 py-2 text-xs font-semibold text-gray-600 hover:text-gray-900"
+                onClick={() => handleDeletePost(previewItem)}
+                className="px-3.5 py-2 text-xs font-bold text-rose-600 hover:text-white hover:bg-rose-600 border border-rose-200 hover:border-rose-600 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                title="Delete this post permanently"
               >
-                Close
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete Post</span>
               </button>
-              <button
-                onClick={() => {
-                  setPreviewItem(null);
-                  handleApprove(previewItem);
-                }}
-                className="px-4 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs"
-              >
-                Approve Now
-              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPreviewItem(null)}
+                  className="px-4 py-2 text-xs font-semibold text-gray-600 hover:text-gray-900 cursor-pointer"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => {
+                    setPreviewItem(null);
+                    handleApprove(previewItem);
+                  }}
+                  className="px-4 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs cursor-pointer"
+                >
+                  Approve Now
+                </button>
+              </div>
             </div>
           </div>
         </div>

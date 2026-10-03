@@ -25,7 +25,13 @@ function resolveLocalPath(urlPath: string): string | null {
   return null;
 }
 
+const cdnUploadCache = new Map<string, string>();
+
 async function uploadToPublicCDN(filePath: string): Promise<string | null> {
+  if (cdnUploadCache.has(filePath)) {
+    return cdnUploadCache.get(filePath)!;
+  }
+
   try {
     const fileBuffer = fs.readFileSync(filePath);
     const formData = new FormData();
@@ -40,6 +46,7 @@ async function uploadToPublicCDN(filePath: string): Promise<string | null> {
     });
     const data: any = await res.json();
     if (data?.image?.url) {
+      cdnUploadCache.set(filePath, data.image.url);
       return data.image.url;
     }
   } catch (err: any) {
@@ -82,7 +89,8 @@ export class MetaService {
     // Live Meta Graph API Publishing if real token provided (Meta tokens start with EAA)
     if (token.startsWith('EAA')) {
       try {
-        const isVideo = params.contentType === 'REEL' || params.mediaUrl.endsWith('.mp4');
+        const isVideo = params.contentType === 'REEL' || /\.(mp4|mov|webm|mkv|ogg)$/i.test(params.mediaUrl);
+        const isStory = params.contentType === 'STORY';
         const isHttpUrl = params.mediaUrl.startsWith('http');
         const containerUrl = `https://graph.facebook.com/v20.0/${params.accountId}/media`;
 
@@ -105,15 +113,20 @@ export class MetaService {
             targetImageUrl = publicUrl;
           } else if (isVideo) {
             // Video can use resumable upload
+            const mediaType = isStory ? 'STORIES' : (params.contentType === 'REEL' ? 'REELS' : 'VIDEO');
+            const initBody: any = {
+              upload_type: 'resumable',
+              media_type: mediaType,
+              access_token: token,
+            };
+            if (!isStory && params.caption) {
+              initBody.caption = params.caption;
+            }
+
             const initRes = await fetch(containerUrl, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                upload_type: 'resumable',
-                media_type: params.contentType === 'REEL' ? 'REELS' : 'VIDEO',
-                caption: params.caption,
-                access_token: token,
-              }),
+              body: JSON.stringify(initBody),
             });
 
             const initData: any = await initRes.json();
@@ -149,15 +162,24 @@ export class MetaService {
 
         if (!creationId) {
           const containerBody: any = {
-            caption: params.caption,
             access_token: token,
           };
 
-          if (isVideo) {
+          if (isStory) {
+            containerBody.media_type = 'STORIES';
+            if (isVideo) {
+              containerBody.video_url = targetImageUrl;
+            } else {
+              containerBody.image_url = targetImageUrl;
+            }
+            // Note: Instagram Graph API rejects container if caption is provided for STORIES!
+          } else if (isVideo) {
             containerBody.media_type = params.contentType === 'REEL' ? 'REELS' : 'VIDEO';
             containerBody.video_url = targetImageUrl;
+            if (params.caption) containerBody.caption = params.caption;
           } else {
             containerBody.image_url = targetImageUrl;
+            if (params.caption) containerBody.caption = params.caption;
           }
 
           const containerRes = await fetch(containerUrl, {
@@ -179,23 +201,88 @@ export class MetaService {
           creationId = containerData.id;
         }
 
-        // Final Step: Publish media container
-        const publishUrl = `https://graph.facebook.com/v20.0/${params.accountId}/media_publish`;
-        const publishRes = await fetch(publishUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            creation_id: creationId,
-            access_token: token,
-          }),
-        });
+        const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-        const publishData: any = await publishRes.json();
-        if (!publishRes.ok || publishData.error) {
+        // Step 2: Poll container status until FINISHED (Meta asynchronously downloads from CDN)
+        // Meta Graph API container status endpoint: GET /{creation_id}?fields=status_code,status
+        const maxPollAttempts = 25;
+        for (let i = 0; i < maxPollAttempts; i++) {
+          try {
+            const statusRes = await fetch(
+              `https://graph.facebook.com/v20.0/${creationId}?fields=status_code,status&access_token=${token}`
+            );
+            const statusData: any = await statusRes.json();
+            const code = statusData?.status_code;
+
+            if (code === 'FINISHED') {
+              break;
+            } else if (code === 'ERROR') {
+              return {
+                success: false,
+                errorCode: 'MEDIA_PROCESSING_ERROR',
+                errorMessage: `Instagram container processing error: ${statusData.status || 'Image/Video format incompatible with Instagram requirements.'}`,
+                rawResponse: statusData,
+              };
+            } else if (code === 'EXPIRED') {
+              return {
+                success: false,
+                errorCode: 'MEDIA_EXPIRED',
+                errorMessage: 'Instagram container expired before publishing.',
+                rawResponse: statusData,
+              };
+            }
+          } catch (statusErr: any) {
+            console.warn('[MetaService] Container status check warning:', statusErr.message);
+          }
+
+          // Wait 2.5 seconds before checking again if still IN_PROGRESS
+          await sleep(2500);
+        }
+
+        // Final Step: Publish media container with automatic retry if Meta needs an extra moment
+        const publishUrl = `https://graph.facebook.com/v20.0/${params.accountId}/media_publish`;
+        let publishData: any = null;
+        let publishOk = false;
+        const maxPublishRetries = 5;
+
+        for (let attempt = 1; attempt <= maxPublishRetries; attempt++) {
+          const publishRes = await fetch(publishUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              creation_id: creationId,
+              access_token: token,
+            }),
+          });
+
+          publishData = await publishRes.json();
+          publishOk = publishRes.ok && !publishData?.error;
+
+          if (publishOk) {
+            break;
+          }
+
+          const errorCode = publishData?.error?.code?.toString();
+          const errorMsg = (publishData?.error?.message || '').toLowerCase();
+          const isNotReady = errorCode === '9007' ||
+            errorMsg.includes('media id is not available') ||
+            errorMsg.includes('not ready') ||
+            errorMsg.includes('please wait');
+
+          if (isNotReady && attempt < maxPublishRetries) {
+            console.log(`[MetaService] Media processing in background (attempt ${attempt}/${maxPublishRetries}). Waiting 3.5s...`);
+            await sleep(3500);
+            continue;
+          }
+
+          break;
+        }
+
+        if (!publishOk || publishData?.error) {
           return {
             success: false,
-            errorCode: publishData.error?.code?.toString() || 'META_PUBLISH_ERROR',
-            errorMessage: `Instagram Publish Error: ${publishData.error?.message || 'Failed to publish Instagram container.'}`,
+            errorCode: publishData?.error?.code?.toString() || 'META_PUBLISH_ERROR',
+            errorMessage: `Instagram Publish Error: ${publishData?.error?.message || 'Failed to publish Instagram container.'}`,
             rawResponse: publishData,
           };
         }
@@ -237,6 +324,7 @@ export class MetaService {
     mediaUrl: string;
     caption: string;
     cta?: string;
+    contentType?: 'POST' | 'REEL' | 'STORY';
   }): Promise<PublishResult> {
     const token = params.accessToken || process.env.META_DEFAULT_ACCESS_TOKEN || '';
 
@@ -248,11 +336,28 @@ export class MetaService {
       };
     }
 
+    const isVideo =
+      params.contentType === 'REEL' ||
+      /\.(mp4|mov|webm|mkv|ogg)$/i.test(params.mediaUrl);
+
     // Live Meta Graph API Publishing if real token provided
     if (token.startsWith('EAA')) {
       try {
-        const publishUrl = `https://graph.facebook.com/v20.0/${params.pageId}/photos`;
+        const publishUrl = isVideo
+          ? `https://graph.facebook.com/v20.0/${params.pageId}/videos`
+          : `https://graph.facebook.com/v20.0/${params.pageId}/photos`;
         const isHttpUrl = params.mediaUrl.startsWith('http');
+
+        let pageAccessToken = token;
+        try {
+          const pageTokenRes = await fetch(`https://graph.facebook.com/v20.0/${params.pageId}?fields=access_token&access_token=${token}`);
+          const pageTokenData: any = await pageTokenRes.json();
+          if (pageTokenData.access_token) {
+            pageAccessToken = pageTokenData.access_token;
+          }
+        } catch {
+          // Fall back to token
+        }
 
         if (!isHttpUrl) {
           // Local file upload directly to Facebook Page using multipart/form-data
@@ -269,8 +374,12 @@ export class MetaService {
           const blob = new Blob([fileBuffer]);
           const formData = new FormData();
           formData.append('source', blob, path.basename(localPath));
-          formData.append('message', params.caption);
-          formData.append('access_token', token);
+          if (isVideo) {
+            formData.append('description', params.caption);
+          } else {
+            formData.append('message', params.caption);
+          }
+          formData.append('access_token', pageAccessToken);
 
           const res = await fetch(publishUrl, {
             method: 'POST',
@@ -279,10 +388,14 @@ export class MetaService {
 
           const data: any = await res.json();
           if (!res.ok || data.error) {
+            let errorMsg = data.error?.message || (isVideo ? 'Failed to upload video/reel to Facebook Page.' : 'Failed to upload photo to Facebook Page.');
+            if (errorMsg.includes('publish_actions')) {
+              errorMsg = `Invalid Facebook Page ID (${params.pageId}). Please ensure this is a valid Facebook Page ID (not an Instagram ID or personal profile) and your connected Facebook user has Admin access to this Page.`;
+            }
             return {
               success: false,
               errorCode: data.error?.code?.toString() || 'FB_API_ERROR',
-              errorMessage: `Facebook Page Error: ${data.error?.message || 'Failed to upload photo to Facebook Page.'}`,
+              errorMessage: `Facebook Page Error: ${errorMsg}`,
               rawResponse: data,
             };
           }
@@ -297,19 +410,31 @@ export class MetaService {
           const res = await fetch(publishUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              url: params.mediaUrl,
-              message: params.caption,
-              access_token: token,
-            }),
+            body: JSON.stringify(
+              isVideo
+                ? {
+                    file_url: params.mediaUrl,
+                    description: params.caption,
+                    access_token: pageAccessToken,
+                  }
+                : {
+                    url: params.mediaUrl,
+                    message: params.caption,
+                    access_token: pageAccessToken,
+                  }
+            ),
           });
 
           const data: any = await res.json();
           if (!res.ok || data.error) {
+            let errorMsg = data.error?.message || (isVideo ? 'Failed to publish video to Facebook Page.' : 'Failed to publish to Facebook Page.');
+            if (errorMsg.includes('publish_actions')) {
+              errorMsg = `Invalid Facebook Page ID (${params.pageId}). Please ensure this is a valid Facebook Page ID (not an Instagram ID or personal profile) and your connected Facebook user has Admin access to this Page.`;
+            }
             return {
               success: false,
               errorCode: data.error?.code?.toString() || 'FB_API_ERROR',
-              errorMessage: `Facebook Page Error: ${data.error?.message || 'Failed to publish to Facebook Page.'}`,
+              errorMessage: `Facebook Page Error: ${errorMsg}`,
               rawResponse: data,
             };
           }

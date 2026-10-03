@@ -45,8 +45,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
       ]);
 
       setOverview(ov);
-      setBuffers(buf);
-      setUpcomingPosts(posts.slice(0, 5));
+      const now = new Date();
+      const futurePosts = (posts || [])
+        .filter((p: any) => p.scheduledAt && new Date(p.scheduledAt).getTime() >= now.getTime() && (p.status || '').toUpperCase() !== 'PUBLISHED')
+        .sort((a: any, b: any) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+      setUpcomingPosts(futurePosts.slice(0, 5));
       setInboxItems(inbox.slice(0, 4));
     } catch (err) {
       console.error('Error loading dashboard:', err);

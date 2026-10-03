@@ -40,7 +40,7 @@ router.post('/connect', authenticateToken, async (req: AuthRequest, res: Respons
     if (!client) return res.status(404).json({ error: 'Client not found' });
 
     const finalToken = accessToken?.trim() || 
-      (platform === 'GOOGLE_BUSINESS' ? `gmb_tok_${Date.now()}` : (process.env.META_DEFAULT_ACCESS_TOKEN || `oauth_tok_${platform.toLowerCase()}_${Date.now()}`));
+      (platform === 'GOOGLE_BUSINESS' ? (process.env.GOOGLE_BUSINESS_ACCESS_TOKEN || `gmb_tok_${Date.now()}`) : (process.env.META_DEFAULT_ACCESS_TOKEN || `oauth_tok_${platform.toLowerCase()}_${Date.now()}`));
 
     // Ensure connection is mapped exclusively to this client
     const account = await prisma.socialAccount.create({
@@ -81,7 +81,7 @@ router.post('/reconnect/:id', authenticateToken, async (req: AuthRequest, res: R
       where: { id },
       data: {
         status: 'CONNECTED',
-        accessToken: `oauth_reconnected_${Date.now()}`,
+        accessToken: req.body?.accessToken?.trim() || process.env.META_DEFAULT_ACCESS_TOKEN || `oauth_reconnected_${Date.now()}`,
         tokenExpiresAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
         lastHealthCheck: new Date(),
         lastError: null,

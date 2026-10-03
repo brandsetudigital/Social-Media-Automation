@@ -33,7 +33,7 @@ import { NavTab } from '../layout/Sidebar';
 
 interface BrandDashboardViewProps {
   onNavigate: (tab: NavTab) => void;
-  onNavigateToPosts?: (filter?: string, viewMode?: 'calendar' | 'list', postId?: string) => void;
+  onNavigateToPosts?: (filter?: string, viewMode?: 'calendar' | 'cards' | 'list', postId?: string) => void;
   onOpenCreatePost?: () => void;
   onSelectCalendarDate?: (date: Date, viewTab?: 'month' | 'week' | 'day') => void;
 }
@@ -48,7 +48,7 @@ export const BrandDashboardView: React.FC<BrandDashboardViewProps> = ({
   const [overview, setOverview] = useState<any>(null);
   const [posts, setPosts] = useState<any[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<any[]>([]);
-  const [calendarDate, setCalendarDate] = useState<Date>(new Date(2026, 8, 18));
+  const [calendarDate, setCalendarDate] = useState<Date>(new Date());
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -112,27 +112,24 @@ export const BrandDashboardView: React.FC<BrandDashboardViewProps> = ({
     return map;
   }, [calendarEvents, calYear, calMonth]);
 
-  // Scheduled / upcoming posts to display in the card
+  // Scheduled / strictly upcoming posts to display in the widget
   const upcomingEvents = React.useMemo(() => {
     if (selectedDay !== null) {
       return eventsByDay[selectedDay] || [];
     }
-    // Filter events in current active month or sort all events
-    const currentMonthEvents = calendarEvents.filter((evt) => {
+    const now = new Date();
+    // Strictly future/upcoming posts that have not yet been published
+    const upcoming = calendarEvents.filter((evt) => {
       if (!evt.scheduledAt) return false;
       const d = new Date(evt.scheduledAt);
-      return d.getFullYear() === calYear && d.getMonth() === calMonth;
+      const status = (evt.status || '').toUpperCase();
+      return d.getTime() >= now.getTime() && status !== 'PUBLISHED';
     });
-    if (currentMonthEvents.length > 0) {
-      return [...currentMonthEvents].sort(
-        (a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
-      );
-    }
-    // Fallback: all scheduled events sorted chronologically
-    return [...calendarEvents].sort(
+
+    return [...upcoming].sort(
       (a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
     );
-  }, [selectedDay, eventsByDay, calendarEvents, calYear, calMonth]);
+  }, [selectedDay, eventsByDay, calendarEvents]);
 
   // Derived counts
   const scheduledCount = overview?.scheduledCount ?? (calendarEvents.filter((e) => e.status === 'SCHEDULED').length || calendarEvents.length || 0);
@@ -525,7 +522,7 @@ export const BrandDashboardView: React.FC<BrandDashboardViewProps> = ({
                     key={evt.id}
                     onClick={() =>
                       onNavigateToPosts
-                        ? onNavigateToPosts(status === 'FAILED' ? 'FAILED' : undefined, 'list', evt.id || item.id)
+                        ? onNavigateToPosts(status === 'FAILED' ? 'FAILED' : undefined, 'cards', evt.id || item.id)
                         : onNavigate('posts')
                     }
                     className="py-3 px-2 flex items-center justify-between gap-3 hover:bg-slate-50/90 rounded-xl transition cursor-pointer group"
@@ -705,7 +702,8 @@ export const BrandDashboardView: React.FC<BrandDashboardViewProps> = ({
             {/* Month days */}
             {Array.from({ length: daysInMonth }).map((_, i) => {
               const day = i + 1;
-              const isToday = calYear === 2026 && calMonth === 8 && day === 18;
+              const now = new Date();
+              const isToday = calYear === now.getFullYear() && calMonth === now.getMonth() && day === now.getDate();
               const isSelected = selectedDay === day;
               const dayEvents = eventsByDay[day] || [];
               const hasEvents = dayEvents.length > 0;

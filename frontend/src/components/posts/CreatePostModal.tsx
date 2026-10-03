@@ -49,8 +49,25 @@ interface CreatePostModalProps {
     caption?: string;
     hashtags?: string;
     mediaUrl?: string;
+    scheduleDate?: string;
+    scheduleTime?: string;
   };
 }
+
+const getTodayDateStr = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getCurrentTimeStr = () => {
+  const now = new Date();
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
+};
 
 export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   isOpen,
@@ -75,6 +92,9 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   );
   const [contentType, setContentType] = useState(defaultContentType || 'POST');
 
+  const [scheduleDate, setScheduleDate] = useState(() => initialTemplate?.scheduleDate || getTodayDateStr());
+  const [scheduleTime, setScheduleTime] = useState(() => initialTemplate?.scheduleTime || getCurrentTimeStr());
+
   useEffect(() => {
     if (isOpen) {
       if (defaultClientId) setBrandId(defaultClientId);
@@ -84,6 +104,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       if (initialTemplate?.title) setTitle(initialTemplate.title);
       if (initialTemplate?.hashtags) setHashtags(initialTemplate.hashtags);
       if (initialTemplate?.mediaUrl) setMediaUrl(initialTemplate.mediaUrl);
+      setScheduleDate(initialTemplate?.scheduleDate || getTodayDateStr());
+      setScheduleTime(initialTemplate?.scheduleTime || getCurrentTimeStr());
     }
   }, [isOpen, defaultClientId, defaultCaption, defaultContentType, initialTemplate]);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([
@@ -107,8 +129,6 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     YOUTUBE: '#BrandSetu #Showcase',
     GOOGLE_BUSINESS: '',
   });
-  const [scheduleDate, setScheduleDate] = useState('2026-09-20');
-  const [scheduleTime, setScheduleTime] = useState('18:00');
   const [isAiGenerating, setIsAiGenerating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -679,7 +699,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   className="w-full text-xs px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0172F4]"
                 >
                   <option value="POST">Feed Post (Auto Fit 1:1)</option>
-                  <option value="REEL">Video / Reel / Story (Auto Fit 9:16)</option>
+                  <option value="REEL">Instagram & Facebook Reel (9:16 Fullscreen Video)</option>
+                  <option value="STORY">Instagram & Facebook Story (9:16 Story)</option>
                   <option value="GOOGLE_BUSINESS_POST">Google Business Update</option>
                 </select>
               </div>
@@ -1078,28 +1099,74 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
             </div>
 
             {/* Scheduling Date & Time */}
-            <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 space-y-2">
-              <span className="text-xs font-bold text-gray-700 block">Schedule Publishing (Optional)</span>
+            <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-gray-700 block">Schedule Publishing (Optional)</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setScheduleDate(getTodayDateStr());
+                    setScheduleTime(getCurrentTimeStr());
+                  }}
+                  className="text-[11px] font-semibold text-[#0172F4] hover:text-blue-700 hover:underline flex items-center gap-1 cursor-pointer"
+                  title="Reset to current local date & time"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  Set to Now
+                </button>
+              </div>
               <div className="grid grid-cols-2 gap-3">
-                <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200">
-                  <Calendar className="w-4 h-4 text-gray-400" />
-                  <input
-                    type="date"
-                    value={scheduleDate}
-                    onChange={(e) => setScheduleDate(e.target.value)}
-                    className="text-xs text-gray-800 bg-transparent focus:outline-none w-full"
-                  />
+                <div>
+                  <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider block mb-1">
+                    Date
+                  </label>
+                  <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 focus-within:ring-1 focus-within:ring-[#0172F4] focus-within:border-[#0172F4]">
+                    <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
+                    <input
+                      type="date"
+                      value={scheduleDate}
+                      onChange={(e) => setScheduleDate(e.target.value)}
+                      className="text-xs text-gray-800 bg-transparent focus:outline-none w-full cursor-pointer"
+                    />
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200">
-                  <Clock className="w-4 h-4 text-gray-400" />
-                  <input
-                    type="time"
-                    value={scheduleTime}
-                    onChange={(e) => setScheduleTime(e.target.value)}
-                    className="text-xs text-gray-800 bg-transparent focus:outline-none w-full"
-                  />
+                <div>
+                  <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider block mb-1">
+                    Time
+                  </label>
+                  <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 focus-within:ring-1 focus-within:ring-[#0172F4] focus-within:border-[#0172F4]">
+                    <Clock className="w-4 h-4 text-gray-400 shrink-0" />
+                    <input
+                      type="time"
+                      value={scheduleTime}
+                      onChange={(e) => setScheduleTime(e.target.value)}
+                      className="text-xs text-gray-800 bg-transparent focus:outline-none w-full cursor-pointer"
+                    />
+                  </div>
                 </div>
               </div>
+              {scheduleDate && scheduleTime && (
+                <div className="text-[11px] text-gray-600 bg-blue-50/70 border border-blue-100 rounded-lg px-2.5 py-1.5 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                    Scheduled for:
+                  </span>
+                  <strong className="text-gray-900 font-semibold">
+                    {new Date(`${scheduleDate}T${scheduleTime}:00`).toLocaleDateString('en-US', {
+                      weekday: 'short',
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}{' '}
+                    at{' '}
+                    {new Date(`${scheduleDate}T${scheduleTime}:00`).toLocaleTimeString('en-US', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: true,
+                    })}
+                  </strong>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1138,7 +1205,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 </div>
 
                 {/* REEL / STORY VIEW (Realistic Fullscreen 9:16 layout) */}
-                {contentType === 'REEL' ? (
+                {contentType === 'REEL' || contentType === 'STORY' ? (
                   <div className="relative w-full h-[434px] bg-black text-white flex flex-col justify-between overflow-hidden">
                     {/* Media: Video or Image (Full edge-to-edge) */}
                     {mediaUrl ? (
@@ -1157,7 +1224,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                         <img
                           key={mediaUrl}
                           src={mediaUrl}
-                          alt="Reel visual"
+                          alt="Visual"
                           className="absolute inset-0 w-full h-full object-cover"
                           onError={(e) => {
                             (e.target as HTMLElement).style.display = 'none';
@@ -1168,7 +1235,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                       <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-purple-950 via-gray-900 to-black text-gray-400 p-4 text-center">
                         <Film className="w-10 h-10 text-purple-400 mb-2 animate-pulse" />
                         <span className="text-xs font-semibold text-gray-300">No Media Selected</span>
-                        <span className="text-[10px] text-gray-500 mt-1">Upload an image or video</span>
+                        <span className="text-[10px] text-gray-500 mt-1">Upload a video or photo</span>
                       </div>
                     )}
 
@@ -1179,7 +1246,9 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                     <div className="relative z-20 p-3 pt-2 flex items-center justify-between text-white">
                       <div className="flex items-center gap-1.5">
                         <Camera className="w-3.5 h-3.5 text-white" />
-                        <span className="font-bold text-xs tracking-wide">Reels</span>
+                        <span className="font-bold text-xs tracking-wide">
+                          {contentType === 'STORY' ? 'Story' : 'Reels'}
+                        </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-[9px] font-bold bg-white/20 backdrop-blur-xs px-2 py-0.5 rounded-full uppercase tracking-wider">

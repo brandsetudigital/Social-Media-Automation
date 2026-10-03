@@ -33,6 +33,9 @@ import {
   CalendarDays,
   ExternalLink,
   Edit3,
+  Trash2,
+  LayoutGrid,
+  Globe,
 } from 'lucide-react';
 import { CreatePostModal } from './CreatePostModal';
 import { NavTab } from '../layout/Sidebar';
@@ -40,7 +43,7 @@ import { NavTab } from '../layout/Sidebar';
 interface PostsManagerViewProps {
   initialDate?: Date;
   initialCalendarTab?: 'month' | 'week' | 'day';
-  initialViewMode?: 'calendar' | 'list';
+  initialViewMode?: 'calendar' | 'cards' | 'list';
   initialStatusFilter?: string;
   targetPostId?: string | null;
   onNavigateTab?: (tab: NavTab) => void;
@@ -89,17 +92,18 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
 }) => {
   const { selectedClientId, selectedClient } = useClients();
 
-  // Top toggle: Calendar vs List (Screenshot 2 shows Calendar & List toggle on the top right)
-  const [mainViewMode, setMainViewMode] = useState<'calendar' | 'list'>(initialViewMode || 'calendar');
+  // Top toggle: Calendar vs Cards vs List
+  const [mainViewMode, setMainViewMode] = useState<'calendar' | 'cards' | 'list'>(initialViewMode || 'calendar');
 
   // Calendar sub-tabs: Month, Week, Day (Screenshots 2, 3, 4)
   const [calendarTab, setCalendarTab] = useState<'month' | 'week' | 'day'>(initialCalendarTab || 'month');
 
-  // Selected date reference (Default to September 18, 2026 matching screenshots)
-  const [currentDate, setCurrentDate] = useState<Date>(initialDate || new Date(2026, 8, 18));
-  const [selectedDay, setSelectedDay] = useState<number | null>(18);
+  // Selected date reference (Default to today's date)
+  const [currentDate, setCurrentDate] = useState<Date>(initialDate || new Date());
+  const [selectedDay, setSelectedDay] = useState<number | null>((initialDate || new Date()).getDate());
 
   const [statusFilter, setStatusFilter] = useState(initialStatusFilter || 'ALL');
+  const [platformFilter, setPlatformFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [posts, setPosts] = useState<any[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<any[]>([]);
@@ -109,6 +113,9 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
 
   // Post detail preview modal
   const [selectedPostDetail, setSelectedPostDetail] = useState<any | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteFeedback, setDeleteFeedback] = useState<string | null>(null);
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
 
   // Day Schedule Modal (when clicking "+X more" or viewing posts on a specific day)
   const [dayModalDate, setDayModalDate] = useState<Date | null>(null);
@@ -121,6 +128,43 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
   // Local Create Post modal fallback
   const [localCreateOpen, setLocalCreateOpen] = useState(false);
   const [createPrefill, setCreatePrefill] = useState<any>(null);
+
+  const handleDeletePost = async (post: any) => {
+    if (!post) return;
+    const postTitle = post.title || 'this post';
+    const ok = window.confirm(`Are you sure you want to delete "${postTitle}"? This will permanently remove the post.`);
+    if (!ok) return;
+
+    setIsDeleting(true);
+    try {
+      const targetId = post.contentItemId || post.rawEventId || post.id;
+      // Filter out immediately from UI state
+      setDeletedIds((prev) => {
+        const next = new Set(prev);
+        if (post.id) next.add(post.id);
+        if (post.contentItemId) next.add(post.contentItemId);
+        if (post.rawEventId) next.add(post.rawEventId);
+        return next;
+      });
+
+      // Call API
+      try {
+        await api.deleteContentItem(targetId);
+      } catch {
+        await api.deleteScheduledPost(targetId);
+      }
+
+      setSelectedPostDetail(null);
+      setDeleteFeedback(`Post "${postTitle}" was deleted successfully.`);
+      setTimeout(() => setDeleteFeedback(null), 4000);
+
+      await fetchAllPosts();
+    } catch (err: any) {
+      alert(`Could not delete post: ${err?.message || 'Server error'}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const handleRetryPost = async () => {
     if (!selectedPostDetail) return;
@@ -218,7 +262,7 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
     calendarEvents.forEach((evt) => {
       const item = evt.contentItem || {};
       const id = evt.id || item.id;
-      if (id && !seenIds.has(id)) {
+      if (id && !seenIds.has(id) && !deletedIds.has(id) && !deletedIds.has(item.id) && !deletedIds.has(evt.id)) {
         seenIds.add(id);
         const isReel = item.contentType === 'REEL' || evt.contentType === 'REEL';
         const brandName = evt.client?.businessName || item.client?.businessName || selectedClient?.businessName || 'BrandSetu Digital';
@@ -257,11 +301,11 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
     // From content inbox
     posts.forEach((item) => {
       const id = item.id;
-      if (id && !seenIds.has(id)) {
+      if (id && !seenIds.has(id) && !deletedIds.has(id)) {
         seenIds.add(id);
         const isReel = item.contentType === 'REEL';
         const schedTime = item.scheduledPosts?.[0]?.scheduledAt || item.createdAt;
-        const targetDate = schedTime ? new Date(schedTime) : new Date(2026, 8, 18);
+        const targetDate = schedTime ? new Date(schedTime) : new Date();
         const brandName = item.client?.businessName || selectedClient?.businessName || 'BrandSetu Digital';
         const accountName = item.scheduledPosts?.[0]?.socialAccount?.accountName || `@${brandName.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
         const rawStatus = (item.status || 'SCHEDULED').toUpperCase();
@@ -295,8 +339,24 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
       }
     });
 
-    // If list is small, provide realistic demo scheduled posts for September 2026
+    // If list is small, provide realistic demo scheduled posts around today's date
     if (list.length < 5) {
+      const baseNow = new Date();
+      const getDemoDate = (offsetDays: number, hour: number, minute: number = 0) => {
+        const d = new Date(baseNow);
+        d.setDate(d.getDate() + offsetDays);
+        d.setHours(hour, minute, 0, 0);
+        return d;
+      };
+
+      const demoDate1 = getDemoDate(0, 10, 30);
+      const demoDate2 = getDemoDate(1, 9, 0);
+      const demoDate3 = getDemoDate(2, 17, 30);
+      const demoDate4 = getDemoDate(0, 14, 0);
+      const demoDate5 = getDemoDate(1, 11, 0);
+      const demoDate6 = getDemoDate(3, 9, 0);
+      const demoDate7 = getDemoDate(-1, 15, 30);
+
       const demoItems = [
         {
           id: 'demo-1',
@@ -308,28 +368,11 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
           thumbnailUrl: 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=800&auto=format&fit=crop&q=80',
           platform: 'INSTAGRAM',
           status: 'SCHEDULED',
-          scheduledAt: '2026-09-18T10:30:00.000Z',
-          targetDate: new Date('2026-09-18T10:30:00'),
+          scheduledAt: demoDate1.toISOString(),
+          targetDate: demoDate1,
           clientName: selectedClient?.businessName || 'BrandSetu Digital',
           accountName: '@brandsetudigital',
           contentType: 'REEL',
-        },
-        {
-          id: 'demo-failed-1',
-          contentItemId: 'demo-item-fail',
-          clientId: 'demo-client-fail',
-          title: 'World Heart Day Cardiac Health Checkup',
-          caption: 'Comprehensive cardiac wellness packages available this week! Prioritize preventative health screening.',
-          mediaUrl: 'https://images.unsplash.com/photo-1505751172876-fa1923c5c528?auto=format&fit=crop&w=800&q=80',
-          thumbnailUrl: 'https://images.unsplash.com/photo-1505751172876-fa1923c5c528?auto=format&fit=crop&w=300&q=80',
-          platform: 'INSTAGRAM',
-          status: 'FAILED',
-          scheduledAt: '2026-09-19T09:00:00.000Z',
-          targetDate: new Date('2026-09-19T09:00:00'),
-          clientName: 'DEF Multi-Specialty Hospital',
-          accountName: '@def_hospital_official',
-          lastError: 'Instagram Graph API Error: Page Access Token expired. Please re-authenticate your connected account in Channels.',
-          contentType: 'POST',
         },
         {
           id: 'demo-changes-1',
@@ -341,13 +384,13 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
           thumbnailUrl: 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=800&auto=format&fit=crop&q=80',
           platform: 'INSTAGRAM',
           status: 'CHANGES_REQUESTED',
-          scheduledAt: '2026-09-20T17:30:00.000Z',
-          targetDate: new Date('2026-09-20T17:30:00'),
+          scheduledAt: demoDate3.toISOString(),
+          targetDate: demoDate3,
           clientName: 'BrandSetu Digital',
           accountName: '@brandsetudigital',
           feedbackNote: 'Please update the end logo slide with the new high-resolution white BrandSetu logo and add hashtags #DiwaliMarketing.',
           reviewedByName: 'Soumitra Vajpayee (Admin)',
-          reviewedAt: '2026-09-19T14:30:00.000Z',
+          reviewedAt: new Date(baseNow.getTime() - 2 * 3600000).toISOString(),
           contentType: 'REEL',
         },
         {
@@ -360,8 +403,8 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
           thumbnailUrl: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=600&auto=format&fit=crop&q=80',
           platform: 'LINKEDIN',
           status: 'SCHEDULED',
-          scheduledAt: '2026-09-18T14:00:00.000Z',
-          targetDate: new Date('2026-09-18T14:00:00'),
+          scheduledAt: demoDate4.toISOString(),
+          targetDate: demoDate4,
           clientName: selectedClient?.businessName || 'BrandSetu Digital',
           accountName: '@brandsetudigital',
           contentType: 'POST',
@@ -376,8 +419,8 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
           thumbnailUrl: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&auto=format&fit=crop&q=80',
           platform: 'FACEBOOK',
           status: 'SCHEDULED',
-          scheduledAt: '2026-09-19T11:00:00.000Z',
-          targetDate: new Date('2026-09-19T11:00:00'),
+          scheduledAt: demoDate5.toISOString(),
+          targetDate: demoDate5,
           clientName: selectedClient?.businessName || 'BrandSetu Digital',
           accountName: '@brandsetudigital',
           contentType: 'POST',
@@ -392,8 +435,8 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
           thumbnailUrl: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&auto=format&fit=crop&q=80',
           platform: 'INSTAGRAM',
           status: 'DRAFT',
-          scheduledAt: '2026-09-21T09:00:00.000Z',
-          targetDate: new Date('2026-09-21T09:00:00'),
+          scheduledAt: demoDate6.toISOString(),
+          targetDate: demoDate6,
           clientName: selectedClient?.businessName || 'BrandSetu Digital',
           accountName: '@brandsetudigital',
           contentType: 'POST',
@@ -408,15 +451,15 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
           thumbnailUrl: 'https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?w=600&auto=format&fit=crop&q=80',
           platform: 'LINKEDIN',
           status: 'PUBLISHED',
-          scheduledAt: '2026-09-15T15:30:00.000Z',
-          targetDate: new Date('2026-09-15T15:30:00'),
+          scheduledAt: demoDate7.toISOString(),
+          targetDate: demoDate7,
           clientName: selectedClient?.businessName || 'BrandSetu Digital',
           accountName: '@brandsetudigital',
           contentType: 'CAROUSEL',
         },
       ];
       demoItems.forEach((d) => {
-        if (!seenIds.has(d.id)) {
+        if (!seenIds.has(d.id) && !deletedIds.has(d.id)) {
           seenIds.add(d.id);
           list.push(d);
         }
@@ -424,7 +467,7 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
     }
 
     return list;
-  }, [posts, calendarEvents, selectedClient]);
+  }, [posts, calendarEvents, selectedClient, deletedIds]);
 
   // If targetPostId is passed, open detail modal automatically
   useEffect(() => {
@@ -458,9 +501,20 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
         (statusFilter === 'FAILED' && p.status === 'FAILED') ||
         (statusFilter === 'CHANGES_REQUESTED' && (p.status === 'CHANGES_REQUESTED' || p.status === 'REJECTED'));
 
-      return matchesSearch && matchesStatus;
+      const matchesPlatform =
+        platformFilter === 'ALL' ||
+        (p.platform || '').toUpperCase() === platformFilter.toUpperCase();
+
+      return matchesSearch && matchesStatus && matchesPlatform;
     });
-  }, [consolidatedPosts, searchQuery, statusFilter]);
+  }, [consolidatedPosts, searchQuery, statusFilter, platformFilter]);
+
+  // Derived counts for Card View filter metrics
+  const scheduledCount = useMemo(() => consolidatedPosts.filter((p) => p.status === 'SCHEDULED').length, [consolidatedPosts]);
+  const publishedCount = useMemo(() => consolidatedPosts.filter((p) => p.status === 'PUBLISHED').length, [consolidatedPosts]);
+  const draftCount = useMemo(() => consolidatedPosts.filter((p) => p.status === 'DRAFT' || p.status === 'READY_FOR_APPROVAL' || p.status === 'IN_REVIEW').length, [consolidatedPosts]);
+  const failedCount = useMemo(() => consolidatedPosts.filter((p) => p.status === 'FAILED').length, [consolidatedPosts]);
+  const changesRequestedCount = useMemo(() => consolidatedPosts.filter((p) => p.status === 'CHANGES_REQUESTED' || p.status === 'REJECTED').length, [consolidatedPosts]);
 
   // Posts grouped by Day of the current month
   const postsByDay = useMemo(() => {
@@ -588,15 +642,20 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
   };
 
   const handleGoToToday = () => {
-    const today = new Date(2026, 8, 18);
+    const today = new Date();
     setCurrentDate(today);
-    setSelectedDay(18);
+    setSelectedDay(today.getDate());
   };
 
   // Open create modal with prefilled date
   const triggerCreatePost = (dateStr?: string, hour?: number) => {
-    const targetDateStr = dateStr || `${year}-${String(month + 1).padStart(2, '0')}-${String(selectedDay || 18).padStart(2, '0')}`;
-    const targetTimeStr = hour !== undefined ? `${String(hour).padStart(2, '0')}:00` : '18:00';
+    const now = new Date();
+    const targetDay = selectedDay || currentDate.getDate();
+    const defaultDateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
+    const targetDateStr = dateStr || defaultDateStr;
+    const nowHour = String(now.getHours()).padStart(2, '0');
+    const nowMin = String(now.getMinutes()).padStart(2, '0');
+    const targetTimeStr = hour !== undefined ? `${String(hour).padStart(2, '0')}:00` : `${nowHour}:${nowMin}`;
 
     const tpl = {
       title: '',
@@ -674,7 +733,7 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
             <span>Bulk Import</span>
           </button>
 
-          {/* Calendar | List View Toggle (Screenshot 2 Top-Right) */}
+          {/* Calendar | Cards | List View Toggle (Screenshot 2 Top-Right) */}
           <div className="flex items-center border border-gray-200 rounded-lg p-0.5 bg-white shadow-xs">
             <button
               onClick={() => setMainViewMode('calendar')}
@@ -686,6 +745,17 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
             >
               <CalendarIcon className="w-3.5 h-3.5" />
               <span>Calendar</span>
+            </button>
+            <button
+              onClick={() => setMainViewMode('cards')}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition flex items-center gap-1.5 ${
+                mainViewMode === 'cards'
+                  ? 'bg-blue-50 text-[#0172F4] font-bold shadow-xs'
+                  : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Cards</span>
             </button>
             <button
               onClick={() => setMainViewMode('list')}
@@ -701,6 +771,19 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Notification Banner when post is deleted */}
+      {deleteFeedback && (
+        <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl flex items-center justify-between animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span className="font-semibold">{deleteFeedback}</span>
+          </div>
+          <button onClick={() => setDeleteFeedback(null)} className="text-emerald-600 hover:text-emerald-900 cursor-pointer">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* 2. Sub-Header Toolbar (Screenshots 2, 3, 4) */}
       {mainViewMode === 'calendar' && (
@@ -821,7 +904,8 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
             {/* Current Month Days (1 - 30) */}
             {Array.from({ length: daysInMonth }).map((_, i) => {
               const day = i + 1;
-              const isToday = year === 2026 && month === 8 && day === 18;
+              const now = new Date();
+              const isToday = year === now.getFullYear() && month === now.getMonth() && day === now.getDate();
               const isSelected = selectedDay === day;
               const dayPosts = postsByDay[day] || [];
               const dayDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -999,7 +1083,8 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
               {weekDays.map((d, colIdx) => {
                 const dayNum = d.getDate();
                 const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
-                const isToday = d.getFullYear() === 2026 && d.getMonth() === 8 && dayNum === 18;
+                const now = new Date();
+                const isToday = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && dayNum === now.getDate();
                 const dayPosts = getPostsForDate(d);
                 const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
@@ -1173,7 +1258,8 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                 {weekDays.map((d, idx) => {
                   const dayNum = d.getDate();
                   const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
-                  const isToday = d.getFullYear() === 2026 && d.getMonth() === 8 && dayNum === 18;
+                  const now = new Date();
+                  const isToday = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && dayNum === now.getDate();
 
                   return (
                     <div
@@ -1201,7 +1287,8 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                       const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
                       const key = `${dateStr}_${hour24}`;
                       const slotPosts = postsByDateTime[key] || [];
-                      const isToday = d.getFullYear() === 2026 && d.getMonth() === 8 && d.getDate() === 18;
+                      const now = new Date();
+                      const isToday = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
 
                       return (
                         <div
@@ -1480,6 +1567,13 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                         >
                           Edit
                         </button>
+                        <button
+                          onClick={() => handleDeletePost(p)}
+                          className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 border border-gray-200 hover:border-rose-200 rounded-lg transition shadow-2xs cursor-pointer"
+                          title="Delete Post"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -1573,6 +1667,366 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                   );
                 })}
               </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 5. CARDS VIEW (Post Cards Grid matching Post Approval layout, but without Admin approval actions) */}
+      {mainViewMode === 'cards' && (
+        <div className="space-y-5">
+          {/* Top Metric Tabs (Filter shortcuts) */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div
+              onClick={() => setStatusFilter('ALL')}
+              className={`bg-white rounded-xl p-3 border transition cursor-pointer hover:shadow-xs ${
+                statusFilter === 'ALL' ? 'border-[#0172F4] ring-2 ring-[#0172F4]/20' : 'border-gray-200'
+              }`}
+            >
+              <p className="text-[11px] font-semibold text-gray-500">All Posts</p>
+              <p className="text-xl font-bold text-gray-900 mt-0.5">{consolidatedPosts.length}</p>
+            </div>
+
+            <div
+              onClick={() => setStatusFilter('SCHEDULED')}
+              className={`bg-white rounded-xl p-3 border transition cursor-pointer hover:shadow-xs ${
+                statusFilter === 'SCHEDULED' ? 'border-purple-500 ring-2 ring-purple-500/20' : 'border-gray-200'
+              }`}
+            >
+              <p className="text-[11px] font-semibold text-purple-700">Scheduled</p>
+              <p className="text-xl font-bold text-gray-900 mt-0.5">{scheduledCount}</p>
+            </div>
+
+            <div
+              onClick={() => setStatusFilter('PUBLISHED')}
+              className={`bg-white rounded-xl p-3 border transition cursor-pointer hover:shadow-xs ${
+                statusFilter === 'PUBLISHED' ? 'border-emerald-500 ring-2 ring-emerald-500/20' : 'border-gray-200'
+              }`}
+            >
+              <p className="text-[11px] font-semibold text-emerald-700">Published</p>
+              <p className="text-xl font-bold text-gray-900 mt-0.5">{publishedCount}</p>
+            </div>
+
+            <div
+              onClick={() => setStatusFilter('CHANGES_REQUESTED')}
+              className={`bg-white rounded-xl p-3 border transition cursor-pointer hover:shadow-xs ${
+                statusFilter === 'CHANGES_REQUESTED' ? 'border-amber-500 ring-2 ring-amber-500/20' : 'border-gray-200'
+              }`}
+            >
+              <p className="text-[11px] font-semibold text-amber-700">Changes Req.</p>
+              <p className="text-xl font-bold text-gray-900 mt-0.5">{changesRequestedCount}</p>
+            </div>
+
+            <div
+              onClick={() => setStatusFilter('DRAFT')}
+              className={`bg-white rounded-xl p-3 border transition cursor-pointer hover:shadow-xs ${
+                statusFilter === 'DRAFT' ? 'border-slate-500 ring-2 ring-slate-500/20' : 'border-gray-200'
+              }`}
+            >
+              <p className="text-[11px] font-semibold text-slate-600">Drafts / Review</p>
+              <p className="text-xl font-bold text-gray-900 mt-0.5">{draftCount}</p>
+            </div>
+
+            <div
+              onClick={() => setStatusFilter('FAILED')}
+              className={`bg-white rounded-xl p-3 border transition cursor-pointer hover:shadow-xs ${
+                statusFilter === 'FAILED' ? 'border-rose-500 ring-2 ring-rose-500/20' : 'border-gray-200'
+              }`}
+            >
+              <p className="text-[11px] font-semibold text-rose-700 flex items-center gap-1">
+                <span>Failed</span>
+                {failedCount > 0 && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />}
+              </p>
+              <p className="text-xl font-bold text-rose-700 mt-0.5">{failedCount}</p>
+            </div>
+          </div>
+
+          {/* Filter Bar: Search, Status, Platform */}
+          <div className="bg-white rounded-xl p-3.5 border border-gray-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="relative max-w-sm w-full">
+              <input
+                type="text"
+                placeholder="Search posts by title, brand, or caption..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0172F4]"
+              />
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Platform Filter */}
+              <select
+                value={platformFilter}
+                onChange={(e) => setPlatformFilter(e.target.value)}
+                className="text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-gray-700 font-semibold focus:outline-none shadow-xs cursor-pointer"
+              >
+                <option value="ALL">All Platforms</option>
+                <option value="INSTAGRAM">Instagram</option>
+                <option value="FACEBOOK">Facebook</option>
+                <option value="LINKEDIN">LinkedIn</option>
+                <option value="TWITTER">X / Twitter</option>
+                <option value="YOUTUBE">YouTube</option>
+                <option value="GOOGLE_BUSINESS">Google Business</option>
+              </select>
+
+              {/* Status Filter */}
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-gray-700 font-semibold focus:outline-none shadow-xs cursor-pointer"
+              >
+                <option value="ALL">All Status</option>
+                <option value="SCHEDULED">Scheduled</option>
+                <option value="PUBLISHED">Published</option>
+                <option value="DRAFT">Draft / Review</option>
+                <option value="CHANGES_REQUESTED">Changes Requested</option>
+                <option value="FAILED">Failed</option>
+              </select>
+
+              {/* Reset filter button if any active */}
+              {(statusFilter !== 'ALL' || platformFilter !== 'ALL' || searchQuery !== '') && (
+                <button
+                  onClick={() => {
+                    setStatusFilter('ALL');
+                    setPlatformFilter('ALL');
+                    setSearchQuery('');
+                  }}
+                  className="text-xs font-semibold text-gray-500 hover:text-gray-800 px-2 py-1 rounded transition"
+                >
+                  Clear Filters
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Cards Grid */}
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center h-64 bg-white rounded-2xl border border-gray-200">
+              <RefreshCw className="w-8 h-8 text-[#0172F4] animate-spin mb-2" />
+              <p className="text-xs text-gray-500 font-medium">Loading social posts...</p>
+            </div>
+          ) : filteredPosts.length === 0 ? (
+            <div className="bg-white rounded-2xl p-16 text-center border border-gray-200 shadow-xs flex flex-col items-center justify-center">
+              <div className="w-12 h-12 rounded-full bg-blue-50 text-[#0172F4] flex items-center justify-center mb-3">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <h4 className="text-sm font-bold text-gray-900">No Posts Match Filter</h4>
+              <p className="text-xs text-gray-500 mt-1 max-w-sm">
+                No posts found matching the current search and filters. Click "+ Create Post" to schedule content.
+              </p>
+              <button
+                onClick={() => triggerCreatePost()}
+                className="mt-4 px-4 py-2 text-xs font-semibold bg-[#0172F4] hover:bg-[#005cd3] text-white rounded-xl transition flex items-center gap-1.5 shadow-sm shadow-blue-500/20"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create New Post</span>
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+              {filteredPosts.map((post) => {
+                const dateObj = post.targetDate ? new Date(post.targetDate) : null;
+                const dateStr = dateObj ? dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+                const timeStr = dateObj ? dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                const isVideo = isVideoMedia(post.mediaUrl, post.contentType);
+
+                return (
+                  <div
+                    key={post.id}
+                    className="bg-white rounded-2xl border border-gray-200 shadow-xs hover:shadow-md transition overflow-hidden flex flex-col justify-between group"
+                  >
+                    <div>
+                      {/* Media Header */}
+                      <div
+                        onClick={() => setSelectedPostDetail(post)}
+                        className="h-56 w-full bg-slate-900 relative overflow-hidden cursor-pointer flex items-center justify-center"
+                      >
+                        {isVideo ? (
+                          <div className="w-full h-full relative flex items-center justify-center bg-black">
+                            <video
+                              src={post.mediaUrl || '/sample_reel.mp4'}
+                              poster={post.thumbnailUrl || undefined}
+                              muted
+                              playsInline
+                              preload="metadata"
+                              className="w-full h-full object-cover object-top group-hover:scale-105 transition duration-300"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLElement).style.display = 'none';
+                              }}
+                            />
+                            <img
+                              src={
+                                post.thumbnailUrl ||
+                                'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=800&auto=format&fit=crop&q=80'
+                              }
+                              alt=""
+                              className="w-full h-full object-cover object-top absolute inset-0 -z-10 group-hover:scale-105 transition duration-300"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).src =
+                                  'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=800&auto=format&fit=crop&q=80';
+                              }}
+                            />
+                            <div className="absolute inset-0 bg-black/25 flex items-center justify-center group-hover:bg-black/40 transition">
+                              <div className="w-10 h-10 rounded-full bg-white/90 text-gray-900 flex items-center justify-center shadow-lg group-hover:scale-110 transition">
+                                <Play className="w-5 h-5 fill-current ml-0.5 text-gray-900" />
+                              </div>
+                            </div>
+                            <span className="absolute bottom-2 left-2 bg-black/75 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shadow-xs z-20">
+                              <Film className="w-3 h-3 text-purple-400" /> Video Reel
+                            </span>
+                          </div>
+                        ) : (
+                          <img
+                            src={
+                              post.thumbnailUrl ||
+                              post.mediaUrl ||
+                              'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop&q=80'
+                            }
+                            alt=""
+                            className="w-full h-full object-cover object-top group-hover:scale-105 transition duration-300"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).src =
+                                'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop&q=80';
+                            }}
+                          />
+                        )}
+
+                        {/* Brand Pill (Top Left) - Whose post is this */}
+                        <span className="absolute top-2.5 left-2.5 bg-black/70 backdrop-blur-xs text-white text-[10px] font-bold px-2.5 py-0.5 rounded-md shadow-xs z-10 flex items-center gap-1">
+                          <Building2 className="w-3 h-3 text-blue-300" />
+                          <span>{post.clientName || 'BrandSetu'}</span>
+                        </span>
+
+                        {/* Status Pill (Top Right) */}
+                        <span
+                          className={`absolute top-2.5 right-2.5 backdrop-blur-xs text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-xs ${
+                            post.status === 'SCHEDULED'
+                              ? 'bg-purple-600 text-white'
+                              : post.status === 'PUBLISHED'
+                              ? 'bg-emerald-600 text-white'
+                              : post.status === 'CHANGES_REQUESTED'
+                              ? 'bg-amber-500 text-white'
+                              : post.status === 'FAILED'
+                              ? 'bg-rose-600 text-white animate-pulse'
+                              : 'bg-gray-700 text-white'
+                          }`}
+                        >
+                          {post.status}
+                        </span>
+                      </div>
+
+                      {/* Card Body */}
+                      <div className="p-4 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-mono text-gray-400 uppercase tracking-wider font-semibold">
+                            {post.contentType || 'POST'}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            {post.platform === 'INSTAGRAM' && <Instagram className="w-3.5 h-3.5 text-pink-600" />}
+                            {post.platform === 'FACEBOOK' && <Facebook className="w-3.5 h-3.5 text-blue-600" />}
+                            {post.platform === 'LINKEDIN' && <Linkedin className="w-3.5 h-3.5 text-sky-700" />}
+                            <span className="text-[10px] font-bold text-gray-600 capitalize">
+                              {post.platform}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Title - What is the post */}
+                        <h3
+                          onClick={() => setSelectedPostDetail(post)}
+                          className="text-sm font-bold text-gray-900 leading-snug line-clamp-1 hover:text-[#0172F4] transition cursor-pointer"
+                          title={post.title}
+                        >
+                          {post.title}
+                        </h3>
+
+                        {/* Account Handle */}
+                        {post.accountName && (
+                          <p className="text-[11px] font-semibold text-slate-500 truncate">
+                            {post.accountName}
+                          </p>
+                        )}
+
+                        {/* Caption snippet */}
+                        {post.caption && (
+                          <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed">
+                            {post.caption}
+                          </p>
+                        )}
+
+                        {/* When will it be posted (Schedule badge) */}
+                        {post.status === 'FAILED' ? (
+                          <div className="p-2 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 space-y-0.5">
+                            <div className="flex items-center gap-1 font-bold text-rose-900 text-[11px]">
+                              <AlertCircle className="w-3 h-3 text-rose-600 shrink-0" />
+                              <span>Publishing Failed</span>
+                            </div>
+                            <p className="text-[10px] text-rose-700 truncate">
+                              {post.lastError || 'Social platform token expired'}
+                            </p>
+                          </div>
+                        ) : post.status === 'CHANGES_REQUESTED' ? (
+                          <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 space-y-0.5">
+                            <div className="flex items-center gap-1 font-bold text-amber-800 text-[11px]">
+                              <AlertCircle className="w-3 h-3 text-amber-600 shrink-0" />
+                              <span>Admin Feedback</span>
+                            </div>
+                            <p className="text-[10px] text-amber-800 truncate">
+                              {post.feedbackNote || 'Admin requested changes'}
+                            </p>
+                          </div>
+                        ) : dateObj ? (
+                          <div
+                            className={`flex items-center gap-1.5 text-xs font-semibold p-2 rounded-lg border ${
+                              post.status === 'PUBLISHED'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                                : 'bg-purple-50 text-purple-700 border-purple-100'
+                            }`}
+                          >
+                            <Clock className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate">
+                              {post.status === 'PUBLISHED' ? 'Published' : 'Scheduled for'} {dateStr} at {timeStr}
+                            </span>
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-gray-400">
+                            Draft post
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Card Footer Actions (No approval buttons here, approval is strictly for Admin on Approvals page) */}
+                    <div className="px-4 py-3 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between gap-2">
+                      <button
+                        onClick={() => setSelectedPostDetail(post)}
+                        className="text-xs font-semibold text-gray-600 hover:text-[#0172F4] flex items-center gap-1 cursor-pointer transition"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Preview</span>
+                      </button>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => handleEditPost(post)}
+                          className="p-1.5 text-gray-500 hover:text-gray-900 hover:bg-white rounded-lg border border-transparent hover:border-gray-200 transition cursor-pointer"
+                          title="Edit Post"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeletePost(post)}
+                          className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg border border-transparent hover:border-rose-200 transition cursor-pointer"
+                          title="Delete Post"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -1719,12 +2173,21 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                       </span>
                     </td>
                     <td className="py-3 px-4 text-right">
-                      <button
-                        onClick={() => setSelectedPostDetail(post)}
-                        className="px-2.5 py-1 text-xs font-semibold text-[#0172F4] hover:bg-blue-50 rounded-lg transition"
-                      >
-                        View Details
-                      </button>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => setSelectedPostDetail(post)}
+                          className="px-2.5 py-1 text-xs font-semibold text-[#0172F4] hover:bg-blue-50 rounded-lg transition cursor-pointer"
+                        >
+                          View Details
+                        </button>
+                        <button
+                          onClick={() => handleDeletePost(post)}
+                          className="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition cursor-pointer"
+                          title="Delete Post"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -1911,22 +2374,34 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
               </div>
             </div>
 
-            <div className="p-4 bg-gray-50 border-t border-gray-200 flex items-center justify-end gap-2">
+            <div className="p-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between gap-2">
               <button
-                onClick={() => {
-                  setSelectedPostDetail(null);
-                  setRetryFeedback(null);
-                }}
-                className="px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-200 rounded-lg transition"
+                onClick={() => handleDeletePost(selectedPostDetail)}
+                disabled={isDeleting}
+                className="px-3 py-2 text-xs font-bold text-rose-600 hover:text-white hover:bg-rose-600 border border-rose-200 hover:border-rose-600 rounded-lg transition flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50"
+                title="Delete this post permanently"
               >
-                Close
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isDeleting ? 'Deleting...' : 'Delete Post'}</span>
               </button>
-              <button
-                onClick={() => handleEditPost(selectedPostDetail)}
-                className="px-4 py-2 text-xs font-semibold bg-[#0172F4] text-white hover:bg-blue-600 rounded-lg transition shadow-xs"
-              >
-                Edit / Duplicate Post
-              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setSelectedPostDetail(null);
+                    setRetryFeedback(null);
+                  }}
+                  className="px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-200 rounded-lg transition cursor-pointer"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => handleEditPost(selectedPostDetail)}
+                  className="px-4 py-2 text-xs font-semibold bg-[#0172F4] text-white hover:bg-blue-600 rounded-lg transition shadow-xs cursor-pointer"
+                >
+                  Edit / Duplicate Post
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -2063,6 +2538,16 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                       >
                         {p.status}
                       </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeletePost(p);
+                        }}
+                        className="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition"
+                        title="Delete Post"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                       <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-[#0172F4] transition" />
                     </div>
                   </div>

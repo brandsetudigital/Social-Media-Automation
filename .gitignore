@@ -4,3 +4,9 @@ node_modules/
 dist/
 build/
 .vite/
+*.db-journal
+*.db-wal
+*.db-shm
+backend/uploads/*
+!backend/uploads/sample_reel.mp4
+!backend/uploads/.gitkeep
