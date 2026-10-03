@@ -1,5 +1,18 @@
-const RAW_API_BASE = ((import.meta as any).env?.VITE_API_URL as string) || '/api';
-const API_BASE = RAW_API_BASE.replace(/\/+$/, '');
+function cleanBaseUrl(input?: string): string {
+  if (!input) return '/api';
+  let clean = input.trim();
+  // Strip accidental "VITE_API_URL=" prefix if user pasted key and value together
+  clean = clean.replace(/^VITE_API_URL\s*=\s*/i, '');
+  // Strip surrounding quotes or url-encoded quotes
+  clean = clean.replace(/^["'%22]+|["'%22]+$/g, '').trim();
+  // If it points to a domain without http/https, prefix with https://
+  if (clean.includes('.') && !clean.startsWith('http://') && !clean.startsWith('https://') && !clean.startsWith('/')) {
+    clean = `https://${clean}`;
+  }
+  return clean.replace(/\/+$/, '');
+}
+
+const API_BASE = cleanBaseUrl((import.meta as any).env?.VITE_API_URL);
 
 export const getMediaUrl = (url?: string | null): string => {
   if (!url) return '';
