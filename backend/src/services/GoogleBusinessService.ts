@@ -34,10 +34,18 @@ export class GoogleBusinessService {
     }
 
     try {
+      let locationToUse = params.locationId;
+      if (!locationToUse || locationToUse.startsWith('google_business_') || locationToUse.startsWith('gmb_')) {
+        const discovered = await GoogleBusinessService.discoverPrimaryLocation(token);
+        if (discovered) {
+          locationToUse = discovered;
+        }
+      }
+
       // Google Business Profile v4 / Business Information API Local Post endpoint
-      let endpoint = `https://mybusiness.googleapis.com/v4/accounts/me/locations/${params.locationId}/localPosts`;
-      if (params.locationId.includes('/')) {
-        endpoint = `https://mybusiness.googleapis.com/v4/${params.locationId}/localPosts`;
+      let endpoint = `https://mybusiness.googleapis.com/v4/accounts/me/locations/${locationToUse}/localPosts`;
+      if (locationToUse.includes('/') || locationToUse.startsWith('locations/')) {
+        endpoint = `https://mybusiness.googleapis.com/v4/${locationToUse.replace(/^\/?/, '')}/localPosts`;
       }
 
       const requestBody: any = {
@@ -54,11 +62,17 @@ export class GoogleBusinessService {
       }
 
       // Attach media only if it is a valid public internet URL
-      if (params.mediaUrl && !params.mediaUrl.includes('localhost') && !params.mediaUrl.startsWith('/uploads')) {
+      let effectiveMedia = params.mediaUrl;
+      if (effectiveMedia && effectiveMedia.startsWith('/uploads')) {
+        const liveHost = process.env.LIVE_BACKEND_URL || 'https://mediumspringgreen-wallaby-731721.hostingersite.com';
+        effectiveMedia = `${liveHost.replace(/\/$/, '')}${effectiveMedia}`;
+      }
+
+      if (effectiveMedia && !effectiveMedia.includes('localhost')) {
         requestBody.media = [
           {
             mediaFormat: 'PHOTO',
-            sourceUrl: params.mediaUrl,
+            sourceUrl: effectiveMedia,
           },
         ];
       }
@@ -137,6 +151,31 @@ export class GoogleBusinessService {
     }
 
     return null;
+  }
+
+  /**
+   * Discovers primary account and location from Google if locationId is missing or placeholder
+   */
+  static async discoverPrimaryLocation(token: string): Promise<string | null> {
+    try {
+      const accRes = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!accRes.ok) return null;
+      const accData: any = await accRes.json();
+      const firstAccount = accData.accounts?.[0]?.name;
+      if (!firstAccount) return null;
+
+      const locRes = await fetch(`https://mybusinessbusinessinformation.googleapis.com/v1/${firstAccount}/locations?readMask=name,title`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!locRes.ok) return null;
+      const locData: any = await locRes.json();
+      const firstLocation = locData.locations?.[0]?.name;
+      return firstLocation || null;
+    } catch {
+      return null;
+    }
   }
 }
 

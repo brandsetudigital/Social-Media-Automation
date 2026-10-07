@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useClients } from '../../context/ClientContext';
-import { api } from '../../api';
+import { api, getMediaUrl } from '../../api';
 import {
   Plus,
   Calendar as CalendarIcon,
@@ -280,8 +280,8 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
           clientId: evt.clientId || item.clientId,
           title: item.title || evt.title || 'Scheduled Social Post',
           caption: item.variants?.[0]?.caption || item.caption || evt.caption || '',
-          mediaUrl: item.mediaUrl || item.thumbnailUrl || (isReel ? '/sample_reel.mp4' : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80'),
-          thumbnailUrl: item.thumbnailUrl || (isReel ? 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=800&auto=format&fit=crop&q=80' : item.mediaUrl),
+          mediaUrl: item.mediaUrl || item.thumbnailUrl || '',
+          thumbnailUrl: item.thumbnailUrl || item.mediaUrl || '',
           platform: (evt.platform || 'INSTAGRAM').toUpperCase(),
           status: rawStatus,
           scheduledAt: evt.scheduledAt,
@@ -321,8 +321,8 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
           clientId: item.clientId,
           title: item.title || 'Social Media Update',
           caption: item.variants?.[0]?.caption || item.caption || '',
-          mediaUrl: item.mediaUrl || item.thumbnailUrl || (isReel ? '/sample_reel.mp4' : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80'),
-          thumbnailUrl: item.thumbnailUrl || (isReel ? 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=800&auto=format&fit=crop&q=80' : item.mediaUrl),
+          mediaUrl: item.mediaUrl || item.thumbnailUrl || '',
+          thumbnailUrl: item.thumbnailUrl || item.mediaUrl || '',
           platform: (item.scheduledPosts?.[0]?.platform || 'INSTAGRAM').toUpperCase(),
           status: rawStatus,
           scheduledAt: schedTime,
@@ -338,133 +338,6 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
         });
       }
     });
-
-    // If list is small, provide realistic demo scheduled posts around today's date
-    if (list.length < 5) {
-      const baseNow = new Date();
-      const getDemoDate = (offsetDays: number, hour: number, minute: number = 0) => {
-        const d = new Date(baseNow);
-        d.setDate(d.getDate() + offsetDays);
-        d.setHours(hour, minute, 0, 0);
-        return d;
-      };
-
-      const demoDate1 = getDemoDate(0, 10, 30);
-      const demoDate2 = getDemoDate(1, 9, 0);
-      const demoDate3 = getDemoDate(2, 17, 30);
-      const demoDate4 = getDemoDate(0, 14, 0);
-      const demoDate5 = getDemoDate(1, 11, 0);
-      const demoDate6 = getDemoDate(3, 9, 0);
-      const demoDate7 = getDemoDate(-1, 15, 30);
-
-      const demoItems = [
-        {
-          id: 'demo-1',
-          contentItemId: 'demo-item-1',
-          clientId: 'demo-client-1',
-          title: 'Brand Growth Strategy Reel',
-          caption: '3 steps to scale your brand reach organically on Instagram and LinkedIn! #MarketingGrowth #BrandSetu',
-          mediaUrl: '/sample_reel.mp4',
-          thumbnailUrl: 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=800&auto=format&fit=crop&q=80',
-          platform: 'INSTAGRAM',
-          status: 'SCHEDULED',
-          scheduledAt: demoDate1.toISOString(),
-          targetDate: demoDate1,
-          clientName: selectedClient?.businessName || 'BrandSetu Digital',
-          accountName: '@brandsetudigital',
-          contentType: 'REEL',
-        },
-        {
-          id: 'demo-changes-1',
-          contentItemId: 'demo-item-cr',
-          clientId: 'demo-client-cr',
-          title: 'Diwali Festive Brand Reel Promo',
-          caption: 'Celebrate festive prosperity with exclusive digital transformation packages from BrandSetu!',
-          mediaUrl: '/sample_reel.mp4',
-          thumbnailUrl: 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=800&auto=format&fit=crop&q=80',
-          platform: 'INSTAGRAM',
-          status: 'CHANGES_REQUESTED',
-          scheduledAt: demoDate3.toISOString(),
-          targetDate: demoDate3,
-          clientName: 'BrandSetu Digital',
-          accountName: '@brandsetudigital',
-          feedbackNote: 'Please update the end logo slide with the new high-resolution white BrandSetu logo and add hashtags #DiwaliMarketing.',
-          reviewedByName: 'Soumitra Vajpayee (Admin)',
-          reviewedAt: new Date(baseNow.getTime() - 2 * 3600000).toISOString(),
-          contentType: 'REEL',
-        },
-        {
-          id: 'demo-2',
-          contentItemId: 'demo-item-2',
-          clientId: 'demo-client-2',
-          title: 'Client Case Study Spotlight',
-          caption: 'How our client generated 4.2x ROI within 45 days through targeted social media campaigns.',
-          mediaUrl: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=600&auto=format&fit=crop&q=80',
-          thumbnailUrl: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=600&auto=format&fit=crop&q=80',
-          platform: 'LINKEDIN',
-          status: 'SCHEDULED',
-          scheduledAt: demoDate4.toISOString(),
-          targetDate: demoDate4,
-          clientName: selectedClient?.businessName || 'BrandSetu Digital',
-          accountName: '@brandsetudigital',
-          contentType: 'POST',
-        },
-        {
-          id: 'demo-3',
-          contentItemId: 'demo-item-3',
-          clientId: 'demo-client-3',
-          title: 'Weekend Flash Offer Post',
-          caption: 'Exclusive weekend digital marketing audit package for new business signups.',
-          mediaUrl: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=600&auto=format&fit=crop&q=80',
-          thumbnailUrl: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&auto=format&fit=crop&q=80',
-          platform: 'FACEBOOK',
-          status: 'SCHEDULED',
-          scheduledAt: demoDate5.toISOString(),
-          targetDate: demoDate5,
-          clientName: selectedClient?.businessName || 'BrandSetu Digital',
-          accountName: '@brandsetudigital',
-          contentType: 'POST',
-        },
-        {
-          id: 'demo-4',
-          contentItemId: 'demo-item-4',
-          clientId: 'demo-client-4',
-          title: 'Monday Motivation & Founder Quote',
-          caption: 'Consistency is the only metric that turns creativity into an unstoppable brand.',
-          mediaUrl: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&auto=format&fit=crop&q=80',
-          thumbnailUrl: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&auto=format&fit=crop&q=80',
-          platform: 'INSTAGRAM',
-          status: 'DRAFT',
-          scheduledAt: demoDate6.toISOString(),
-          targetDate: demoDate6,
-          clientName: selectedClient?.businessName || 'BrandSetu Digital',
-          accountName: '@brandsetudigital',
-          contentType: 'POST',
-        },
-        {
-          id: 'demo-5',
-          contentItemId: 'demo-item-5',
-          clientId: 'demo-client-5',
-          title: 'Automated Lead Generation Carousel',
-          caption: 'Swipe through to discover how our automation agents handle multi-channel distribution.',
-          mediaUrl: 'https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?w=600&auto=format&fit=crop&q=80',
-          thumbnailUrl: 'https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?w=600&auto=format&fit=crop&q=80',
-          platform: 'LINKEDIN',
-          status: 'PUBLISHED',
-          scheduledAt: demoDate7.toISOString(),
-          targetDate: demoDate7,
-          clientName: selectedClient?.businessName || 'BrandSetu Digital',
-          accountName: '@brandsetudigital',
-          contentType: 'CAROUSEL',
-        },
-      ];
-      demoItems.forEach((d) => {
-        if (!seenIds.has(d.id) && !deletedIds.has(d.id)) {
-          seenIds.add(d.id);
-          list.push(d);
-        }
-      });
-    }
 
     return list;
   }, [posts, calendarEvents, selectedClient, deletedIds]);
@@ -970,7 +843,7 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                         <div className="w-5 h-5 rounded overflow-hidden shrink-0 bg-slate-800 flex items-center justify-center border border-black/10">
                           {p.thumbnailUrl || p.mediaUrl ? (
                             <img
-                              src={p.thumbnailUrl || p.mediaUrl}
+                              src={getMediaUrl(p.thumbnailUrl || p.mediaUrl)}
                               alt=""
                               className="w-full h-full object-cover"
                               onError={(e) => {
@@ -1168,7 +1041,7 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                             <div className="flex items-start gap-2">
                               <div className="relative w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-slate-900 border border-black/10">
                                 <img
-                                  src={p.thumbnailUrl || p.mediaUrl}
+                                  src={getMediaUrl(p.thumbnailUrl || p.mediaUrl)}
                                   alt=""
                                   className="w-full h-full object-cover"
                                   onError={(e) => {
@@ -1309,7 +1182,7 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                             >
                               <div className="w-4 h-4 rounded overflow-hidden shrink-0 bg-slate-800">
                                 <img
-                                  src={p.thumbnailUrl || p.mediaUrl}
+                                  src={getMediaUrl(p.thumbnailUrl || p.mediaUrl)}
                                   alt=""
                                   className="w-full h-full object-cover"
                                   onError={(e) => {
@@ -1621,7 +1494,7 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                               >
                                 <div className="flex items-center gap-3 min-w-0">
                                   <img
-                                    src={p.thumbnailUrl || p.mediaUrl}
+                                    src={getMediaUrl(p.thumbnailUrl || p.mediaUrl)}
                                     alt={p.title}
                                     className="w-12 h-12 rounded-lg object-cover border border-purple-200 shrink-0 shadow-xs"
                                   />
@@ -1844,29 +1717,26 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                       >
                         {isVideo ? (
                           <div className="w-full h-full relative flex items-center justify-center bg-black">
-                            <video
-                              src={post.mediaUrl || '/sample_reel.mp4'}
-                              poster={post.thumbnailUrl || undefined}
-                              muted
-                              playsInline
-                              preload="metadata"
-                              className="w-full h-full object-cover object-top group-hover:scale-105 transition duration-300"
-                              onError={(e) => {
-                                (e.currentTarget as HTMLElement).style.display = 'none';
-                              }}
-                            />
-                            <img
-                              src={
-                                post.thumbnailUrl ||
-                                'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=800&auto=format&fit=crop&q=80'
-                              }
-                              alt=""
-                              className="w-full h-full object-cover object-top absolute inset-0 -z-10 group-hover:scale-105 transition duration-300"
-                              onError={(e) => {
-                                (e.currentTarget as HTMLImageElement).src =
-                                  'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=800&auto=format&fit=crop&q=80';
-                              }}
-                            />
+                            {post.mediaUrl && (
+                              <video
+                                src={getMediaUrl(post.mediaUrl)}
+                                poster={post.thumbnailUrl ? getMediaUrl(post.thumbnailUrl) : undefined}
+                                muted
+                                playsInline
+                                preload="metadata"
+                                className="w-full h-full object-cover object-top group-hover:scale-105 transition duration-300"
+                                onError={(e) => {
+                                  (e.currentTarget as HTMLElement).style.display = 'none';
+                                }}
+                              />
+                            )}
+                            {post.thumbnailUrl && (
+                              <img
+                                src={getMediaUrl(post.thumbnailUrl)}
+                                alt=""
+                                className="w-full h-full object-cover object-top absolute inset-0 -z-10 group-hover:scale-105 transition duration-300"
+                              />
+                            )}
                             <div className="absolute inset-0 bg-black/25 flex items-center justify-center group-hover:bg-black/40 transition">
                               <div className="w-10 h-10 rounded-full bg-white/90 text-gray-900 flex items-center justify-center shadow-lg group-hover:scale-110 transition">
                                 <Play className="w-5 h-5 fill-current ml-0.5 text-gray-900" />
@@ -1878,17 +1748,9 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                           </div>
                         ) : (
                           <img
-                            src={
-                              post.thumbnailUrl ||
-                              post.mediaUrl ||
-                              'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop&q=80'
-                            }
+                            src={getMediaUrl(post.thumbnailUrl || post.mediaUrl) || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop&q=80'}
                             alt=""
                             className="w-full h-full object-cover object-top group-hover:scale-105 transition duration-300"
-                            onError={(e) => {
-                              (e.currentTarget as HTMLImageElement).src =
-                                'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop&q=80';
-                            }}
                           />
                         )}
 
@@ -2326,7 +2188,7 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
               {isVideoMedia(selectedPostDetail.mediaUrl, selectedPostDetail.contentType) ? (
                 <div className="relative rounded-xl overflow-hidden border border-gray-200 shadow-xs bg-black flex items-center justify-center">
                   <video
-                    src={selectedPostDetail.mediaUrl}
+                    src={getMediaUrl(selectedPostDetail.mediaUrl)}
                     controls
                     autoPlay
                     muted
@@ -2340,7 +2202,7 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                 </div>
               ) : (
                 <img
-                  src={selectedPostDetail.mediaUrl}
+                  src={getMediaUrl(selectedPostDetail.mediaUrl)}
                   alt={selectedPostDetail.title}
                   className="w-full h-56 object-cover rounded-xl border border-gray-200 shadow-xs"
                   onError={(e) => {

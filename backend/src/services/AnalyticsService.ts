@@ -150,9 +150,14 @@ export class AnalyticsService {
       take: 30,
     });
 
-    const totalReach = metrics.reduce((acc, m) => acc + m.reach, 18450);
-    const totalImpressions = metrics.reduce((acc, m) => acc + m.impressions, 34200);
-    const totalEngagement = metrics.reduce((acc, m) => acc + m.likes + m.comments + m.shares, 4210);
+    const totalReach = metrics.reduce((acc, m) => acc + m.reach, 0);
+    const totalImpressions = metrics.reduce((acc, m) => acc + m.impressions, 0);
+    const totalLikes = metrics.reduce((acc, m) => acc + m.likes, 0);
+    const totalComments = metrics.reduce((acc, m) => acc + m.comments, 0);
+    const totalShares = metrics.reduce((acc, m) => acc + m.shares, 0);
+    const totalEngagement = metrics.reduce((acc, m) => acc + m.likes + m.comments + m.shares, 0);
+    const avgEngagementRate = totalImpressions > 0 ? parseFloat(((totalEngagement / totalImpressions) * 100).toFixed(1)) : 0;
+    const avgViewsPerPost = totalPosts > 0 ? Math.round(totalImpressions / totalPosts) : 0;
 
     return {
       clientsCount,
@@ -170,7 +175,12 @@ export class AnalyticsService {
       successRate,
       totalReach,
       totalImpressions,
+      totalLikes,
+      totalComments,
+      totalShares,
       totalEngagement,
+      avgEngagementRate,
+      avgViewsPerPost,
       platformBreakdown,
       metricsHistory: metrics,
     };

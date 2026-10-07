@@ -581,7 +581,7 @@ export const AgencyDashboardView: React.FC<AgencyDashboardViewProps> = ({
           <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
             <div>
               <p className="text-sm font-bold text-slate-700">Total Engagements</p>
-              <p className="text-3xl font-black text-slate-900 mt-1">{overview?.totalLikes || 4210}</p>
+              <p className="text-3xl font-black text-slate-900 mt-1">{overview?.totalLikes || 0}</p>
             </div>
             <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shadow-xs">
               <Heart className="w-5 h-5" />
@@ -591,7 +591,7 @@ export const AgencyDashboardView: React.FC<AgencyDashboardViewProps> = ({
           <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
             <div>
               <p className="text-sm font-bold text-slate-700">Total Reach</p>
-              <p className="text-3xl font-black text-slate-900 mt-1">{overview?.totalReach || 18450}</p>
+              <p className="text-3xl font-black text-slate-900 mt-1">{overview?.totalReach || 0}</p>
             </div>
             <div className="w-11 h-11 rounded-xl bg-blue-50 text-[#0172F4] flex items-center justify-center shadow-xs">
               <TrendingUp className="w-5 h-5" />
@@ -601,7 +601,7 @@ export const AgencyDashboardView: React.FC<AgencyDashboardViewProps> = ({
           <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
             <div>
               <p className="text-sm font-bold text-slate-700">Average Engagement Rate</p>
-              <p className="text-3xl font-black text-slate-900 mt-1">{overview?.avgEngagementRate || 4.8}%</p>
+              <p className="text-3xl font-black text-slate-900 mt-1">{overview?.avgEngagementRate || 0}%</p>
             </div>
             <div className="w-11 h-11 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shadow-xs">
               <Percent className="w-5 h-5" />
@@ -838,7 +838,7 @@ export const AgencyDashboardView: React.FC<AgencyDashboardViewProps> = ({
               <div className="flex items-baseline justify-between">
                 <div>
                   <span className="text-3xl font-black text-slate-900">
-                    {(overview?.totalEngagement || 4210).toLocaleString()}
+                    {(overview?.totalEngagement || 0).toLocaleString()}
                   </span>
                   <span className="text-sm font-bold text-slate-600 ml-2">Total Engagements</span>
                 </div>
@@ -852,24 +852,24 @@ export const AgencyDashboardView: React.FC<AgencyDashboardViewProps> = ({
                   <div className="flex items-center gap-1.5 text-rose-700 text-xs font-bold">
                     <Heart className="w-4 h-4" /> Likes
                   </div>
-                  <p className="text-xl font-black text-slate-900 mt-1">3,420</p>
+                  <p className="text-xl font-black text-slate-900 mt-1">{(overview?.totalLikes || 0).toLocaleString()}</p>
                 </div>
                 <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl shadow-xs">
                   <div className="flex items-center gap-1.5 text-blue-700 text-xs font-bold">
                     <MessageCircle className="w-4 h-4" /> Comments
                   </div>
-                  <p className="text-xl font-black text-slate-900 mt-1">580</p>
+                  <p className="text-xl font-black text-slate-900 mt-1">{(overview?.totalComments || 0).toLocaleString()}</p>
                 </div>
                 <div className="p-3.5 bg-purple-50 border border-purple-200 rounded-xl shadow-xs">
                   <div className="flex items-center gap-1.5 text-purple-700 text-xs font-bold">
                     <Share2 className="w-4 h-4" /> Shares
                   </div>
-                  <p className="text-xl font-black text-slate-900 mt-1">210</p>
+                  <p className="text-xl font-black text-slate-900 mt-1">{(overview?.totalShares || 0).toLocaleString()}</p>
                 </div>
               </div>
 
               <p className="text-xs font-semibold text-slate-600">
-                Average Engagement Rate: <span className="font-extrabold text-slate-900">{overview?.avgEngagementRate || 4.8}%</span> (Industry standard: 2.1%)
+                Average Engagement Rate: <span className="font-extrabold text-slate-900">{overview?.avgEngagementRate || 0}%</span> (Industry standard: 2.1%)
               </p>
             </div>
           )}
@@ -880,7 +880,7 @@ export const AgencyDashboardView: React.FC<AgencyDashboardViewProps> = ({
               <div className="flex items-baseline justify-between">
                 <div>
                   <span className="text-3xl font-black text-slate-900">
-                    {(overview?.totalReach || 18450).toLocaleString()}
+                    {(overview?.totalReach || 0).toLocaleString()}
                   </span>
                   <span className="text-sm font-bold text-slate-600 ml-2">Audience Reach</span>
                 </div>
@@ -895,14 +895,14 @@ export const AgencyDashboardView: React.FC<AgencyDashboardViewProps> = ({
                     <Eye className="w-4 h-4" /> Impressions
                   </div>
                   <p className="text-2xl font-black text-slate-900 mt-1">
-                    {(overview?.totalImpressions || 34200).toLocaleString()}
+                    {(overview?.totalImpressions || 0).toLocaleString()}
                   </p>
                 </div>
                 <div className="p-4 bg-indigo-50/80 border border-indigo-200 rounded-xl shadow-xs">
                   <div className="flex items-center gap-2 text-indigo-700 text-xs font-bold">
                     <Users className="w-4 h-4" /> Avg Views / Post
                   </div>
-                  <p className="text-2xl font-black text-slate-900 mt-1">1,680</p>
+                  <p className="text-2xl font-black text-slate-900 mt-1">{(overview?.avgViewsPerPost || 0).toLocaleString()}</p>
                 </div>
               </div>
 

@@ -88,13 +88,10 @@ export class AIContentService {
   }
 
   /**
-   * Calls Google Gemini API (gemini-1.5-flash / gemini-2.0)
+   * Calls Google Gemini API (gemini-flash-latest / gemini-2.5-flash-lite / gemini-3.5-flash)
    */
   private static async callGemini(prompt: string, mediaUrl?: string): Promise<{ caption: string; hashtags: string } | null> {
-    const apiKey = (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.startsWith('AIza'))
-      ? process.env.GEMINI_API_KEY
-      : (process.env.GEMINI_API_KEY && !process.env.GEMINI_API_KEY.startsWith('AQ') ? process.env.GEMINI_API_KEY : undefined);
-
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
     if (!apiKey) return null;
 
     try {
@@ -113,41 +110,57 @@ export class AIContentService {
         });
       }
 
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts }],
-            generationConfig: {
-              temperature: 0.7,
-              maxOutputTokens: 1000,
-            },
-          }),
+      const candidateModels = ['gemini-flash-latest', 'gemini-2.5-flash-lite', 'gemini-3.5-flash'];
+
+      for (const modelName of candidateModels) {
+        try {
+          const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts }],
+                generationConfig: {
+                  temperature: 0.7,
+                  maxOutputTokens: 1000,
+                },
+              }),
+            }
+          );
+
+          if (!response.ok) {
+            continue;
+          }
+
+          const data: any = await response.json();
+          const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (!rawText) continue;
+
+          // Extract JSON from markdown fences if model returned ```json ... ```
+          const cleaned = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+          try {
+            const parsed = JSON.parse(cleaned);
+            let parsedHashtags = '';
+            if (Array.isArray(parsed.hashtags)) {
+              parsedHashtags = parsed.hashtags.join(' ');
+            } else if (typeof parsed.hashtags === 'string') {
+              parsedHashtags = parsed.hashtags;
+            }
+
+            return {
+              caption: parsed.caption || rawText,
+              hashtags: parsedHashtags,
+            };
+          } catch {
+            return { caption: rawText, hashtags: '' };
+          }
+        } catch {
+          continue;
         }
-      );
-
-      if (!response.ok) {
-        console.warn(`[Gemini API Note]: Status ${response.status} (key or quota pending). Switching to BrandSetu Smart Creative Engine.`);
-        return null;
       }
 
-      const data: any = await response.json();
-      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!rawText) return null;
-
-      // Extract JSON from markdown fences if model returned ```json ... ```
-      const cleaned = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      try {
-        const parsed = JSON.parse(cleaned);
-        return {
-          caption: parsed.caption || rawText,
-          hashtags: parsed.hashtags || '',
-        };
-      } catch {
-        return { caption: rawText, hashtags: '' };
-      }
+      return null;
     } catch (err: any) {
       console.warn(`[Gemini API Exception]: ${err.message}`);
       return null;
@@ -284,7 +297,7 @@ Return strictly a valid JSON object without any other text or explanation:
 
     if (preferred === 'gemini') {
       aiResult = await this.callGemini(prompt, params.mediaUrl);
-      if (aiResult) modelUsed = 'Google Gemini 1.5 Flash';
+      if (aiResult) modelUsed = 'Google Gemini AI';
       if (!aiResult && process.env.OPENAI_API_KEY) {
         aiResult = await this.callOpenAI(prompt, params.mediaUrl);
         if (aiResult) modelUsed = 'ChatGPT (gpt-4o-mini)';
@@ -294,7 +307,7 @@ Return strictly a valid JSON object without any other text or explanation:
       if (aiResult) modelUsed = 'ChatGPT (gpt-4o-mini)';
       if (!aiResult) {
         aiResult = await this.callGemini(prompt, params.mediaUrl);
-        if (aiResult) modelUsed = 'Google Gemini 1.5 Flash';
+        if (aiResult) modelUsed = 'Google Gemini AI';
       }
     }
 
@@ -494,10 +507,35 @@ Return strictly a valid JSON object without any other text or explanation:
   }
 
   /**
-   * Generate curated hashtags based on client location & category
+   * Generate curated hashtags based on client location & category using Gemini AI
    */
   static async generateHashtags(clientId: string, topic?: string) {
     const ctx = await this.getClientContext(clientId);
+
+    const prompt = `You are a social media hashtag strategist at BrandSetu Digital.
+Generate 15 to 20 trending, niche-specific, and local community hashtags for:
+- Client: ${ctx.businessName}
+- Industry: ${ctx.category}
+- City / Location: ${ctx.location}
+${topic ? `- Post Topic: ${topic}` : ''}
+${ctx.hashtags ? `- Custom brand tags: ${ctx.hashtags}` : ''}
+
+Format instructions:
+Return strictly a valid JSON object:
+{
+  "caption": "",
+  "hashtags": "#Tag1 #Tag2 #Tag3 #Tag4..."
+}`;
+
+    try {
+      const aiResult = await this.callGemini(prompt);
+      if (aiResult?.hashtags && aiResult.hashtags.trim().length > 0) {
+        return aiResult.hashtags.trim();
+      }
+    } catch {
+      // Fallback below
+    }
+
     const cleanName = ctx.businessName.replace(/[^a-zA-Z0-9]/g, '');
     const cleanLoc = ctx.location.replace(/[^a-zA-Z0-9]/g, '');
     const cleanCat = ctx.category.replace(/[^a-zA-Z0-9]/g, '');

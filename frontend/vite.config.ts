@@ -7,11 +7,11 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'https://mediumspringgreen-wallaby-731721.hostingersite.com',
         changeOrigin: true,
       },
       '/uploads': {
-        target: 'http://localhost:5000',
+        target: 'https://mediumspringgreen-wallaby-731721.hostingersite.com',
         changeOrigin: true,
       },
     },

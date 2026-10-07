@@ -497,44 +497,30 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   };
 
   const handleSubmit = async (action: 'PUBLISH' | 'SCHEDULE' | 'DRAFT') => {
+    if (isUploadingMedia) {
+      setStatusMessage({ type: 'error', text: 'Media file is still uploading to server. Please wait a moment...' });
+      return;
+    }
+
     setIsSubmitting(true);
     setStatusMessage(null);
 
     try {
       const activeClientId = getEffectiveClientId();
+      const clientObj = clients.find((c) => c.id === activeClientId);
       const isVideo = isVideoMedia(mediaUrl, contentType, uploadedFileName);
 
-      let effectiveMediaUrl =
-        mediaUrl ||
-        (contentType === 'REEL'
-          ? '/sample_reel.mp4'
-          : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80');
-
-      if (effectiveMediaUrl.startsWith('blob:')) {
-        effectiveMediaUrl =
-          isVideo
-            ? '/sample_reel.mp4'
-            : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80';
-      }
-
-      let effectiveThumbnail =
-        thumbnailUrl ||
-        (isVideo
-          ? 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=800&auto=format&fit=crop&q=80'
-          : effectiveMediaUrl);
-
-      if (effectiveThumbnail.startsWith('blob:')) {
-        effectiveThumbnail = isVideo
-          ? 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=800&auto=format&fit=crop&q=80'
-          : effectiveMediaUrl;
-      }
+      const effectiveMediaUrl = mediaUrl || '';
+      const effectiveThumbnail = thumbnailUrl || (isVideo ? '' : effectiveMediaUrl);
 
       const activeCaption = platformCaptions[activePreviewPlatform] || caption;
       const activeHashtags = platformHashtags[activePreviewPlatform] || hashtags;
 
+      const effectiveTitle = title.trim() || (activeCaption ? activeCaption.slice(0, 35).trim() : `${clientObj?.businessName || 'Brand'} Post`);
+
       await api.createManualContent({
         clientId: activeClientId,
-        title: title || (contentType === 'REEL' ? 'Brand Video Reel Showcase' : 'Social Campaign Post'),
+        title: effectiveTitle,
         contentType,
         caption: activeCaption,
         hashtags: activeHashtags,

@@ -149,10 +149,10 @@ export const AnalyticsView: React.FC = () => {
             <Eye className="w-4 h-4 text-purple-600" />
           </div>
           <p className="text-2xl font-bold text-gray-900 mt-2">
-            {(overview?.totalImpressions || 42800).toLocaleString()}
+            {(overview?.totalImpressions || 0).toLocaleString()}
           </p>
           <span className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1 mt-1">
-            <TrendingUp className="w-3 h-3" /> +22.1% vs last period
+            <TrendingUp className="w-3 h-3" /> Live Synced
           </span>
         </div>
 
@@ -162,7 +162,7 @@ export const AnalyticsView: React.FC = () => {
             <Heart className="w-4 h-4 text-rose-500" />
           </div>
           <p className="text-2xl font-bold text-gray-900 mt-2">
-            {(overview?.totalLikes || 4820).toLocaleString()}
+            {(overview?.totalEngagement || overview?.totalLikes || 0).toLocaleString()}
           </p>
           <span className="text-[11px] text-gray-400 mt-1 block">Likes • Comments • Shares</span>
         </div>
@@ -173,7 +173,7 @@ export const AnalyticsView: React.FC = () => {
             <BarChart3 className="w-4 h-4 text-emerald-600" />
           </div>
           <p className="text-2xl font-bold text-emerald-600 mt-2">
-            {overview?.avgEngagementRate || 4.8}%
+            {overview?.avgEngagementRate || 0}%
           </p>
           <span className="text-[11px] text-gray-400 mt-1 block">Industry Avg: 2.1%</span>
         </div>

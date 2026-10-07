@@ -785,7 +785,7 @@ export const BrandDashboardView: React.FC<BrandDashboardViewProps> = ({
           <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
             <div>
               <p className="text-sm font-bold text-slate-700">Total Engagements</p>
-              <p className="text-3xl font-black text-slate-900 mt-1">{(overview?.totalEngagement || 4210).toLocaleString()}</p>
+              <p className="text-3xl font-black text-slate-900 mt-1">{(overview?.totalEngagement || 0).toLocaleString()}</p>
             </div>
             <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shadow-xs">
               <Heart className="w-5 h-5" />
@@ -795,7 +795,7 @@ export const BrandDashboardView: React.FC<BrandDashboardViewProps> = ({
           <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
             <div>
               <p className="text-sm font-bold text-slate-700">Total Reach</p>
-              <p className="text-3xl font-black text-slate-900 mt-1">{(overview?.totalReach || 18450).toLocaleString()}</p>
+              <p className="text-3xl font-black text-slate-900 mt-1">{(overview?.totalReach || 0).toLocaleString()}</p>
             </div>
             <div className="w-11 h-11 rounded-xl bg-blue-50 text-[#0172F4] flex items-center justify-center shadow-xs">
               <TrendingUp className="w-5 h-5" />
@@ -805,7 +805,7 @@ export const BrandDashboardView: React.FC<BrandDashboardViewProps> = ({
           <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
             <div>
               <p className="text-sm font-bold text-slate-700">Average Engagement Rate</p>
-              <p className="text-3xl font-black text-slate-900 mt-1">{overview?.avgEngagementRate || 4.8}%</p>
+              <p className="text-3xl font-black text-slate-900 mt-1">{overview?.avgEngagementRate || 0}%</p>
             </div>
             <div className="w-11 h-11 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shadow-xs">
               <Percent className="w-5 h-5" />
@@ -936,7 +936,7 @@ export const BrandDashboardView: React.FC<BrandDashboardViewProps> = ({
           </div>
 
           <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-600">
-            <span>{(overview?.totalImpressions || 34200).toLocaleString()} Total Impressions</span>
+            <span>{(overview?.totalImpressions || 0).toLocaleString()} Total Impressions</span>
             <span className="text-slate-800 font-bold">Updated live</span>
           </div>
         </div>
