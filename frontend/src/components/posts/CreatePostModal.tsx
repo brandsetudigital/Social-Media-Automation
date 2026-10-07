@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useClients } from '../../context/ClientContext';
-import { api } from '../../api';
+import { api, getMediaUrl } from '../../api';
 import {
   X,
   Sparkles,
@@ -90,6 +90,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     initialTemplate?.mediaUrl ||
     'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80'
   );
+  const [localPreviewUrl, setLocalPreviewUrl] = useState<string>('');
+  const displayMediaUrl = localPreviewUrl || getMediaUrl(mediaUrl);
   const [contentType, setContentType] = useState(defaultContentType || 'POST');
 
   const [scheduleDate, setScheduleDate] = useState(() => initialTemplate?.scheduleDate || getTodayDateStr());
@@ -103,9 +105,14 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       if (initialTemplate?.caption) setCaption(initialTemplate.caption);
       if (initialTemplate?.title) setTitle(initialTemplate.title);
       if (initialTemplate?.hashtags) setHashtags(initialTemplate.hashtags);
-      if (initialTemplate?.mediaUrl) setMediaUrl(initialTemplate.mediaUrl);
+      if (initialTemplate?.mediaUrl) {
+        setMediaUrl(initialTemplate.mediaUrl);
+        setLocalPreviewUrl('');
+      }
       setScheduleDate(initialTemplate?.scheduleDate || getTodayDateStr());
       setScheduleTime(initialTemplate?.scheduleTime || getCurrentTimeStr());
+    } else {
+      setLocalPreviewUrl('');
     }
   }, [isOpen, defaultClientId, defaultCaption, defaultContentType, initialTemplate]);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([
@@ -258,12 +265,13 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
     setUploadedFileName(file.name);
     const localUrl = URL.createObjectURL(file);
+    setLocalPreviewUrl(localUrl);
     setMediaUrl(localUrl);
 
     const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm|mkv|ogg)$/i.test(file.name);
     if (isVideo) {
       setContentType('REEL');
-      setThumbnailUrl('https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=800&auto=format&fit=crop&q=80');
+      setThumbnailUrl(localUrl);
       extractVideoThumbnail(file).then((thumb) => {
         if (thumb) setThumbnailUrl(thumb);
       });
@@ -278,9 +286,6 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       const uploaded = await api.uploadMedia(file);
       if (uploaded?.url) {
         setMediaUrl(uploaded.url);
-        if (!isVideo) {
-          setThumbnailUrl(uploaded.url);
-        }
       }
     } catch (uploadErr) {
       console.warn('[CreatePostModal] File upload warning:', uploadErr);
@@ -291,6 +296,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
   const handleDriveLinkChange = (link: string) => {
     setDriveShareLink(link);
+    setLocalPreviewUrl('');
     const match = link.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || link.match(/id=([a-zA-Z0-9_-]+)/);
     if (match && match[1]) {
       const fileId = match[1];
@@ -309,6 +315,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     size?: string;
     folder?: string;
   }) => {
+    setLocalPreviewUrl('');
     setMediaUrl(asset.url);
     if (asset.id) setSelectedDriveAssetId(asset.id);
     setUploadedFileName(asset.name);
@@ -789,6 +796,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                           onClick={() => {
                             setUploadedFileName(null);
                             setMediaUrl('');
+                            setLocalPreviewUrl('');
                           }}
                           className="text-xs font-semibold text-rose-600 hover:underline"
                         >
@@ -832,6 +840,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                           onClick={() => {
                             openGoogleDrivePicker({
                               onSelect: (file) => {
+                                setLocalPreviewUrl('');
                                 setMediaUrl(file.url);
                                 setUploadedFileName(file.name);
                                 if (file.type === 'VIDEO' || file.type === 'REEL') {
@@ -856,6 +865,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                           onClick={() => {
                             setUploadedFileName(null);
                             setMediaUrl('');
+                            setLocalPreviewUrl('');
                             setDriveShareLink('');
                           }}
                           className="text-xs font-semibold text-rose-600 hover:underline cursor-pointer"
@@ -869,6 +879,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                       onClick={() => {
                         openGoogleDrivePicker({
                           onSelect: (file) => {
+                            setLocalPreviewUrl('');
                             setMediaUrl(file.url);
                             setUploadedFileName(file.name);
                             if (file.type === 'VIDEO' || file.type === 'REEL') {
@@ -916,12 +927,16 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                     type="text"
                     placeholder="https://... image or video (.mp4) link"
                     value={mediaUrl}
-                    onChange={(e) => setMediaUrl(e.target.value)}
+                    onChange={(e) => {
+                      setMediaUrl(e.target.value);
+                      setLocalPreviewUrl('');
+                    }}
                     className="flex-1 text-xs px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0172F4]"
                   />
                   <button
                     type="button"
                     onClick={() => {
+                      setLocalPreviewUrl('');
                       setMediaUrl('/sample_reel.mp4');
                       setContentType('REEL');
                     }}
@@ -940,6 +955,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                     <div
                       key={idx}
                       onClick={() => {
+                        setLocalPreviewUrl('');
                         setMediaUrl(item.url);
                         if (item.type === 'VIDEO') {
                           setContentType('REEL');
@@ -1194,11 +1210,11 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 {contentType === 'REEL' || contentType === 'STORY' ? (
                   <div className="relative w-full h-[434px] bg-black text-white flex flex-col justify-between overflow-hidden">
                     {/* Media: Video or Image (Full edge-to-edge) */}
-                    {mediaUrl ? (
-                      isVideoMedia(mediaUrl, contentType, uploadedFileName) ? (
+                    {displayMediaUrl ? (
+                      isVideoMedia(displayMediaUrl, contentType, uploadedFileName) ? (
                         <video
-                          key={mediaUrl}
-                          src={mediaUrl}
+                          key={displayMediaUrl}
+                          src={displayMediaUrl}
                           autoPlay
                           loop
                           muted
@@ -1208,8 +1224,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                         />
                       ) : (
                         <img
-                          key={mediaUrl}
-                          src={mediaUrl}
+                          key={displayMediaUrl}
+                          src={displayMediaUrl}
                           alt="Visual"
                           className="absolute inset-0 w-full h-full object-cover"
                           onError={(e) => {
@@ -1323,12 +1339,12 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
                     {/* Media Display: Adaptive Mobile Feed Container (zero black bars, matches real Instagram & Facebook feed) */}
                     <div className="w-full bg-white overflow-hidden relative flex items-center justify-center shrink-0 min-h-[140px] max-h-[300px]">
-                      {mediaUrl ? (
-                        isVideoMedia(mediaUrl, contentType, uploadedFileName) ? (
+                      {displayMediaUrl ? (
+                        isVideoMedia(displayMediaUrl, contentType, uploadedFileName) ? (
                           <div className="w-full bg-black flex items-center justify-center">
                             <video
-                              key={mediaUrl}
-                              src={mediaUrl}
+                              key={displayMediaUrl}
+                              src={displayMediaUrl}
                               controls
                               autoPlay
                               muted
@@ -1339,8 +1355,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                           </div>
                         ) : (
                           <img
-                            key={mediaUrl}
-                            src={mediaUrl}
+                            key={displayMediaUrl}
+                            src={displayMediaUrl}
                             alt="Post Visual"
                             className="w-full h-auto max-h-[300px] object-contain block bg-white"
                             onError={(e) => {
@@ -1354,7 +1370,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
                       {/* Clean styled fallback if no media or load error */}
                       <div
-                        className={`w-full h-44 flex flex-col items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 text-gray-400 p-4 ${mediaUrl ? 'hidden' : 'flex'
+                        className={`w-full h-44 flex flex-col items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 text-gray-400 p-4 ${displayMediaUrl ? 'hidden' : 'flex'
                           }`}
                       >
                         <ImageIcon className="w-7 h-7 text-gray-400 mb-1" />

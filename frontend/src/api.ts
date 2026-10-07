@@ -1,5 +1,5 @@
 function cleanBaseUrl(input?: string): string {
-  if (!input) return '/api';
+  if (!input) return 'https://mediumspringgreen-wallaby-731721.hostingersite.com/api';
   let clean = input.trim();
   // Strip accidental "VITE_API_URL=" prefix if user pasted key and value together
   clean = clean.replace(/^VITE_API_URL\s*=\s*/i, '');
@@ -16,9 +16,17 @@ const API_BASE = cleanBaseUrl((import.meta as any).env?.VITE_API_URL);
 
 export const getMediaUrl = (url?: string | null): string => {
   if (!url) return '';
-  if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  const backendBase = API_BASE.replace(/\/api\/?$/, '');
-  return `${backendBase}${url.startsWith('/') ? url : '/' + url}`;
+  if (
+    url.startsWith('http://') ||
+    url.startsWith('https://') ||
+    url.startsWith('blob:') ||
+    url.startsWith('data:')
+  ) {
+    return url;
+  }
+  const backendBase = API_BASE.replace(/\/api\/?$/, '') || 'https://mediumspringgreen-wallaby-731721.hostingersite.com';
+  const cleanUrl = url.startsWith('/') ? url : `/${url}`;
+  return `${backendBase}${cleanUrl}`;
 };
 
 export const getAuthHeader = (): Record<string, string> => {
