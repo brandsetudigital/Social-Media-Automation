@@ -171,22 +171,23 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
             if (ctx) {
               ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
               const thumbUrl = canvas.toDataURL('image/jpeg', 0.8);
-              URL.revokeObjectURL(objectUrl);
               resolve(thumbUrl);
+              setTimeout(() => { try { URL.revokeObjectURL(objectUrl); } catch {} }, 5000);
               return;
             }
           } catch {
             // fallback
           }
-          URL.revokeObjectURL(objectUrl);
           resolve('https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=800&auto=format&fit=crop&q=80');
+          setTimeout(() => { try { URL.revokeObjectURL(objectUrl); } catch {} }, 5000);
         };
         video.onerror = () => {
-          URL.revokeObjectURL(objectUrl);
           resolve('https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=800&auto=format&fit=crop&q=80');
+          setTimeout(() => { try { URL.revokeObjectURL(objectUrl); } catch {} }, 5000);
         };
         setTimeout(() => {
           resolve('https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=800&auto=format&fit=crop&q=80');
+          setTimeout(() => { try { URL.revokeObjectURL(objectUrl); } catch {} }, 5000);
         }, 3000);
       } catch {
         resolve('https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=800&auto=format&fit=crop&q=80');
