@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useClients } from '../../context/ClientContext';
-import { api } from '../../api';
+import { api, getPostImageUrl } from '../../api';
 import { ScheduledPost } from '../../types';
 import {
   Calendar as CalendarIcon,
@@ -178,7 +178,7 @@ export const CalendarView: React.FC = () => {
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              Published Today (आज गईं)
+              Published Today 
             </span>
             <CheckCircle2 className="w-4 h-4 text-emerald-400" />
           </div>
@@ -198,7 +198,7 @@ export const CalendarView: React.FC = () => {
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-purple-300 flex items-center gap-1">
               <Clock className="w-3.5 h-3.5" />
-              Scheduled Today (आज)
+              Scheduled Today 
             </span>
             <Clock className="w-4 h-4 text-purple-400" />
           </div>
@@ -218,7 +218,7 @@ export const CalendarView: React.FC = () => {
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-sky-400 flex items-center gap-1">
               <CalendarIcon className="w-3.5 h-3.5" />
-              Upcoming (अगली तारीख)
+              Upcoming 
             </span>
             <CalendarIcon className="w-4 h-4 text-sky-400" />
           </div>
@@ -258,7 +258,7 @@ export const CalendarView: React.FC = () => {
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-cyan-300 flex items-center gap-1">
               <Share2 className="w-3.5 h-3.5" />
-              Total Published (कुल)
+              Total Published 
             </span>
             <Share2 className="w-4 h-4 text-cyan-400" />
           </div>
@@ -356,9 +356,15 @@ export const CalendarView: React.FC = () => {
               <div key={p.id} className="py-3.5 flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3.5">
                   <img
-                    src={p.contentItem?.thumbnailUrl || p.contentItem?.mediaUrl}
+                    src={getPostImageUrl(p.contentItem?.thumbnailUrl, p.contentItem?.mediaUrl)}
                     alt={p.contentItem?.title}
                     className="w-12 h-12 rounded-xl object-cover border border-slate-800 shrink-0"
+                    onError={(e) => {
+                      const target = e.currentTarget as HTMLImageElement;
+                      if (!target.src.includes('unsplash')) {
+                        target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop&q=80';
+                      }
+                    }}
                   />
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
@@ -477,9 +483,15 @@ export const CalendarView: React.FC = () => {
 
                   <div className="flex items-center gap-3">
                     <img
-                      src={p.contentItem?.thumbnailUrl || p.contentItem?.mediaUrl}
+                      src={getPostImageUrl(p.contentItem?.thumbnailUrl, p.contentItem?.mediaUrl)}
                       alt={p.contentItem?.title}
                       className="w-16 h-16 rounded-xl object-cover border border-slate-800 shrink-0"
+                      onError={(e) => {
+                        const target = e.currentTarget as HTMLImageElement;
+                        if (!target.src.includes('unsplash')) {
+                          target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop&q=80';
+                        }
+                      }}
                     />
                     <div className="space-y-1">
                       <h4 className="text-xs font-bold text-white line-clamp-1">{p.contentItem?.title}</h4>

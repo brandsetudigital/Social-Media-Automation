@@ -30,6 +30,16 @@ router.get('/pending', authenticateToken, async (req: AuthRequest, res: Response
       orderBy: { requestedAt: 'desc' },
     });
 
+    pending.forEach((p) => {
+      if (p.contentItem?.thumbnailUrl?.startsWith('blob:')) {
+        p.contentItem.thumbnailUrl = p.contentItem.mediaUrl;
+        prisma.contentItem.update({
+          where: { id: p.contentItem.id },
+          data: { thumbnailUrl: p.contentItem.mediaUrl },
+        }).catch(() => {});
+      }
+    });
+
     return res.json(pending);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });

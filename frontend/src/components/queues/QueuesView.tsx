@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useClients } from '../../context/ClientContext';
-import { api } from '../../api';
+import { api, getPostImageUrl } from '../../api';
 import {
   Layers,
   Sparkles,
@@ -191,9 +191,15 @@ export const QueuesView: React.FC = () => {
                       #{idx + 1}
                     </span>
                     <img
-                      src={item?.thumbnailUrl || item?.mediaUrl}
+                      src={getPostImageUrl(item?.thumbnailUrl, item?.mediaUrl)}
                       alt={item?.title}
                       className="w-12 h-12 rounded-lg object-cover border border-slate-800 shrink-0"
+                      onError={(e) => {
+                        const target = e.currentTarget as HTMLImageElement;
+                        if (!target.src.includes('unsplash')) {
+                          target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80';
+                        }
+                      }}
                     />
                     <div>
                       <h4 className="text-xs font-bold text-white">{item?.title}</h4>

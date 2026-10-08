@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useClients } from '../../context/ClientContext';
 import { useAuth } from '../../context/AuthContext';
-import { api } from '../../api';
+import { api, getPostImageUrl } from '../../api';
 import {
   Building2,
   Share2,
@@ -330,9 +330,15 @@ export const AgencyDashboardView: React.FC<AgencyDashboardViewProps> = ({
                 >
                   <div className="flex items-start gap-3">
                     <img
-                      src={item.thumbnailUrl || item.mediaUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80'}
+                      src={getPostImageUrl(item.thumbnailUrl, item.mediaUrl)}
                       alt={item.title || 'Post'}
                       className="w-12 h-12 rounded-lg object-cover border border-slate-200 shrink-0 shadow-xs"
+                      onError={(e) => {
+                        const target = e.currentTarget as HTMLImageElement;
+                        if (!target.src.includes('unsplash')) {
+                          target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80';
+                        }
+                      }}
                     />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-1">
@@ -1191,9 +1197,15 @@ export const AgencyDashboardView: React.FC<AgencyDashboardViewProps> = ({
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <img
-                        src={item.thumbnailUrl || item.mediaUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80'}
+                        src={getPostImageUrl(item.thumbnailUrl, item.mediaUrl)}
                         alt={item.title || 'Post'}
                         className="w-11 h-11 rounded-lg object-cover border border-gray-200 shrink-0 group-hover:shadow-xs transition"
+                        onError={(e) => {
+                          const target = e.currentTarget as HTMLImageElement;
+                          if (!target.src.includes('unsplash')) {
+                            target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80';
+                          }
+                        }}
                       />
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
