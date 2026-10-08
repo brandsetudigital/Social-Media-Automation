@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useClients } from '../../context/ClientContext';
-import { api, getMediaUrl } from '../../api';
+import { api, getMediaUrl, getPostImageUrl } from '../../api';
 import {
   Plus,
   Calendar as CalendarIcon,
@@ -51,12 +51,14 @@ interface PostsManagerViewProps {
 }
 
 const isVideoMedia = (url?: string | null, type?: string | null): boolean => {
-  if (type === 'REEL' || type === 'VIDEO' || type === 'STORY') return true;
-  if (!url) return false;
+  if (!url) return type === 'REEL' || type === 'VIDEO';
   if (url === '/sample_reel.mp4') return true;
-  if (url.startsWith('data:video/') || (url.startsWith('blob:') && type === 'REEL')) return true;
+  if (url.startsWith('data:video/')) return true;
+  if (url.startsWith('data:image/')) return false;
   const clean = url.toLowerCase().split('?')[0];
-  return clean.endsWith('.mp4') || clean.endsWith('.mov') || clean.endsWith('.webm') || clean.endsWith('.mkv') || clean.endsWith('.ogg');
+  if (/\.(png|jpe?g|webp|gif|svg|bmp|tiff)$/i.test(clean)) return false;
+  if (/\.(mp4|mov|webm|mkv|ogg|m4v|avi)$/i.test(clean)) return true;
+  return type === 'REEL' || type === 'VIDEO';
 };
 
 const getPostCleanTitle = (p: any): string => {
@@ -773,7 +775,7 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
           <div>
             <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700">
               <AlertTriangle className="w-3.5 h-3.5" />
-              <span>Awaiting Approval (पेंडिंग)</span>
+              <span>Awaiting Approval </span>
             </div>
             <div className="text-2xl font-black text-gray-900 mt-0.5">
               {pendingApprovalCount}
@@ -1019,11 +1021,14 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                         <div className="w-5 h-5 rounded overflow-hidden shrink-0 bg-slate-800 flex items-center justify-center border border-black/10">
                           {p.thumbnailUrl || p.mediaUrl ? (
                             <img
-                              src={getMediaUrl(p.thumbnailUrl || p.mediaUrl)}
+                              src={getPostImageUrl(p.thumbnailUrl, p.mediaUrl)}
                               alt=""
                               className="w-full h-full object-cover"
                               onError={(e) => {
-                                (e.target as HTMLElement).style.display = 'none';
+                                const target = e.currentTarget as HTMLImageElement;
+                                if (!target.src.includes('unsplash')) {
+                                  target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80';
+                                }
                               }}
                             />
                           ) : (
@@ -1217,11 +1222,14 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                             <div className="flex items-start gap-2">
                               <div className="relative w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-slate-900 border border-black/10">
                                 <img
-                                  src={getMediaUrl(p.thumbnailUrl || p.mediaUrl)}
+                                  src={getPostImageUrl(p.thumbnailUrl, p.mediaUrl)}
                                   alt=""
                                   className="w-full h-full object-cover"
                                   onError={(e) => {
-                                    (e.target as HTMLElement).style.display = 'none';
+                                    const target = e.currentTarget as HTMLImageElement;
+                                    if (!target.src.includes('unsplash')) {
+                                      target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&auto=format&fit=crop&q=80';
+                                    }
                                   }}
                                 />
                                 {p.contentType === 'REEL' && (
@@ -1358,11 +1366,14 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                             >
                               <div className="w-4 h-4 rounded overflow-hidden shrink-0 bg-slate-800">
                                 <img
-                                  src={getMediaUrl(p.thumbnailUrl || p.mediaUrl)}
+                                  src={getPostImageUrl(p.thumbnailUrl, p.mediaUrl)}
                                   alt=""
                                   className="w-full h-full object-cover"
                                   onError={(e) => {
-                                    (e.target as HTMLElement).style.display = 'none';
+                                    const target = e.currentTarget as HTMLImageElement;
+                                    if (!target.src.includes('unsplash')) {
+                                      target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80';
+                                    }
                                   }}
                                 />
                               </div>
@@ -1505,11 +1516,14 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                         {isVideoMedia(p.mediaUrl, p.contentType) ? (
                           <>
                             <img
-                              src={p.thumbnailUrl || 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=800&auto=format&fit=crop&q=80'}
+                              src={getPostImageUrl(p.thumbnailUrl, p.mediaUrl)}
                               alt={p.title}
                               className="w-full h-full object-cover opacity-85"
                               onError={(e) => {
-                                (e.target as HTMLElement).style.display = 'none';
+                                const target = e.currentTarget as HTMLImageElement;
+                                if (!target.src.includes('unsplash')) {
+                                  target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop&q=80';
+                                }
                               }}
                             />
                             <div className="absolute inset-0 bg-black/35 flex items-center justify-center">
@@ -1521,11 +1535,14 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                           </>
                         ) : (
                           <img
-                            src={p.mediaUrl}
+                            src={getPostImageUrl(p.thumbnailUrl, p.mediaUrl)}
                             alt={p.title}
                             className="w-full h-full object-cover"
                             onError={(e) => {
-                              (e.target as HTMLElement).style.display = 'none';
+                              const target = e.currentTarget as HTMLImageElement;
+                              if (!target.src.includes('unsplash')) {
+                                target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop&q=80';
+                              }
                             }}
                           />
                         )}
@@ -1670,9 +1687,15 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                               >
                                 <div className="flex items-center gap-3 min-w-0">
                                   <img
-                                    src={getMediaUrl(p.thumbnailUrl || p.mediaUrl)}
+                                    src={getPostImageUrl(p.thumbnailUrl, p.mediaUrl)}
                                     alt={p.title}
                                     className="w-12 h-12 rounded-lg object-cover border border-purple-200 shrink-0 shadow-xs"
+                                    onError={(e) => {
+                                      const target = e.currentTarget as HTMLImageElement;
+                                      if (!target.src.includes('unsplash')) {
+                                        target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&auto=format&fit=crop&q=80';
+                                      }
+                                    }}
                                   />
                                   <div className="min-w-0">
                                     <h4 className="text-xs sm:text-sm font-bold text-gray-900 truncate">
@@ -1906,7 +1929,7 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                             {post.mediaUrl && (
                               <video
                                 src={getMediaUrl(post.mediaUrl)}
-                                poster={post.thumbnailUrl ? getMediaUrl(post.thumbnailUrl) : undefined}
+                                poster={getPostImageUrl(post.thumbnailUrl, post.mediaUrl)}
                                 muted
                                 playsInline
                                 preload="metadata"
@@ -1916,13 +1939,17 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                                 }}
                               />
                             )}
-                            {post.thumbnailUrl && (
-                              <img
-                                src={getMediaUrl(post.thumbnailUrl)}
-                                alt=""
-                                className="w-full h-full object-cover object-top absolute inset-0 -z-10 group-hover:scale-105 transition duration-300"
-                              />
-                            )}
+                            <img
+                              src={getPostImageUrl(post.thumbnailUrl, post.mediaUrl)}
+                              alt=""
+                              className="w-full h-full object-cover object-top absolute inset-0 -z-10 group-hover:scale-105 transition duration-300"
+                              onError={(e) => {
+                                const target = e.currentTarget as HTMLImageElement;
+                                if (!target.src.includes('unsplash')) {
+                                  target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop&q=80';
+                                }
+                              }}
+                            />
                             <div className="absolute inset-0 bg-black/25 flex items-center justify-center group-hover:bg-black/40 transition">
                               <div className="w-10 h-10 rounded-full bg-white/90 text-gray-900 flex items-center justify-center shadow-lg group-hover:scale-110 transition">
                                 <Play className="w-5 h-5 fill-current ml-0.5 text-gray-900" />
@@ -1934,9 +1961,15 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                           </div>
                         ) : (
                           <img
-                            src={getMediaUrl(post.thumbnailUrl || post.mediaUrl) || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop&q=80'}
+                            src={getPostImageUrl(post.thumbnailUrl, post.mediaUrl)}
                             alt=""
                             className="w-full h-full object-cover object-top group-hover:scale-105 transition duration-300"
+                            onError={(e) => {
+                              const target = e.currentTarget as HTMLImageElement;
+                              if (!target.src.includes('unsplash')) {
+                                target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop&q=80';
+                              }
+                            }}
                           />
                         )}
 
@@ -2137,11 +2170,14 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                           {isVideoMedia(post.mediaUrl, post.contentType) ? (
                             <>
                               <img
-                                src={post.thumbnailUrl || 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=800&auto=format&fit=crop&q=80'}
+                                src={getPostImageUrl(post.thumbnailUrl, post.mediaUrl)}
                                 alt={post.title}
                                 className="w-full h-full object-cover opacity-85"
                                 onError={(e) => {
-                                  (e.target as HTMLElement).style.display = 'none';
+                                  const target = e.currentTarget as HTMLImageElement;
+                                  if (!target.src.includes('unsplash')) {
+                                    target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&auto=format&fit=crop&q=80';
+                                  }
                                 }}
                               />
                               <div className="absolute inset-0 bg-black/35 flex items-center justify-center">
@@ -2150,11 +2186,14 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                             </>
                           ) : (
                             <img
-                              src={post.mediaUrl}
+                              src={getPostImageUrl(post.thumbnailUrl, post.mediaUrl)}
                               alt={post.title}
                               className="w-full h-full object-cover"
                               onError={(e) => {
-                                (e.target as HTMLElement).style.display = 'none';
+                                const target = e.currentTarget as HTMLImageElement;
+                                if (!target.src.includes('unsplash')) {
+                                  target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&auto=format&fit=crop&q=80';
+                                }
                               }}
                             />
                           )}
@@ -2388,11 +2427,14 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                 </div>
               ) : (
                 <img
-                  src={getMediaUrl(selectedPostDetail.mediaUrl)}
+                  src={getPostImageUrl(selectedPostDetail.thumbnailUrl, selectedPostDetail.mediaUrl)}
                   alt={selectedPostDetail.title}
                   className="w-full h-56 object-cover rounded-xl border border-gray-200 shadow-xs"
                   onError={(e) => {
-                    (e.target as HTMLElement).style.display = 'none';
+                    const target = e.currentTarget as HTMLImageElement;
+                    if (!target.src.includes('unsplash')) {
+                      target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80';
+                    }
                   }}
                 />
               )}
@@ -2527,11 +2569,14 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="relative w-12 h-12 rounded-lg overflow-hidden shrink-0 bg-slate-900 border border-gray-200">
                         <img
-                          src={p.thumbnailUrl || p.mediaUrl}
+                          src={getPostImageUrl(p.thumbnailUrl, p.mediaUrl)}
                           alt=""
                           className="w-full h-full object-cover"
                           onError={(e) => {
-                            (e.target as HTMLElement).style.display = 'none';
+                            const target = e.currentTarget as HTMLImageElement;
+                            if (!target.src.includes('unsplash')) {
+                              target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&auto=format&fit=crop&q=80';
+                            }
                           }}
                         />
                         {p.contentType === 'REEL' && (

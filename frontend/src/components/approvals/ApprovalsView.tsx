@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useClients } from '../../context/ClientContext';
-import { api, getMediaUrl } from '../../api';
+import { api, getMediaUrl, getPostImageUrl } from '../../api';
 import {
   CheckSquare,
   CheckCircle2,
@@ -36,19 +36,14 @@ import {
 import { CreatePostModal } from '../posts/CreatePostModal';
 
 const isVideoMedia = (url?: string | null, type?: string | null): boolean => {
-  if (type === 'REEL' || type === 'VIDEO' || type === 'STORY') return true;
-  if (!url) return false;
+  if (!url) return type === 'REEL' || type === 'VIDEO';
   if (url === '/sample_reel.mp4') return true;
   if (url.startsWith('data:video/')) return true;
+  if (url.startsWith('data:image/')) return false;
   const clean = url.toLowerCase().split('?')[0];
-  return (
-    clean.endsWith('.mp4') ||
-    clean.endsWith('.mov') ||
-    clean.endsWith('.webm') ||
-    clean.endsWith('.mkv') ||
-    clean.endsWith('.ogg') ||
-    (clean.includes('/uploads/') && clean.includes('video'))
-  );
+  if (/\.(png|jpe?g|webp|gif|svg|bmp|tiff)$/i.test(clean)) return false;
+  if (/\.(mp4|mov|webm|mkv|ogg|m4v|avi)$/i.test(clean)) return true;
+  return type === 'REEL' || type === 'VIDEO';
 };
 
 interface ApprovalsViewProps {}
@@ -530,7 +525,7 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = () => {
                         {post.mediaUrl ? (
                           <video
                             src={getMediaUrl(post.mediaUrl)}
-                            poster={post.thumbnailUrl ? getMediaUrl(post.thumbnailUrl) : undefined}
+                            poster={getPostImageUrl(post.thumbnailUrl, post.mediaUrl)}
                             muted
                             playsInline
                             preload="metadata"
@@ -541,13 +536,17 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = () => {
                           />
                         ) : null}
                         {/* Poster or placeholder if video fails or is loading */}
-                        {post.thumbnailUrl && (
-                          <img
-                            src={getMediaUrl(post.thumbnailUrl)}
-                            alt=""
-                            className="w-full h-full object-cover object-top absolute inset-0 -z-10 group-hover:scale-105 transition duration-300"
-                          />
-                        )}
+                        <img
+                          src={getPostImageUrl(post.thumbnailUrl, post.mediaUrl)}
+                          alt=""
+                          className="w-full h-full object-cover object-top absolute inset-0 -z-10 group-hover:scale-105 transition duration-300"
+                          onError={(e) => {
+                            const target = e.currentTarget as HTMLImageElement;
+                            if (!target.src.includes('unsplash')) {
+                              target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop&q=80';
+                            }
+                          }}
+                        />
                         {/* Play button overlay & reel indicator */}
                         <div className="absolute inset-0 bg-black/25 flex items-center justify-center group-hover:bg-black/40 transition">
                           <div className="w-10 h-10 rounded-full bg-white/90 text-gray-900 flex items-center justify-center shadow-lg group-hover:scale-110 transition">
@@ -560,9 +559,15 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = () => {
                       </div>
                     ) : (
                       <img
-                        src={getMediaUrl(post.thumbnailUrl || post.mediaUrl) || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop&q=80'}
+                        src={getPostImageUrl(post.thumbnailUrl, post.mediaUrl)}
                         alt=""
                         className="w-full h-full object-cover object-top group-hover:scale-105 transition duration-300"
+                        onError={(e) => {
+                          const target = e.currentTarget as HTMLImageElement;
+                          if (!target.src.includes('unsplash')) {
+                            target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop&q=80';
+                          }
+                        }}
                       />
                     )}
 
@@ -804,7 +809,7 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = () => {
                 <div className="w-full h-full flex flex-col items-center justify-center bg-black">
                   <video
                     src={getMediaUrl(previewItem.mediaUrl)}
-                    poster={previewItem.thumbnailUrl ? getMediaUrl(previewItem.thumbnailUrl) : undefined}
+                    poster={getPostImageUrl(previewItem.thumbnailUrl, previewItem.mediaUrl)}
                     controls
                     autoPlay
                     playsInline
@@ -815,9 +820,15 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = () => {
                 </div>
               ) : (
                 <img
-                  src={getMediaUrl(previewItem.thumbnailUrl || previewItem.mediaUrl) || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80'}
+                  src={getPostImageUrl(previewItem.thumbnailUrl, previewItem.mediaUrl)}
                   alt=""
                   className="max-h-96 w-auto object-contain"
+                  onError={(e) => {
+                    const target = e.currentTarget as HTMLImageElement;
+                    if (!target.src.includes('unsplash')) {
+                      target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80';
+                    }
+                  }}
                 />
               )}
             </div>

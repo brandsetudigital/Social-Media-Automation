@@ -287,6 +287,9 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       const uploaded = await api.uploadMedia(file);
       if (uploaded?.url) {
         setMediaUrl(uploaded.url);
+        if (!isVideo) {
+          setThumbnailUrl(uploaded.url);
+        }
       }
     } catch (uploadErr) {
       console.warn('[CreatePostModal] File upload warning:', uploadErr);
@@ -519,7 +522,9 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       const isVideo = isVideoMedia(mediaUrl, contentType, uploadedFileName);
 
       const effectiveMediaUrl = mediaUrl || '';
-      const effectiveThumbnail = thumbnailUrl || (isVideo ? '' : effectiveMediaUrl);
+      const effectiveThumbnail = (thumbnailUrl && !thumbnailUrl.startsWith('blob:'))
+        ? thumbnailUrl
+        : (isVideo ? '' : effectiveMediaUrl);
 
       const activeCaption = platformCaptions[activePreviewPlatform] || caption;
       const activeHashtags = platformHashtags[activePreviewPlatform] || hashtags;

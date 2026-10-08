@@ -29,6 +29,30 @@ export const getMediaUrl = (url?: string | null): string => {
   return `${backendBase}${cleanUrl}`;
 };
 
+export const getPostImageUrl = (
+  thumbnailUrl?: string | null,
+  mediaUrl?: string | null,
+  fallback = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80'
+): string => {
+  // Discard dead blob URLs if a valid server mediaUrl exists
+  const isBlobThumb = thumbnailUrl && thumbnailUrl.startsWith('blob:');
+  const isBlobMedia = mediaUrl && mediaUrl.startsWith('blob:');
+
+  if (thumbnailUrl && !isBlobThumb) {
+    return getMediaUrl(thumbnailUrl);
+  }
+  if (mediaUrl && !isBlobMedia) {
+    return getMediaUrl(mediaUrl);
+  }
+  if (thumbnailUrl && isBlobThumb) {
+    return thumbnailUrl;
+  }
+  if (mediaUrl && isBlobMedia) {
+    return mediaUrl;
+  }
+  return fallback;
+};
+
 export const getAuthHeader = (): Record<string, string> => {
   const token = localStorage.getItem('brandsetu_token');
   return token ? { Authorization: `Bearer ${token}` } : {};
@@ -41,10 +65,24 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
     ...((options.headers as Record<string, string>) || {}),
   };
 
-  const res = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers,
+    });
+  } catch (err: any) {
+    // Retry once after 800ms for transient connection drops
+    try {
+      await new Promise((r) => setTimeout(r, 800));
+      res = await fetch(`${API_BASE}${endpoint}`, {
+        ...options,
+        headers,
+      });
+    } catch {
+      throw new Error('Connection error: Failed to reach backend server. Please verify network and try again.');
+    }
+  }
 
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));

@@ -52,6 +52,17 @@ router.get('/inbox', authenticateToken, async (req: AuthRequest, res: Response) 
       orderBy: { createdAt: 'desc' },
     });
 
+    // Auto-clean any dead blob: URLs stored in thumbnailUrl
+    items.forEach((item) => {
+      if (item.thumbnailUrl && item.thumbnailUrl.startsWith('blob:')) {
+        item.thumbnailUrl = item.mediaUrl;
+        prisma.contentItem.update({
+          where: { id: item.id },
+          data: { thumbnailUrl: item.mediaUrl },
+        }).catch(() => {});
+      }
+    });
+
     return res.json(items);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
@@ -241,6 +252,10 @@ router.post('/create', authenticateToken, async (req: AuthRequest, res: Response
       finalStatus = 'DRAFT';
     }
 
+    if (thumbnailUrl && thumbnailUrl.startsWith('blob:')) {
+      thumbnailUrl = mediaUrl;
+    }
+
     const item = await prisma.contentItem.create({
       data: {
         clientId,
@@ -378,7 +393,9 @@ router.post('/upload', authenticateToken, async (req: AuthRequest, res: Response
     const isVideo = mimeType?.startsWith('video/') || (filename && /\.(mp4|mov|webm|mkv|ogg)$/i.test(filename));
     const ext = filename ? path.extname(filename) || (isVideo ? '.mp4' : '.jpg') : (isVideo ? '.mp4' : '.jpg');
     const safeBase = (filename ? path.basename(filename, ext) : 'upload').replace(/[^a-zA-Z0-9_-]/g, '_');
-    const uniqueFilename = `${Date.now()}-${safeBase}${ext}`;
+    const uniqueFilename = req.body.preserveFilename && filename
+      ? path.basename(filename)
+      : `${Date.now()}-${safeBase}${ext}`;
     const filePath = path.join(uploadsDir, uniqueFilename);
 
     await fs.promises.writeFile(filePath, buffer);

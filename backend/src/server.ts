@@ -24,16 +24,23 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors({ origin: '*' }));
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '300mb' }));
 app.use(express.urlencoded({ extended: true, limit: '300mb' }));
 
-// Ensure uploads folder exists and serve statically
+// Ensure uploads folder exists and serve statically with CORS
 const uploadsDir = path.join(__dirname, '../uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
-app.use('/uploads', express.static(uploadsDir));
+app.use('/uploads', (req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+  res.header('Access-Control-Allow-Headers', '*');
+  res.header('Cross-Origin-Resource-Policy', 'cross-origin');
+  if (req.method === 'OPTIONS') return res.sendStatus(200);
+  next();
+}, express.static(uploadsDir, { maxAge: '7d' }));
 
 // Status Landing Page
 app.get('/', (req, res) => {
