@@ -127,8 +127,10 @@ export class PublishingService {
           contentType: post.contentItem.contentType as any,
         });
       } else if (post.platform === 'GOOGLE_BUSINESS') {
+        const clientName = post.client?.businessName || (post.contentItem as any)?.client?.businessName || '';
         return await GoogleBusinessService.publishPost({
           locationId: post.socialAccount.accountId,
+          clientName,
           accessToken: post.socialAccount.accessToken || '',
           summary: caption,
           mediaUrl,

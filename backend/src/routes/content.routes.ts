@@ -281,13 +281,23 @@ router.post('/create', authenticateToken, async (req: AuthRequest, res: Response
         });
 
         if (!soc) {
+          const isGmb = p === 'GOOGLE_BUSINESS';
+          const isPropBabu = (client.businessName || '').toLowerCase().includes('property babu');
+          const defaultAccId = isGmb
+            ? (isPropBabu ? '2359884925523845124' : '4475899898765251271')
+            : `acc_${p.toLowerCase()}_${Date.now()}`;
+          const defaultToken = isGmb
+            ? (process.env.GOOGLE_BUSINESS_ACCESS_TOKEN || '')
+            : (process.env.META_DEFAULT_ACCESS_TOKEN || `oauth_tok_${p.toLowerCase()}_${Date.now()}`);
+
           soc = await prisma.socialAccount.create({
             data: {
               clientId,
               platform: p,
               accountName: `${client.businessName} (${p})`,
-              accountId: `acc_${p.toLowerCase()}_${Date.now()}`,
+              accountId: defaultAccId,
               status: 'CONNECTED',
+              accessToken: defaultToken,
             },
           });
         }

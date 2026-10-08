@@ -124,14 +124,23 @@ router.post('/:id/approve', authenticateToken, requireAdmin, async (req: AuthReq
         });
 
         if (!socialAccount) {
+          const isGmb = plat === 'GOOGLE_BUSINESS';
+          const isPropBabu = approval.contentItem.client.businessName.toLowerCase().includes('property babu');
+          const defaultAccId = isGmb 
+            ? (isPropBabu ? '2359884925523845124' : '4475899898765251271')
+            : `${plat.toLowerCase()}_${Date.now()}`;
+          const defaultToken = isGmb
+            ? (process.env.GOOGLE_BUSINESS_ACCESS_TOKEN || '')
+            : (process.env.META_DEFAULT_ACCESS_TOKEN || `oauth_tok_${plat.toLowerCase()}_${Date.now()}`);
+
           socialAccount = await prisma.socialAccount.create({
             data: {
               clientId: approval.contentItem.clientId,
               platform: plat,
               accountName: `@${approval.contentItem.client.businessName.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
-              accountId: `${plat.toLowerCase()}_${Date.now()}`,
+              accountId: defaultAccId,
               status: 'CONNECTED',
-              accessToken: process.env.META_DEFAULT_ACCESS_TOKEN || `oauth_tok_${plat.toLowerCase()}_${Date.now()}`,
+              accessToken: defaultToken,
               tokenExpiresAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
             },
           });

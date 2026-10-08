@@ -8,13 +8,14 @@ export class GoogleBusinessService {
     locationId: string;
     accessToken: string;
     summary: string;
+    clientName?: string;
     mediaUrl?: string;
     callToAction?: {
       actionType: 'LEARN_MORE' | 'CALL' | 'BOOK' | 'ORDER';
       url?: string;
     };
   }): Promise<PublishResult> {
-    let token = (params.accessToken && !params.accessToken.startsWith('gmb_tok_')) 
+    let token = (params.accessToken && !params.accessToken.startsWith('gmb_tok_') && !params.accessToken.startsWith('oauth_') && !params.accessToken.startsWith('EAA')) 
       ? params.accessToken 
       : (process.env.GOOGLE_BUSINESS_ACCESS_TOKEN || '');
 
@@ -35,7 +36,11 @@ export class GoogleBusinessService {
 
     try {
       // 1. Resolve Account & Location names via live discovery
-      const discovered = await GoogleBusinessService.discoverAccountAndLocation(token, params.locationId);
+      const discovered = await GoogleBusinessService.discoverAccountAndLocation(
+        token,
+        params.locationId,
+        params.clientName
+      );
 
       let accountName = discovered?.accountName;
       let locationName = discovered?.locationName;
@@ -175,7 +180,8 @@ export class GoogleBusinessService {
    */
   static async discoverAccountAndLocation(
     token: string,
-    preferredLocationId?: string
+    preferredLocationId?: string,
+    clientName?: string
   ): Promise<{ accountName: string; locationName: string; locationTitle?: string } | null> {
     try {
       const accRes = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
@@ -200,8 +206,17 @@ export class GoogleBusinessService {
       const targetId = preferredLocationId ? preferredLocationId.replace(/^locations\//, '') : '';
       let matched = locations.find((l: any) => {
         const rawId = l.name?.replace(/^locations\//, '');
-        return rawId === targetId || l.name === preferredLocationId;
+        return targetId && (rawId === targetId || l.name === preferredLocationId);
       });
+
+      // If no ID match and clientName provided, match by client name
+      if (!matched && clientName) {
+        const cleanClient = clientName.toLowerCase().trim();
+        matched = locations.find((l: any) => {
+          const locTitle = (l.title || '').toLowerCase();
+          return locTitle.includes(cleanClient) || cleanClient.includes(locTitle);
+        });
+      }
 
       if (!matched) {
         matched = locations[0];
