@@ -34,19 +34,21 @@ export class GoogleBusinessService {
     }
 
     try {
-      let locationToUse = params.locationId;
-      if (!locationToUse || locationToUse.startsWith('google_business_') || locationToUse.startsWith('gmb_')) {
-        const discovered = await GoogleBusinessService.discoverPrimaryLocation(token);
-        if (discovered) {
-          locationToUse = discovered;
-        }
+      // 1. Resolve Account & Location names via live discovery
+      const discovered = await GoogleBusinessService.discoverAccountAndLocation(token, params.locationId);
+
+      let accountName = discovered?.accountName;
+      let locationName = discovered?.locationName;
+
+      // Fallback if discovery fails or account isn't listed
+      if (!accountName || !locationName) {
+        const cleanLoc = (params.locationId || '').replace(/^locations\//, '');
+        locationName = cleanLoc ? `locations/${cleanLoc}` : 'locations/4475899898765251271';
+        accountName = 'accounts/112905889140645258774';
       }
 
-      // Google Business Profile v4 / Business Information API Local Post endpoint
-      let endpoint = `https://mybusiness.googleapis.com/v4/accounts/me/locations/${locationToUse}/localPosts`;
-      if (locationToUse.includes('/') || locationToUse.startsWith('locations/')) {
-        endpoint = `https://mybusiness.googleapis.com/v4/${locationToUse.replace(/^\/?/, '')}/localPosts`;
-      }
+      // Google Business Profile v4 Local Post endpoint
+      const endpoint = `https://mybusiness.googleapis.com/v4/${accountName}/${locationName}/localPosts`;
 
       const requestBody: any = {
         languageCode: 'en-US',
@@ -86,26 +88,41 @@ export class GoogleBusinessService {
         body: JSON.stringify(requestBody),
       });
 
-      const data: any = await response.json();
+      const rawText = await response.text();
+      let data: any = null;
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        // Non-JSON response (e.g. HTML error page from Google)
+      }
 
       if (!response.ok) {
-        let errMsg = data.error?.message || `Google Business API returned status ${response.status}`;
+        let errMsg = data?.error?.message || `Google Business API returned status ${response.status}`;
+
         if (response.status === 401 || errMsg.toLowerCase().includes('invalid authentication credentials')) {
-          errMsg = 'Google Access Token expired (Google tokens expire after 1 hour). Please provide GOOGLE_BUSINESS_REFRESH_TOKEN in .env for permanent lifetime or generate a fresh token.';
-        } else if (errMsg.includes('mybusiness.googleapis.com') || errMsg.includes('has not been used in project') || errMsg.includes('disabled')) {
-          errMsg = 'Google requires manual API Access approval for automated local posting. Please submit Google Business Profile API Access form or publish via "+ Add post" on Google Business.';
+          errMsg = 'Google Access Token expired. Please refresh token or update GOOGLE_BUSINESS_REFRESH_TOKEN in .env.';
+        } else if (
+          errMsg.includes('has not been used in project') ||
+          errMsg.includes('disabled') ||
+          errMsg.includes('SERVICE_DISABLED') ||
+          errMsg.includes('mybusiness.googleapis.com')
+        ) {
+          errMsg = 'Google My Business API project 631631101857 me disabled hai. Is link pe click karke "Enable" karein: https://console.developers.google.com/apis/api/mybusiness.googleapis.com/overview?project=631631101857';
+        } else if (!data) {
+          errMsg = `Google API returned HTML response (HTTP ${response.status}). Please ensure Google My Business API is enabled for project 631631101857.`;
         }
+
         return {
           success: false,
           errorCode: `GMB_API_${response.status}`,
           errorMessage: errMsg,
-          rawResponse: data,
+          rawResponse: data || rawText.slice(0, 500),
         };
       }
 
       return {
         success: true,
-        externalPostId: data.name || `gbp_${Date.now()}`,
+        externalPostId: data?.name || `gbp_${Date.now()}`,
         rawResponse: data,
       };
     } catch (err: any) {
@@ -154,9 +171,12 @@ export class GoogleBusinessService {
   }
 
   /**
-   * Discovers primary account and location from Google if locationId is missing or placeholder
+   * Discovers primary account and location from Google Business Profile API
    */
-  static async discoverPrimaryLocation(token: string): Promise<string | null> {
+  static async discoverAccountAndLocation(
+    token: string,
+    preferredLocationId?: string
+  ): Promise<{ accountName: string; locationName: string; locationTitle?: string } | null> {
     try {
       const accRes = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
         headers: { Authorization: `Bearer ${token}` },
@@ -166,13 +186,32 @@ export class GoogleBusinessService {
       const firstAccount = accData.accounts?.[0]?.name;
       if (!firstAccount) return null;
 
-      const locRes = await fetch(`https://mybusinessbusinessinformation.googleapis.com/v1/${firstAccount}/locations?readMask=name,title`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const locRes = await fetch(
+        `https://mybusinessbusinessinformation.googleapis.com/v1/${firstAccount}/locations?readMask=name,title,storeCode`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
       if (!locRes.ok) return null;
       const locData: any = await locRes.json();
-      const firstLocation = locData.locations?.[0]?.name;
-      return firstLocation || null;
+      const locations: any[] = locData.locations || [];
+      if (locations.length === 0) return null;
+
+      const targetId = preferredLocationId ? preferredLocationId.replace(/^locations\//, '') : '';
+      let matched = locations.find((l: any) => {
+        const rawId = l.name?.replace(/^locations\//, '');
+        return rawId === targetId || l.name === preferredLocationId;
+      });
+
+      if (!matched) {
+        matched = locations[0];
+      }
+
+      return {
+        accountName: firstAccount,
+        locationName: matched.name,
+        locationTitle: matched.title,
+      };
     } catch {
       return null;
     }
