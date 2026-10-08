@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Clock,
   AlertTriangle,
+  AlertCircle,
   Play,
   RefreshCw,
   Layers,
@@ -73,6 +74,63 @@ export const CalendarView: React.FC = () => {
     }
   };
 
+  const [quickFilter, setQuickFilter] = useState<'ALL' | 'TODAY' | 'UPCOMING' | 'PUBLISHED' | 'PENDING'>('ALL');
+
+  const isDateToday = (d?: Date | string | null) => {
+    if (!d) return false;
+    const dateObj = typeof d === 'string' ? new Date(d) : d;
+    const now = new Date();
+    return (
+      dateObj.getFullYear() === now.getFullYear() &&
+      dateObj.getMonth() === now.getMonth() &&
+      dateObj.getDate() === now.getDate()
+    );
+  };
+
+  const isDateFuture = (d?: Date | string | null) => {
+    if (!d) return false;
+    const dateObj = typeof d === 'string' ? new Date(d) : d;
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+    return dateObj.getTime() > todayEnd.getTime();
+  };
+
+  // Real-time metric counts calculated from posts
+  const publishedTodayCount = posts.filter(
+    (p: any) => p.status === 'PUBLISHED' && (isDateToday(p.scheduledAt) || isDateToday(p.publishedAt))
+  ).length;
+
+  const scheduledTodayCount = posts.filter(
+    (p: any) => p.status === 'SCHEDULED' && isDateToday(p.scheduledAt)
+  ).length;
+
+  const upcomingScheduledCount = posts.filter(
+    (p: any) => (p.status === 'SCHEDULED' || p.status === 'PENDING_APPROVAL') && isDateFuture(p.scheduledAt)
+  ).length;
+
+  const pendingApprovalCount = posts.filter(
+    (p: any) => p.status === 'PENDING_APPROVAL' || p.status === 'READY_FOR_APPROVAL'
+  ).length;
+
+  const totalPublishedCount = posts.filter((p: any) => p.status === 'PUBLISHED').length;
+
+  // Filter posts by quickFilter
+  const displayPosts = posts.filter((p: any) => {
+    if (quickFilter === 'TODAY') {
+      return isDateToday(p.scheduledAt) || isDateToday(p.publishedAt);
+    }
+    if (quickFilter === 'UPCOMING') {
+      return isDateFuture(p.scheduledAt) && (p.status === 'SCHEDULED' || p.status === 'PENDING_APPROVAL');
+    }
+    if (quickFilter === 'PUBLISHED') {
+      return p.status === 'PUBLISHED';
+    }
+    if (quickFilter === 'PENDING') {
+      return p.status === 'PENDING_APPROVAL' || p.status === 'READY_FOR_APPROVAL';
+    }
+    return true;
+  });
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -91,7 +149,7 @@ export const CalendarView: React.FC = () => {
           <button
             onClick={handleRunSchedulerTick}
             disabled={isTickRunning}
-            className="flex items-center gap-1.5 text-xs font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:opacity-95 text-white px-4 py-2 rounded-xl shadow-lg shadow-emerald-500/20 transition"
+            className="flex items-center gap-1.5 text-xs font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:opacity-95 text-white px-4 py-2 rounded-xl shadow-lg shadow-emerald-500/20 transition cursor-pointer"
           >
             <Play className="w-3.5 h-3.5 fill-white" />
             {isTickRunning ? 'Publishing...' : 'Dispatch Due Posts Now'}
@@ -105,6 +163,109 @@ export const CalendarView: React.FC = () => {
           {tickMessage}
         </div>
       )}
+
+      {/* Real Live Metrics Bar - Aaj Kitni Hui, Aaj Kitni Scheduled, Aage Agli Date Pe */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {/* 1. Published Today */}
+        <button
+          onClick={() => setQuickFilter(quickFilter === 'TODAY' ? 'ALL' : 'TODAY')}
+          className={`p-3 rounded-2xl border transition text-left cursor-pointer ${
+            quickFilter === 'TODAY'
+              ? 'bg-emerald-500/20 border-emerald-500 ring-2 ring-emerald-500/30'
+              : 'bg-slate-900/60 border-slate-800 hover:border-emerald-500/40'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              Published Today (आज गईं)
+            </span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          </div>
+          <p className="text-2xl font-black text-white mt-1">{publishedTodayCount}</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">Click to view today's live posts</p>
+        </button>
+
+        {/* 2. Scheduled Today */}
+        <button
+          onClick={() => setQuickFilter(quickFilter === 'TODAY' ? 'ALL' : 'TODAY')}
+          className={`p-3 rounded-2xl border transition text-left cursor-pointer ${
+            quickFilter === 'TODAY'
+              ? 'bg-purple-500/20 border-purple-500 ring-2 ring-purple-500/30'
+              : 'bg-slate-900/60 border-slate-800 hover:border-purple-500/40'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-purple-300 flex items-center gap-1">
+              <Clock className="w-3.5 h-3.5" />
+              Scheduled Today (आज)
+            </span>
+            <Clock className="w-4 h-4 text-purple-400" />
+          </div>
+          <p className="text-2xl font-black text-white mt-1">{scheduledTodayCount}</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">Remaining for today</p>
+        </button>
+
+        {/* 3. Upcoming Scheduled */}
+        <button
+          onClick={() => setQuickFilter(quickFilter === 'UPCOMING' ? 'ALL' : 'UPCOMING')}
+          className={`p-3 rounded-2xl border transition text-left cursor-pointer ${
+            quickFilter === 'UPCOMING'
+              ? 'bg-blue-500/20 border-blue-500 ring-2 ring-blue-500/30'
+              : 'bg-slate-900/60 border-slate-800 hover:border-blue-500/40'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-sky-400 flex items-center gap-1">
+              <CalendarIcon className="w-3.5 h-3.5" />
+              Upcoming (अगली तारीख)
+            </span>
+            <CalendarIcon className="w-4 h-4 text-sky-400" />
+          </div>
+          <p className="text-2xl font-black text-white mt-1">{upcomingScheduledCount}</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">Future dates queued</p>
+        </button>
+
+        {/* 4. Awaiting Approval */}
+        <button
+          onClick={() => setQuickFilter(quickFilter === 'PENDING' ? 'ALL' : 'PENDING')}
+          className={`p-3 rounded-2xl border transition text-left cursor-pointer ${
+            quickFilter === 'PENDING'
+              ? 'bg-amber-500/20 border-amber-500 ring-2 ring-amber-500/30'
+              : 'bg-slate-900/60 border-slate-800 hover:border-amber-500/40'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-amber-400 flex items-center gap-1">
+              <AlertTriangle className="w-3.5 h-3.5" />
+              Awaiting Approval
+            </span>
+            <AlertCircle className="w-4 h-4 text-amber-400" />
+          </div>
+          <p className="text-2xl font-black text-white mt-1">{pendingApprovalCount}</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">Pending Admin Review</p>
+        </button>
+
+        {/* 5. Total Published */}
+        <button
+          onClick={() => setQuickFilter(quickFilter === 'PUBLISHED' ? 'ALL' : 'PUBLISHED')}
+          className={`p-3 rounded-2xl border transition text-left cursor-pointer ${
+            quickFilter === 'PUBLISHED'
+              ? 'bg-cyan-500/20 border-cyan-500 ring-2 ring-cyan-500/30'
+              : 'bg-slate-900/60 border-slate-800 hover:border-cyan-500/40'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-cyan-300 flex items-center gap-1">
+              <Share2 className="w-3.5 h-3.5" />
+              Total Published (कुल)
+            </span>
+            <Share2 className="w-4 h-4 text-cyan-400" />
+          </div>
+          <p className="text-2xl font-black text-white mt-1">{totalPublishedCount}</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">All-time successful</p>
+        </button>
+      </div>
 
       {/* Filter Bar */}
       <div className="glass-card p-4 rounded-2xl flex flex-wrap items-center justify-between gap-4">
@@ -138,6 +299,15 @@ export const CalendarView: React.FC = () => {
               <option value="FAILED">Failed</option>
             </select>
           </div>
+
+          {quickFilter !== 'ALL' && (
+            <button
+              onClick={() => setQuickFilter('ALL')}
+              className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white border border-slate-700"
+            >
+              Clear Filter: {quickFilter} ×
+            </button>
+          )}
         </div>
 
         {/* View Mode Toggle */}
@@ -166,17 +336,21 @@ export const CalendarView: React.FC = () => {
         <div className="flex items-center justify-center h-64">
           <RefreshCw className="w-6 h-6 text-brand-500 animate-spin" />
         </div>
-      ) : posts.length === 0 ? (
+      ) : displayPosts.length === 0 ? (
         <div className="glass-card p-12 text-center rounded-2xl text-slate-500 text-xs">
-          No scheduled events found matching this filter.
+          {quickFilter !== 'ALL'
+            ? `No events found for filter "${quickFilter}". Click "Clear Filter" to view all events.`
+            : 'No scheduled events found matching this filter.'}
         </div>
       ) : calendarView === 'list' ? (
         /* Chronological List View */
         <div className="glass-card p-5 rounded-2xl border border-slate-800 divide-y divide-slate-800/60">
-          {posts.map((p: any) => {
+          {displayPosts.map((p: any) => {
             const isPending = p.status === 'PENDING_APPROVAL';
             const isPublished = p.status === 'PUBLISHED';
             const isFailed = p.status === 'FAILED';
+            const isToday = isDateToday(p.scheduledAt) || isDateToday(p.publishedAt);
+            const isFuture = isDateFuture(p.scheduledAt);
 
             return (
               <div key={p.id} className="py-3.5 flex items-center justify-between gap-4">
@@ -187,8 +361,19 @@ export const CalendarView: React.FC = () => {
                     className="w-12 h-12 rounded-xl object-cover border border-slate-800 shrink-0"
                   />
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h4 className="text-xs font-bold text-white">{p.contentItem?.title}</h4>
+                      {isToday && (
+                        <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-md font-bold border border-emerald-500/30 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                          TODAY (आज)
+                        </span>
+                      )}
+                      {isFuture && (
+                        <span className="text-[10px] bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded-md font-semibold border border-sky-500/30">
+                          📅 UPCOMING (अगली तारीख)
+                        </span>
+                      )}
                       {isPending && (
                         <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-md font-semibold border border-amber-500/30">
                           ⏳ Awaiting Admin Approval
@@ -240,16 +425,22 @@ export const CalendarView: React.FC = () => {
       ) : (
         /* Visual Calendar Cards Grid */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {posts.map((p: any) => {
+          {displayPosts.map((p: any) => {
             const isPending = p.status === 'PENDING_APPROVAL';
             const isPublished = p.status === 'PUBLISHED';
             const isFailed = p.status === 'FAILED';
+            const isToday = isDateToday(p.scheduledAt) || isDateToday(p.publishedAt);
+            const isFuture = isDateFuture(p.scheduledAt);
 
             return (
               <div
                 key={p.id}
                 className={`glass-card rounded-2xl border overflow-hidden flex flex-col justify-between transition ${
-                  isPending ? 'border-amber-500/40 bg-slate-900/50' : 'border-slate-800 hover:border-slate-700'
+                  isToday
+                    ? 'border-emerald-500/60 ring-2 ring-emerald-500/20 bg-slate-900/80'
+                    : isPending
+                    ? 'border-amber-500/40 bg-slate-900/50'
+                    : 'border-slate-800 hover:border-slate-700'
                 }`}
               >
                 <div className="p-4 space-y-3">
@@ -257,19 +448,31 @@ export const CalendarView: React.FC = () => {
                     <span className="text-[10px] font-bold text-brand-400 uppercase tracking-wider truncate">
                       {p.client?.businessName}
                     </span>
-                    <span
-                      className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
-                        isPending
-                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                          : isPublished
-                          ? 'bg-emerald-500/20 text-emerald-300'
-                          : isFailed
-                          ? 'bg-rose-500/20 text-rose-300'
-                          : 'bg-brand-500/20 text-brand-300'
-                      }`}
-                    >
-                      {isPending ? 'AWAITING APPROVAL' : p.status}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {isToday && (
+                        <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          TODAY
+                        </span>
+                      )}
+                      {isFuture && (
+                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-md bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                          UPCOMING
+                        </span>
+                      )}
+                      <span
+                        className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                          isPending
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                            : isPublished
+                            ? 'bg-emerald-500/20 text-emerald-300'
+                            : isFailed
+                            ? 'bg-rose-500/20 text-rose-300'
+                            : 'bg-brand-500/20 text-brand-300'
+                        }`}
+                      >
+                        {isPending ? 'AWAITING APPROVAL' : p.status}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-3">
@@ -290,7 +493,7 @@ export const CalendarView: React.FC = () => {
                     <div className="pt-1">
                       <button
                         onClick={() => handleQuickApprove(p.approvalRequestId, p.contentItemId)}
-                        className="w-full text-[11px] font-bold py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm shadow-emerald-500/20 transition flex items-center justify-center gap-1.5"
+                        className="w-full text-[11px] font-bold py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm shadow-emerald-500/20 transition flex items-center justify-center gap-1.5 cursor-pointer"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" />
                         Approve Post Now
@@ -300,7 +503,10 @@ export const CalendarView: React.FC = () => {
                 </div>
 
                 <div className="p-3 bg-slate-950/60 border-t border-slate-850 flex items-center justify-between text-[11px] font-mono text-slate-400">
-                  <span>📅 {new Date(p.scheduledAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
+                  <span className={isToday ? 'text-emerald-400 font-bold' : ''}>
+                    📅 {new Date(p.scheduledAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                    {isToday && ' (Today)'}
+                  </span>
                   <span>⏰ {new Date(p.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
               </div>

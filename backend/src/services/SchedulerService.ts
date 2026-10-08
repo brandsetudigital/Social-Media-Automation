@@ -270,6 +270,45 @@ export class SchedulerService {
         }
         return sp;
       });
+
+      // Ensure ContentItems with status PUBLISHED or SCHEDULED that lack a ScheduledPost record are also represented on the calendar
+      const representedItemIds = new Set(scheduledPosts.map((sp) => sp.contentItemId));
+      const directContentItems = await prisma.contentItem.findMany({
+        where: {
+          status: { in: ['PUBLISHED', 'SCHEDULED'] },
+          ...(params.clientId && params.clientId !== 'ALL' ? { clientId: params.clientId } : {}),
+        },
+        include: {
+          client: { select: { id: true, businessName: true, category: true, logo: true, brandColors: true } },
+          variants: true,
+        },
+      });
+
+      for (const ci of directContentItems) {
+        if (!representedItemIds.has(ci.id)) {
+          const plats = (ci.variants && ci.variants.length > 0) ? ci.variants.map((v) => v.platform) : ['INSTAGRAM'];
+          for (const plat of plats) {
+            if (params.platform && params.platform !== 'ALL' && params.platform !== plat) continue;
+            scheduledPosts.push({
+              id: `direct_${ci.id}_${plat}`,
+              clientId: ci.clientId,
+              contentItemId: ci.id,
+              platform: plat,
+              socialAccountId: `account_${plat.toLowerCase()}`,
+              scheduledAt: ci.updatedAt || ci.createdAt,
+              publishedAt: ci.status === 'PUBLISHED' ? (ci.updatedAt || ci.createdAt) : null,
+              timezone: 'Asia/Kolkata',
+              status: ci.status,
+              client: ci.client,
+              contentItem: ci,
+              socialAccount: {
+                accountName: ci.client?.businessName || 'BrandSetu',
+                status: 'CONNECTED',
+              },
+            });
+          }
+        }
+      }
     }
 
     // 2. Also include approval requests (Pending approvals, and Admin changes requested / rejected)

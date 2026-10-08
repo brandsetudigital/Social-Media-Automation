@@ -117,6 +117,8 @@ export const AgencyDashboardView: React.FC<AgencyDashboardViewProps> = ({
   const failedCount = overview?.failedCount || 0;
   const pendingApprovalCount = overview?.pendingApprovalCount || 0;
   const publishedToday = overview?.publishedToday || 0;
+  const scheduledToday = overview?.scheduledToday || 0;
+  const scheduledUpcoming = overview?.scheduledUpcoming || 0;
 
   const changesRequestedPosts = calendarEvents.filter(
     (e) => e.status === 'CHANGES_REQUESTED' || e.status === 'REJECTED'
@@ -203,23 +205,43 @@ export const AgencyDashboardView: React.FC<AgencyDashboardViewProps> = ({
       {/* Sub-Stats Badges Row - Single Clean Row Without Wrapping */}
       <div className="bg-white rounded-xl py-2 px-3 sm:px-4 border border-slate-200 shadow-sm flex items-center justify-between gap-1.5 sm:gap-2 text-xs sm:text-sm font-semibold overflow-x-auto scrollbar-none whitespace-nowrap">
         <button
-          onClick={() => (onNavigateToPosts ? onNavigateToPosts('PUBLISHED', 'list') : onNavigate('posts'))}
+          onClick={() => (onNavigateToPosts ? onNavigateToPosts('PUBLISHED_TODAY', 'list') : onNavigate('posts'))}
           className="flex items-center gap-1.5 p-1 px-2.5 rounded-lg hover:bg-emerald-50/70 border border-transparent hover:border-emerald-200 transition group cursor-pointer shrink-0"
-          title="Click to view all published posts"
+          title="Click to view posts published today"
         >
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-4 ring-emerald-100 group-hover:scale-110 transition shrink-0"></span>
-          <span className="text-slate-700 group-hover:text-emerald-800">Posts Published Today:</span>
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-4 ring-emerald-100 group-hover:scale-110 transition shrink-0 animate-pulse"></span>
+          <span className="text-slate-700 group-hover:text-emerald-800">Published Today:</span>
           <span className="font-black text-slate-900 group-hover:text-emerald-700 text-sm sm:text-base">{publishedToday}</span>
         </button>
 
         <button
-          onClick={() => (onNavigateToPosts ? onNavigateToPosts('SCHEDULED', 'list') : onNavigate('posts'))}
+          onClick={() => (onNavigateToPosts ? onNavigateToPosts('SCHEDULED_TODAY', 'list') : onNavigate('posts'))}
           className="flex items-center gap-1.5 p-1 px-2.5 rounded-lg hover:bg-purple-50/70 border border-transparent hover:border-purple-200 transition group cursor-pointer shrink-0"
-          title="Click to view all scheduled posts"
+          title="Click to view posts scheduled for today"
         >
           <span className="w-2.5 h-2.5 rounded-full bg-purple-600 ring-4 ring-purple-100 group-hover:scale-110 transition shrink-0"></span>
-          <span className="text-slate-700 group-hover:text-purple-900">Total Scheduled Posts:</span>
-          <span className="font-black text-purple-700 text-sm sm:text-base">{scheduledCount}</span>
+          <span className="text-slate-700 group-hover:text-purple-900">Scheduled for Today:</span>
+          <span className="font-black text-purple-700 text-sm sm:text-base">{scheduledToday}</span>
+        </button>
+
+        <button
+          onClick={() => (onNavigateToPosts ? onNavigateToPosts('UPCOMING', 'list') : onNavigate('posts'))}
+          className="flex items-center gap-1.5 p-1 px-2.5 rounded-lg hover:bg-blue-50/70 border border-transparent hover:border-blue-200 transition group cursor-pointer shrink-0"
+          title="Click to view future upcoming scheduled posts"
+        >
+          <span className="w-2.5 h-2.5 rounded-full bg-blue-500 ring-4 ring-blue-100 group-hover:scale-110 transition shrink-0"></span>
+          <span className="text-slate-700 group-hover:text-blue-900">Upcoming (Agli Dates):</span>
+          <span className="font-black text-blue-700 text-sm sm:text-base">{scheduledUpcoming}</span>
+        </button>
+
+        <button
+          onClick={() => (onNavigateToPosts ? onNavigateToPosts('SCHEDULED', 'list') : onNavigate('posts'))}
+          className="flex items-center gap-1.5 p-1 px-2.5 rounded-lg hover:bg-indigo-50/70 border border-transparent hover:border-indigo-200 transition group cursor-pointer shrink-0"
+          title="Click to view all scheduled posts"
+        >
+          <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 ring-4 ring-indigo-100 group-hover:scale-110 transition shrink-0"></span>
+          <span className="text-slate-700 group-hover:text-indigo-900">Total Scheduled:</span>
+          <span className="font-black text-indigo-700 text-sm sm:text-base">{scheduledCount}</span>
         </button>
 
         <button

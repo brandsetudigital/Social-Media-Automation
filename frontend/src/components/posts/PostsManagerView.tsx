@@ -354,6 +354,25 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
     }
   }, [targetPostId, consolidatedPosts]);
 
+  const isDateToday = (d?: Date | string | null) => {
+    if (!d) return false;
+    const dateObj = typeof d === 'string' ? new Date(d) : d;
+    const now = new Date();
+    return (
+      dateObj.getFullYear() === now.getFullYear() &&
+      dateObj.getMonth() === now.getMonth() &&
+      dateObj.getDate() === now.getDate()
+    );
+  };
+
+  const isDateFuture = (d?: Date | string | null) => {
+    if (!d) return false;
+    const dateObj = typeof d === 'string' ? new Date(d) : d;
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+    return dateObj.getTime() > todayEnd.getTime();
+  };
+
   // Filter posts by search and status
   const filteredPosts = useMemo(() => {
     return consolidatedPosts.filter((p) => {
@@ -366,6 +385,9 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
 
       const matchesStatus =
         statusFilter === 'ALL' ||
+        (statusFilter === 'PUBLISHED_TODAY' && p.status === 'PUBLISHED' && (isDateToday(p.targetDate) || isDateToday(p.scheduledAt))) ||
+        (statusFilter === 'SCHEDULED_TODAY' && p.status === 'SCHEDULED' && isDateToday(p.targetDate)) ||
+        (statusFilter === 'UPCOMING' && isDateFuture(p.targetDate) && (p.status === 'SCHEDULED' || p.status === 'PENDING_APPROVAL')) ||
         p.status === statusFilter ||
         (statusFilter === 'SCHEDULED' && p.status === 'SCHEDULED') ||
         (statusFilter === 'PUBLISHED' && p.status === 'PUBLISHED') ||
@@ -382,12 +404,31 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
     });
   }, [consolidatedPosts, searchQuery, statusFilter, platformFilter]);
 
-  // Derived counts for Card View filter metrics
+  // Derived counts for Real-Time Metrics Bar & Card View
+  const publishedTodayCount = useMemo(() => {
+    return consolidatedPosts.filter(
+      (p) => p.status === 'PUBLISHED' && (isDateToday(p.targetDate) || isDateToday(p.scheduledAt))
+    ).length;
+  }, [consolidatedPosts]);
+
+  const scheduledTodayCount = useMemo(() => {
+    return consolidatedPosts.filter(
+      (p) => p.status === 'SCHEDULED' && isDateToday(p.targetDate)
+    ).length;
+  }, [consolidatedPosts]);
+
+  const upcomingScheduledCount = useMemo(() => {
+    return consolidatedPosts.filter(
+      (p) => (p.status === 'SCHEDULED' || p.status === 'PENDING_APPROVAL') && isDateFuture(p.targetDate)
+    ).length;
+  }, [consolidatedPosts]);
+
   const scheduledCount = useMemo(() => consolidatedPosts.filter((p) => p.status === 'SCHEDULED').length, [consolidatedPosts]);
   const publishedCount = useMemo(() => consolidatedPosts.filter((p) => p.status === 'PUBLISHED').length, [consolidatedPosts]);
   const draftCount = useMemo(() => consolidatedPosts.filter((p) => p.status === 'DRAFT' || p.status === 'READY_FOR_APPROVAL' || p.status === 'IN_REVIEW').length, [consolidatedPosts]);
   const failedCount = useMemo(() => consolidatedPosts.filter((p) => p.status === 'FAILED').length, [consolidatedPosts]);
   const changesRequestedCount = useMemo(() => consolidatedPosts.filter((p) => p.status === 'CHANGES_REQUESTED' || p.status === 'REJECTED').length, [consolidatedPosts]);
+  const pendingApprovalCount = useMemo(() => consolidatedPosts.filter((p) => p.status === 'PENDING_APPROVAL' || p.status === 'READY_FOR_APPROVAL' || p.status === 'IN_REVIEW').length, [consolidatedPosts]);
 
   // Posts grouped by Day of the current month
   const postsByDay = useMemo(() => {
@@ -645,6 +686,131 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
         </div>
       </div>
 
+      {/* 1.5 Real-Time Live Status Tracker Bar (Aaj kitni gayi, Aaj kitne scheduled, Aage agli date pe kitne) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {/* 1. Published Today */}
+        <button
+          onClick={() => setStatusFilter(statusFilter === 'PUBLISHED_TODAY' ? 'ALL' : 'PUBLISHED_TODAY')}
+          className={`p-3.5 rounded-xl border text-left transition flex items-center justify-between cursor-pointer ${
+            statusFilter === 'PUBLISHED_TODAY'
+              ? 'bg-emerald-50 border-emerald-500 shadow-sm ring-2 ring-emerald-500/30'
+              : 'bg-white border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/20'
+          }`}
+          title="Click to view posts published today"
+        >
+          <div>
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Published Today (आज गईं)</span>
+            </div>
+            <div className="text-2xl font-black text-gray-900 mt-0.5">
+              {publishedTodayCount}
+            </div>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold shrink-0">
+            <CheckCircle2 className="w-5 h-5" />
+          </div>
+        </button>
+
+        {/* 2. Scheduled Today */}
+        <button
+          onClick={() => setStatusFilter(statusFilter === 'SCHEDULED_TODAY' ? 'ALL' : 'SCHEDULED_TODAY')}
+          className={`p-3.5 rounded-xl border text-left transition flex items-center justify-between cursor-pointer ${
+            statusFilter === 'SCHEDULED_TODAY'
+              ? 'bg-purple-50 border-purple-500 shadow-sm ring-2 ring-purple-500/30'
+              : 'bg-white border-gray-200 hover:border-purple-300 hover:bg-purple-50/20'
+          }`}
+          title="Click to view posts scheduled for today"
+        >
+          <div>
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-purple-700">
+              <Clock className="w-3.5 h-3.5" />
+              <span>Scheduled Today (आज शेड्यूल)</span>
+            </div>
+            <div className="text-2xl font-black text-gray-900 mt-0.5">
+              {scheduledTodayCount}
+            </div>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold shrink-0">
+            <Clock className="w-5 h-5" />
+          </div>
+        </button>
+
+        {/* 3. Upcoming Scheduled */}
+        <button
+          onClick={() => setStatusFilter(statusFilter === 'UPCOMING' ? 'ALL' : 'UPCOMING')}
+          className={`p-3.5 rounded-xl border text-left transition flex items-center justify-between cursor-pointer ${
+            statusFilter === 'UPCOMING'
+              ? 'bg-blue-50 border-blue-500 shadow-sm ring-2 ring-blue-500/30'
+              : 'bg-white border-gray-200 hover:border-blue-300 hover:bg-blue-50/20'
+          }`}
+          title="Click to view future upcoming scheduled posts"
+        >
+          <div>
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-700">
+              <CalendarDays className="w-3.5 h-3.5" />
+              <span>Upcoming (आगे अगली तारीख)</span>
+            </div>
+            <div className="text-2xl font-black text-gray-900 mt-0.5">
+              {upcomingScheduledCount}
+            </div>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#0172F4] flex items-center justify-center font-bold shrink-0">
+            <CalendarIcon className="w-5 h-5" />
+          </div>
+        </button>
+
+        {/* 4. Awaiting Approval */}
+        <button
+          onClick={() => setStatusFilter(statusFilter === 'PENDING_APPROVAL' ? 'ALL' : 'PENDING_APPROVAL')}
+          className={`p-3.5 rounded-xl border text-left transition flex items-center justify-between cursor-pointer ${
+            statusFilter === 'PENDING_APPROVAL'
+              ? 'bg-amber-50 border-amber-500 shadow-sm ring-2 ring-amber-500/30'
+              : 'bg-white border-gray-200 hover:border-amber-300 hover:bg-amber-50/20'
+          }`}
+          title="Click to view posts waiting for Admin review"
+        >
+          <div>
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700">
+              <AlertTriangle className="w-3.5 h-3.5" />
+              <span>Awaiting Approval (पेंडिंग)</span>
+            </div>
+            <div className="text-2xl font-black text-gray-900 mt-0.5">
+              {pendingApprovalCount}
+            </div>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold shrink-0">
+            <AlertCircle className="w-5 h-5" />
+          </div>
+        </button>
+
+        {/* 5. Total Published */}
+        <button
+          onClick={() => setStatusFilter(statusFilter === 'PUBLISHED' ? 'ALL' : 'PUBLISHED')}
+          className={`p-3.5 rounded-xl border text-left transition flex items-center justify-between cursor-pointer ${
+            statusFilter === 'PUBLISHED'
+              ? 'bg-slate-900 text-white shadow-sm ring-2 ring-slate-700'
+              : 'bg-white border-gray-200 hover:border-slate-400 hover:bg-slate-50'
+          }`}
+          title="Click to view all successfully published posts"
+        >
+          <div>
+            <div className={`flex items-center gap-1.5 text-xs font-semibold ${statusFilter === 'PUBLISHED' ? 'text-slate-300' : 'text-slate-600'}`}>
+              <Globe className="w-3.5 h-3.5" />
+              <span>Total Published (कुल पब्लिश)</span>
+            </div>
+            <div className={`text-2xl font-black mt-0.5 ${statusFilter === 'PUBLISHED' ? 'text-white' : 'text-gray-900'}`}>
+              {publishedCount}
+            </div>
+          </div>
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold shrink-0 ${
+            statusFilter === 'PUBLISHED' ? 'bg-slate-800 text-cyan-400' : 'bg-slate-100 text-slate-700'
+          }`}>
+            <Share2 className="w-5 h-5" />
+          </div>
+        </button>
+      </div>
+
       {/* Notification Banner when post is deleted */}
       {deleteFeedback && (
         <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl flex items-center justify-between animate-in fade-in">
@@ -703,12 +869,15 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
               onChange={(e) => setStatusFilter(e.target.value)}
               className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 font-semibold focus:outline-none shadow-xs cursor-pointer"
             >
-              <option value="ALL">All Status</option>
-              <option value="SCHEDULED">Scheduled</option>
-              <option value="PUBLISHED">Published</option>
-              <option value="DRAFT">Draft / In Review</option>
-              <option value="FAILED">Failed (View Reasons)</option>
-              <option value="CHANGES_REQUESTED">Changes Requested (Admin)</option>
+              <option value="ALL">All Status ({consolidatedPosts.length})</option>
+              <option value="PUBLISHED_TODAY">🟢 Published Today (आज गईं: {publishedTodayCount})</option>
+              <option value="SCHEDULED_TODAY">🕒 Scheduled Today (आज शेड्यूल: {scheduledTodayCount})</option>
+              <option value="UPCOMING">📅 Upcoming Scheduled (आगे अगली तारीख: {upcomingScheduledCount})</option>
+              <option value="SCHEDULED">Approved & Scheduled ({scheduledCount})</option>
+              <option value="PUBLISHED">Published ({publishedCount})</option>
+              <option value="PENDING_APPROVAL">Awaiting Approval ({pendingApprovalCount})</option>
+              <option value="FAILED">Failed ({failedCount})</option>
+              <option value="CHANGES_REQUESTED">Changes Requested ({changesRequestedCount})</option>
             </select>
 
             {/* Today Button */}
@@ -789,7 +958,7 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                   onClick={() => setSelectedDay(day)}
                   className={`min-h-[110px] sm:min-h-[125px] p-2 relative group flex flex-col justify-between transition cursor-pointer ${
                     isToday
-                      ? 'bg-[#FEF9E7] border-2 border-[#FAD02C] shadow-xs'
+                      ? 'bg-emerald-50/40 border-2 border-emerald-500 shadow-xs'
                       : isSelected
                       ? 'border-2 border-[#0172F4] bg-blue-50/10'
                       : 'hover:bg-gray-50/60 bg-white'
@@ -808,13 +977,20 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                       <Plus className="w-3 h-3" />
                     </button>
 
-                    <span
-                      className={`text-xs font-semibold ${
-                        isToday ? 'text-amber-950 font-bold' : isSelected ? 'text-[#0172F4] font-bold' : 'text-gray-700'
-                      }`}
-                    >
-                      {day}
-                    </span>
+                    <div className="flex items-center gap-1">
+                      {isToday && (
+                        <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          TODAY
+                        </span>
+                      )}
+                      <span
+                        className={`text-xs font-semibold ${
+                          isToday ? 'text-emerald-950 font-black' : isSelected ? 'text-[#0172F4] font-bold' : 'text-gray-700'
+                        }`}
+                      >
+                        {day}
+                      </span>
+                    </div>
                   </div>
 
                   {/* Scheduled Posts in Cell */}
@@ -1549,7 +1725,7 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
       {mainViewMode === 'cards' && (
         <div className="space-y-5">
           {/* Top Metric Tabs (Filter shortcuts) */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
             <div
               onClick={() => setStatusFilter('ALL')}
               className={`bg-white rounded-xl p-3 border transition cursor-pointer hover:shadow-xs ${
@@ -1561,43 +1737,53 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
             </div>
 
             <div
-              onClick={() => setStatusFilter('SCHEDULED')}
+              onClick={() => setStatusFilter('PUBLISHED_TODAY')}
               className={`bg-white rounded-xl p-3 border transition cursor-pointer hover:shadow-xs ${
-                statusFilter === 'SCHEDULED' ? 'border-purple-500 ring-2 ring-purple-500/20' : 'border-gray-200'
+                statusFilter === 'PUBLISHED_TODAY' ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/20' : 'border-gray-200'
               }`}
             >
-              <p className="text-[11px] font-semibold text-purple-700">Scheduled</p>
-              <p className="text-xl font-bold text-gray-900 mt-0.5">{scheduledCount}</p>
+              <p className="text-[11px] font-semibold text-emerald-700">Published Today</p>
+              <p className="text-xl font-bold text-emerald-700 mt-0.5">{publishedTodayCount}</p>
+            </div>
+
+            <div
+              onClick={() => setStatusFilter('SCHEDULED_TODAY')}
+              className={`bg-white rounded-xl p-3 border transition cursor-pointer hover:shadow-xs ${
+                statusFilter === 'SCHEDULED_TODAY' ? 'border-purple-500 ring-2 ring-purple-500/20 bg-purple-50/20' : 'border-gray-200'
+              }`}
+            >
+              <p className="text-[11px] font-semibold text-purple-700">Scheduled Today</p>
+              <p className="text-xl font-bold text-purple-700 mt-0.5">{scheduledTodayCount}</p>
+            </div>
+
+            <div
+              onClick={() => setStatusFilter('UPCOMING')}
+              className={`bg-white rounded-xl p-3 border transition cursor-pointer hover:shadow-xs ${
+                statusFilter === 'UPCOMING' ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/20' : 'border-gray-200'
+              }`}
+            >
+              <p className="text-[11px] font-semibold text-blue-700">Upcoming</p>
+              <p className="text-xl font-bold text-blue-700 mt-0.5">{upcomingScheduledCount}</p>
             </div>
 
             <div
               onClick={() => setStatusFilter('PUBLISHED')}
               className={`bg-white rounded-xl p-3 border transition cursor-pointer hover:shadow-xs ${
-                statusFilter === 'PUBLISHED' ? 'border-emerald-500 ring-2 ring-emerald-500/20' : 'border-gray-200'
+                statusFilter === 'PUBLISHED' ? 'border-teal-500 ring-2 ring-teal-500/20' : 'border-gray-200'
               }`}
             >
-              <p className="text-[11px] font-semibold text-emerald-700">Published</p>
+              <p className="text-[11px] font-semibold text-teal-700">Total Published</p>
               <p className="text-xl font-bold text-gray-900 mt-0.5">{publishedCount}</p>
             </div>
 
             <div
-              onClick={() => setStatusFilter('CHANGES_REQUESTED')}
+              onClick={() => setStatusFilter('PENDING_APPROVAL')}
               className={`bg-white rounded-xl p-3 border transition cursor-pointer hover:shadow-xs ${
-                statusFilter === 'CHANGES_REQUESTED' ? 'border-amber-500 ring-2 ring-amber-500/20' : 'border-gray-200'
+                statusFilter === 'PENDING_APPROVAL' ? 'border-amber-500 ring-2 ring-amber-500/20' : 'border-gray-200'
               }`}
             >
-              <p className="text-[11px] font-semibold text-amber-700">Changes Req.</p>
-              <p className="text-xl font-bold text-gray-900 mt-0.5">{changesRequestedCount}</p>
-            </div>
-
-            <div
-              onClick={() => setStatusFilter('DRAFT')}
-              className={`bg-white rounded-xl p-3 border transition cursor-pointer hover:shadow-xs ${
-                statusFilter === 'DRAFT' ? 'border-slate-500 ring-2 ring-slate-500/20' : 'border-gray-200'
-              }`}
-            >
-              <p className="text-[11px] font-semibold text-slate-600">Drafts / Review</p>
-              <p className="text-xl font-bold text-gray-900 mt-0.5">{draftCount}</p>
+              <p className="text-[11px] font-semibold text-amber-700">Awaiting Approval</p>
+              <p className="text-xl font-bold text-amber-800 mt-0.5">{pendingApprovalCount}</p>
             </div>
 
             <div

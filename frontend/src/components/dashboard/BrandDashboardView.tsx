@@ -132,6 +132,37 @@ export const BrandDashboardView: React.FC<BrandDashboardViewProps> = ({
   }, [selectedDay, eventsByDay, calendarEvents]);
 
   // Derived counts
+  const isDateToday = (d?: Date | string | null) => {
+    if (!d) return false;
+    const dateObj = typeof d === 'string' ? new Date(d) : d;
+    const now = new Date();
+    return (
+      dateObj.getFullYear() === now.getFullYear() &&
+      dateObj.getMonth() === now.getMonth() &&
+      dateObj.getDate() === now.getDate()
+    );
+  };
+
+  const isDateFuture = (d?: Date | string | null) => {
+    if (!d) return false;
+    const dateObj = typeof d === 'string' ? new Date(d) : d;
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+    return dateObj.getTime() > todayEnd.getTime();
+  };
+
+  const publishedToday = overview?.publishedToday ?? calendarEvents.filter(
+    (e: any) => e.status === 'PUBLISHED' && (isDateToday(e.scheduledAt) || isDateToday(e.publishedAt))
+  ).length;
+
+  const scheduledToday = overview?.scheduledToday ?? calendarEvents.filter(
+    (e: any) => e.status === 'SCHEDULED' && isDateToday(e.scheduledAt)
+  ).length;
+
+  const scheduledUpcoming = overview?.scheduledUpcoming ?? calendarEvents.filter(
+    (e: any) => (e.status === 'SCHEDULED' || e.status === 'PENDING_APPROVAL') && isDateFuture(e.scheduledAt)
+  ).length;
+
   const scheduledCount = overview?.scheduledCount ?? (calendarEvents.filter((e) => e.status === 'SCHEDULED').length || calendarEvents.length || 0);
   const publishedCount = overview?.publishedCount || 0;
   const draftCount = overview?.draftCount || 0;
@@ -214,6 +245,59 @@ export const BrandDashboardView: React.FC<BrandDashboardViewProps> = ({
         >
           <Plus className="w-4 h-4" />
           <span>Create Post</span>
+        </button>
+      </div>
+
+      {/* Sub-Stats Badges Row for this Brand */}
+      <div className="bg-white rounded-xl py-2 px-3 sm:px-4 border border-slate-200 shadow-sm flex items-center justify-between gap-1.5 sm:gap-2 text-xs sm:text-sm font-semibold overflow-x-auto scrollbar-none whitespace-nowrap">
+        <button
+          onClick={() => (onNavigateToPosts ? onNavigateToPosts('PUBLISHED_TODAY', 'list') : onNavigate('posts'))}
+          className="flex items-center gap-1.5 p-1 px-2.5 rounded-lg hover:bg-emerald-50/70 border border-transparent hover:border-emerald-200 transition group cursor-pointer shrink-0"
+          title="Click to view posts published today"
+        >
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-4 ring-emerald-100 group-hover:scale-110 transition shrink-0 animate-pulse"></span>
+          <span className="text-slate-700 group-hover:text-emerald-800">Published Today:</span>
+          <span className="font-black text-slate-900 group-hover:text-emerald-700 text-sm sm:text-base">{publishedToday}</span>
+        </button>
+
+        <button
+          onClick={() => (onNavigateToPosts ? onNavigateToPosts('SCHEDULED_TODAY', 'list') : onNavigate('posts'))}
+          className="flex items-center gap-1.5 p-1 px-2.5 rounded-lg hover:bg-purple-50/70 border border-transparent hover:border-purple-200 transition group cursor-pointer shrink-0"
+          title="Click to view posts scheduled for today"
+        >
+          <span className="w-2.5 h-2.5 rounded-full bg-purple-600 ring-4 ring-purple-100 group-hover:scale-110 transition shrink-0"></span>
+          <span className="text-slate-700 group-hover:text-purple-900">Scheduled Today:</span>
+          <span className="font-black text-purple-700 text-sm sm:text-base">{scheduledToday}</span>
+        </button>
+
+        <button
+          onClick={() => (onNavigateToPosts ? onNavigateToPosts('UPCOMING', 'list') : onNavigate('posts'))}
+          className="flex items-center gap-1.5 p-1 px-2.5 rounded-lg hover:bg-blue-50/70 border border-transparent hover:border-blue-200 transition group cursor-pointer shrink-0"
+          title="Click to view future scheduled posts"
+        >
+          <span className="w-2.5 h-2.5 rounded-full bg-blue-500 ring-4 ring-blue-100 group-hover:scale-110 transition shrink-0"></span>
+          <span className="text-slate-700 group-hover:text-blue-900">Upcoming (Agli Dates):</span>
+          <span className="font-black text-blue-700 text-sm sm:text-base">{scheduledUpcoming}</span>
+        </button>
+
+        <button
+          onClick={() => (onNavigateToPosts ? onNavigateToPosts('PUBLISHED', 'list') : onNavigate('posts'))}
+          className="flex items-center gap-1.5 p-1 px-2.5 rounded-lg hover:bg-teal-50/70 border border-transparent hover:border-teal-200 transition group cursor-pointer shrink-0"
+          title="Click to view all published posts"
+        >
+          <span className="w-2.5 h-2.5 rounded-full bg-teal-600 ring-4 ring-teal-100 group-hover:scale-110 transition shrink-0"></span>
+          <span className="text-slate-700 group-hover:text-teal-900">Total Published:</span>
+          <span className="font-black text-slate-900 text-sm sm:text-base">{publishedCount}</span>
+        </button>
+
+        <button
+          onClick={() => (onNavigateToPosts ? onNavigateToPosts('SCHEDULED', 'list') : onNavigate('posts'))}
+          className="flex items-center gap-1.5 p-1 px-2.5 rounded-lg hover:bg-indigo-50/70 border border-transparent hover:border-indigo-200 transition group cursor-pointer shrink-0"
+          title="Click to view all scheduled posts"
+        >
+          <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 ring-4 ring-indigo-100 group-hover:scale-110 transition shrink-0"></span>
+          <span className="text-slate-700 group-hover:text-indigo-900">Total Scheduled:</span>
+          <span className="font-black text-indigo-700 text-sm sm:text-base">{scheduledCount}</span>
         </button>
       </div>
 

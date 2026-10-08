@@ -90,14 +90,18 @@ export class AnalyticsService {
       where: clientId ? { clientId } : undefined,
     });
 
-    const totalScheduled = scheduledCount;
+    // Precise Start of Day and End of Day according to Indian Standard Time (Asia/Kolkata, UTC+5:30)
+    const kolkataFormatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const todayStr = kolkataFormatter.format(new Date()); // "YYYY-MM-DD" in IST
+    const todayStart = new Date(`${todayStr}T00:00:00+05:30`);
+    const todayEnd = new Date(`${todayStr}T23:59:59.999+05:30`);
 
-    // Posts published today
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
-
+    // 1. Posts published today
     const publishedTodaySched = await prisma.scheduledPost.count({
       where: {
         status: 'PUBLISHED',
@@ -115,6 +119,60 @@ export class AnalyticsService {
     });
 
     const publishedToday = Math.max(publishedTodaySched, publishedTodayContent);
+
+    // 2. Posts scheduled for today (remaining to be published today)
+    const scheduledTodaySched = await prisma.scheduledPost.count({
+      where: {
+        status: 'SCHEDULED',
+        scheduledAt: { gte: todayStart, lte: todayEnd },
+        ...(clientId ? { clientId } : {}),
+      },
+    });
+
+    // Also check pending approval requests scheduled for today or future
+    const pendingApprovalItems = await prisma.approvalRequest.findMany({
+      where: {
+        status: 'PENDING',
+        contentItem: clientId ? { clientId } : undefined,
+      },
+      select: { feedbackNote: true },
+    });
+
+    let pendingTodaySched = 0;
+    let pendingUpcomingSched = 0;
+
+    for (const apr of pendingApprovalItems) {
+      try {
+        if (apr.feedbackNote && apr.feedbackNote.startsWith('{')) {
+          const meta = JSON.parse(apr.feedbackNote);
+          if (meta.scheduledAt) {
+            const schedDate = new Date(meta.scheduledAt);
+            if (schedDate >= todayStart && schedDate <= todayEnd) {
+              pendingTodaySched++;
+            } else if (schedDate > todayEnd) {
+              pendingUpcomingSched++;
+            }
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    const scheduledToday = scheduledTodaySched + pendingTodaySched;
+
+    // 3. Posts scheduled for upcoming future dates (tomorrow and beyond)
+    const scheduledUpcomingSched = await prisma.scheduledPost.count({
+      where: {
+        status: 'SCHEDULED',
+        scheduledAt: { gt: todayEnd },
+        ...(clientId ? { clientId } : {}),
+      },
+    });
+
+    const scheduledUpcoming = scheduledUpcomingSched + pendingUpcomingSched;
+
+    const totalScheduled = scheduledCount > 0 ? scheduledCount : (scheduledToday + scheduledUpcoming);
 
     const successRate = totalScheduled > 0
       ? Math.round((publishedCount / (publishedCount + failedCount || 1)) * 100)
@@ -166,6 +224,8 @@ export class AnalyticsService {
       totalPosts,
       totalScheduled,
       scheduledCount,
+      scheduledToday,
+      scheduledUpcoming,
       draftCount,
       publishedCount,
       publishedToday,
