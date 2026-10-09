@@ -372,12 +372,12 @@ export const CalendarView: React.FC = () => {
                       {isToday && (
                         <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-md font-bold border border-emerald-500/30 flex items-center gap-1">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                          TODAY (आज)
+                          TODAY
                         </span>
                       )}
                       {isFuture && (
                         <span className="text-[10px] bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded-md font-semibold border border-sky-500/30">
-                          📅 UPCOMING (अगली तारीख)
+                          📅 UPCOMING
                         </span>
                       )}
                       {isPending && (

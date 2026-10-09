@@ -123,7 +123,8 @@ export class AIContentService {
                 contents: [{ parts }],
                 generationConfig: {
                   temperature: 0.7,
-                  maxOutputTokens: 1000,
+                  maxOutputTokens: 1500,
+                  responseMimeType: 'application/json',
                 },
               }),
             }
@@ -139,21 +140,42 @@ export class AIContentService {
 
           // Extract JSON from markdown fences if model returned ```json ... ```
           const cleaned = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+          let parsedCaption = '';
+          let parsedHashtags = '';
+
           try {
             const parsed = JSON.parse(cleaned);
-            let parsedHashtags = '';
+            parsedCaption = parsed.caption || '';
             if (Array.isArray(parsed.hashtags)) {
               parsedHashtags = parsed.hashtags.join(' ');
             } else if (typeof parsed.hashtags === 'string') {
               parsedHashtags = parsed.hashtags;
             }
+          } catch {
+            // Regex fallback if JSON had unescaped quotes or newlines
+            const capMatch = cleaned.match(/"caption"\s*:\s*"([\s\S]*?)(?="\s*,\s*"hashtags"|"\s*\})/);
+            if (capMatch) {
+              parsedCaption = capMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
+            } else {
+              parsedCaption = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+            }
 
+            const tagMatch = cleaned.match(/"hashtags"\s*:\s*"([^"]+)"/);
+            if (tagMatch) {
+              parsedHashtags = tagMatch[1];
+            } else {
+              const allTags = cleaned.match(/#[A-Za-z0-9_]+/g);
+              if (allTags && allTags.length > 0) {
+                parsedHashtags = allTags.join(' ');
+              }
+            }
+          }
+
+          if (parsedCaption) {
             return {
-              caption: parsed.caption || rawText,
+              caption: parsedCaption,
               hashtags: parsedHashtags,
             };
-          } catch {
-            return { caption: rawText, hashtags: '' };
           }
         } catch {
           continue;
@@ -279,8 +301,8 @@ CRITICAL RULES:
 4. For LINKEDIN: Professional perspective on market opportunity, ROI, trust, infrastructure growth, and investment fundamentals.
 5. For TWITTER: Concise, punchy alert with key details and link to website (if available).
 6. For YOUTUBE: Video description format with timestamps, project highlights, contact (if available), and subscribe CTA.
-7. For GOOGLE_BUSINESS: Professional local update, rich SEO keywords${ctx.location ? ` for ${ctx.location}` : ''}, clear directions/call CTA. NO hashtags on Google Business.
-8. HASHTAGS: Provide 10-15 high-reach, localized hashtags (e.g. #${ctx.businessName.replace(/\s+/g, '')} ${ctx.location ? `#${ctx.location.replace(/[^a-zA-Z]/g, '')}` : ''}) for Instagram/Facebook/LinkedIn. Empty string for Google Business.
+7. For GOOGLE_BUSINESS: Professional local update, rich SEO keywords${ctx.location ? ` for ${ctx.location}` : ''}, clear directions/call CTA.
+8. HASHTAGS: Always provide 10-15 high-reach, localized hashtags (e.g. #${ctx.businessName.replace(/\s+/g, '')} ${ctx.location ? `#${ctx.location.replace(/[^a-zA-Z]/g, '')}` : ''}) relevant to the post and business.
 
 OUTPUT FORMAT:
 Return strictly a valid JSON object without any other text or explanation:
@@ -312,9 +334,18 @@ Return strictly a valid JSON object without any other text or explanation:
     }
 
     if (aiResult && aiResult.caption) {
+      let finalHashtags = aiResult.hashtags?.trim() || '';
+      if (!finalHashtags) {
+        try {
+          finalHashtags = await this.generateHashtags(params.clientId, topic);
+        } catch {
+          finalHashtags = ctx.hashtags || `#${ctx.businessName.replace(/\s+/g, '')} #SocialMedia`;
+        }
+      }
+
       return {
         caption: aiResult.caption,
-        hashtags: aiResult.hashtags,
+        hashtags: finalHashtags,
         cta: ctx.preferredCta,
         aiModelUsed: modelUsed,
         brandContextUsed: {
@@ -419,7 +450,7 @@ Return strictly a valid JSON object without any other text or explanation:
           `${ctx.businessName} brings you verified opportunities in ${locationArea}. Ideal for families constructing their future home and investors seeking high-appreciation property.\n\n` +
           `⭐ 100% Verified Clear Titles & Transparent Advisory\n` +
           `⭐ Trusted Guidance: ${ctx.usp}`;
-        hashtags = '';
+        hashtags = `${ctx.hashtags || '#PropertyBabu #RealEstateIndore #IndoreProperties #PlotsInIndore #IndoreRealEstate'}`;
       }
     } else {
       // General Business / Agency / Retail Fallback
@@ -471,7 +502,7 @@ Return strictly a valid JSON object without any other text or explanation:
         caption = `📢 ${cleanTopic} - ${ctx.businessName}\n\n` +
           `Serving authentic, high-quality ${ctx.services || ctx.category} designed for ${ctx.targetAudience}.\n\n` +
           `⭐ ${ctx.usp}`;
-        hashtags = '';
+        hashtags = `${ctx.hashtags || `#${ctx.businessName.replace(/\s+/g, '')} #${ctx.category.replace(/[^a-zA-Z]/g, '')}`}`;
       }
     }
 
