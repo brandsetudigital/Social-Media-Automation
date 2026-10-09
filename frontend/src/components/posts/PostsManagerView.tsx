@@ -703,7 +703,7 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
           <div>
             <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Published Today (आज गईं)</span>
+              <span>Published Today</span>
             </div>
             <div className="text-2xl font-black text-gray-900 mt-0.5">
               {publishedTodayCount}
@@ -727,7 +727,7 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
           <div>
             <div className="flex items-center gap-1.5 text-xs font-semibold text-purple-700">
               <Clock className="w-3.5 h-3.5" />
-              <span>Scheduled Today (आज शेड्यूल)</span>
+              <span>Scheduled Today</span>
             </div>
             <div className="text-2xl font-black text-gray-900 mt-0.5">
               {scheduledTodayCount}
@@ -751,7 +751,7 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
           <div>
             <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-700">
               <CalendarDays className="w-3.5 h-3.5" />
-              <span>Upcoming (आगे अगली तारीख)</span>
+              <span>Upcoming</span>
             </div>
             <div className="text-2xl font-black text-gray-900 mt-0.5">
               {upcomingScheduledCount}
@@ -775,7 +775,7 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
           <div>
             <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700">
               <AlertTriangle className="w-3.5 h-3.5" />
-              <span>Awaiting Approval </span>
+              <span>Awaiting Approval</span>
             </div>
             <div className="text-2xl font-black text-gray-900 mt-0.5">
               {pendingApprovalCount}
@@ -799,7 +799,7 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
           <div>
             <div className={`flex items-center gap-1.5 text-xs font-semibold ${statusFilter === 'PUBLISHED' ? 'text-slate-300' : 'text-slate-600'}`}>
               <Globe className="w-3.5 h-3.5" />
-              <span>Total Published (कुल पब्लिश)</span>
+              <span>Total Published</span>
             </div>
             <div className={`text-2xl font-black mt-0.5 ${statusFilter === 'PUBLISHED' ? 'text-white' : 'text-gray-900'}`}>
               {publishedCount}
@@ -872,9 +872,9 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
               className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 font-semibold focus:outline-none shadow-xs cursor-pointer"
             >
               <option value="ALL">All Status ({consolidatedPosts.length})</option>
-              <option value="PUBLISHED_TODAY">🟢 Published Today (आज गईं: {publishedTodayCount})</option>
-              <option value="SCHEDULED_TODAY">🕒 Scheduled Today (आज शेड्यूल: {scheduledTodayCount})</option>
-              <option value="UPCOMING">📅 Upcoming Scheduled (आगे अगली तारीख: {upcomingScheduledCount})</option>
+              <option value="PUBLISHED_TODAY">🟢 Published Today ({publishedTodayCount})</option>
+              <option value="SCHEDULED_TODAY">🕒 Scheduled Today ({scheduledTodayCount})</option>
+              <option value="UPCOMING">📅 Upcoming Scheduled ({upcomingScheduledCount})</option>
               <option value="SCHEDULED">Approved & Scheduled ({scheduledCount})</option>
               <option value="PUBLISHED">Published ({publishedCount})</option>
               <option value="PENDING_APPROVAL">Awaiting Approval ({pendingApprovalCount})</option>

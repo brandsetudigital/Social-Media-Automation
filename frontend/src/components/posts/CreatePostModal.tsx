@@ -134,9 +134,10 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     LINKEDIN: '#Leadership #Innovation #Business',
     TWITTER: '#BrandSetu #Trending',
     YOUTUBE: '#BrandSetu #Showcase',
-    GOOGLE_BUSINESS: '',
+    GOOGLE_BUSINESS: '#BrandSetu #LocalBusiness',
   });
   const [isAiGenerating, setIsAiGenerating] = useState(false);
+  const [isGeneratingHashtags, setIsGeneratingHashtags] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [uploadSource, setUploadSource] = useState<'upload' | 'drive' | 'url' | 'sample'>('upload');
@@ -411,16 +412,30 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         }));
         setCaption(res.caption);
       }
-      if (res?.hashtags !== undefined) {
-        setPlatformHashtags((prev) => ({
-          ...prev,
-          [platformToUse]: res.hashtags,
-        }));
-        setHashtags(res.hashtags);
+
+      let resolvedHashtags = res?.hashtags?.trim();
+      if (!resolvedHashtags) {
+        try {
+          const tagRes = await api.generateAIHashtags(activeClientId, defaultTopic);
+          resolvedHashtags = tagRes?.hashtags?.trim() || '';
+        } catch {}
       }
+
+      if (!resolvedHashtags) {
+        const brandNameClean = (clientObj?.businessName || 'BrandSetu').replace(/\s+/g, '');
+        const locClean = (clientObj?.location || 'Indore').replace(/[^a-zA-Z]/g, '');
+        resolvedHashtags = `#${brandNameClean} #${locClean} #${brandNameClean}${locClean} #Trending`;
+      }
+
+      setPlatformHashtags((prev) => ({
+        ...prev,
+        [platformToUse]: resolvedHashtags,
+      }));
+      setHashtags(resolvedHashtags);
+
       setStatusMessage({
         type: 'success',
-        text: `✨ Caption generated for ${platformIcons[platformToUse]?.name || platformToUse} (${res?.aiModelUsed || 'AI Engine'})`,
+        text: `✨ Caption & Hashtags generated for ${platformIcons[platformToUse]?.name || platformToUse} (${res?.aiModelUsed || 'AI Engine'})`,
       });
     } catch (err: any) {
       console.warn('[CreatePostModal] AI caption error:', err);
@@ -437,10 +452,58 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
       const fallbackCaption = `✨ ${title || `${brandName} Showcase`}\n\nWe are committed to delivering the highest quality and value to our community. Connect with us to learn more! 🚀${contactSection}`;
       const plat = (typeof targetPlatform === 'string' && targetPlatform) ? targetPlatform : (activePreviewPlatform || 'INSTAGRAM');
+      const brandClean = brandName.replace(/\s+/g, '');
+      const locClean = (clientObj?.location || 'Indore').replace(/[^a-zA-Z]/g, '');
+      const fallbackTags = `#${brandClean} #${locClean} #${brandClean}${locClean} #Trending #QualityService`;
+
       setPlatformCaptions((prev) => ({ ...prev, [plat]: fallbackCaption }));
       setCaption(fallbackCaption);
+      setPlatformHashtags((prev) => ({ ...prev, [plat]: fallbackTags }));
+      setHashtags(fallbackTags);
     } finally {
       setIsAiGenerating(false);
+    }
+  };
+
+  const handleGenerateHashtags = async (targetPlatform?: string) => {
+    setIsGeneratingHashtags(true);
+    setStatusMessage(null);
+    try {
+      const activeClientId = brandId || getEffectiveClientId();
+      const clientObj = clients.find((c) => c.id === activeClientId);
+      const plat = targetPlatform || activePreviewPlatform || 'INSTAGRAM';
+      const defaultTopic = title || caption || (uploadedFileName
+        ? uploadedFileName.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ')
+        : `${clientObj?.businessName || 'Brand'} spotlight`);
+
+      const res = await api.generateAIHashtags(activeClientId, defaultTopic);
+      const generated = res?.hashtags?.trim();
+      if (generated) {
+        setHashtags(generated);
+        setPlatformHashtags((prev) => ({ ...prev, [plat]: generated }));
+        setStatusMessage({
+          type: 'success',
+          text: `✨ Generated ${generated.split(' ').filter(Boolean).length} trending hashtags for ${platformIcons[plat]?.name || plat}!`,
+        });
+      } else {
+        throw new Error('No hashtags returned');
+      }
+    } catch (err: any) {
+      console.warn('[CreatePostModal] AI hashtags fallback:', err);
+      const activeClientId = brandId || getEffectiveClientId();
+      const clientObj = clients.find((c) => c.id === activeClientId);
+      const plat = targetPlatform || activePreviewPlatform || 'INSTAGRAM';
+      const brandClean = (clientObj?.businessName || 'BrandSetu').replace(/\s+/g, '');
+      const locClean = (clientObj?.location || 'Indore').replace(/[^a-zA-Z]/g, '');
+      const fallback = `#${brandClean} #${locClean} #${brandClean}${locClean} #Trending #${locClean}Deals #TopQuality`;
+      setHashtags(fallback);
+      setPlatformHashtags((prev) => ({ ...prev, [plat]: fallback }));
+      setStatusMessage({
+        type: 'success',
+        text: `✨ Generated smart hashtags for ${platformIcons[plat]?.name || plat}`,
+      });
+    } finally {
+      setIsGeneratingHashtags(false);
     }
   };
 
@@ -1087,9 +1150,21 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
             {/* Hashtags */}
             <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1">
-                Hashtags ({platformIcons[activePreviewPlatform]?.name || activePreviewPlatform})
-              </label>
+              <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
+                <label className="text-xs font-bold text-gray-700">
+                  Hashtags ({platformIcons[activePreviewPlatform]?.name || activePreviewPlatform})
+                </label>
+                <button
+                  type="button"
+                  onClick={() => handleGenerateHashtags(activePreviewPlatform)}
+                  disabled={isGeneratingHashtags}
+                  className="text-[11px] font-semibold text-[#0172F4] hover:text-[#005cd3] flex items-center gap-1 bg-blue-50 px-2.5 py-1 rounded-lg hover:bg-blue-100 transition border border-blue-200 cursor-pointer"
+                  title="Generate 15-20 trending hashtags using AI"
+                >
+                  <Sparkles className={`w-3.5 h-3.5 ${isGeneratingHashtags ? 'animate-spin' : ''}`} />
+                  <span>{isGeneratingHashtags ? 'Generating Tags...' : '✨ AI Generate Hashtags'}</span>
+                </button>
+              </div>
               <div className="relative">
                 <input
                   type="text"
