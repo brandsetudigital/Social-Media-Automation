@@ -33,6 +33,32 @@ const uploadsDir = path.join(__dirname, '../uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
+
+// Database Guard: Ensure SQLite database is preserved and auto-recovered
+try {
+  const prismaDir = path.join(__dirname, '../prisma');
+  const mainDbPath = path.join(prismaDir, 'brandsetu.db');
+  const templateDbPath = path.join(prismaDir, 'brandsetu_template.db');
+  const persistentDbPath = path.join(uploadsDir, 'brandsetu_persistent.db');
+
+  if (!fs.existsSync(mainDbPath) || fs.statSync(mainDbPath).size === 0) {
+    if (fs.existsSync(persistentDbPath) && fs.statSync(persistentDbPath).size > 1000) {
+      fs.copyFileSync(persistentDbPath, mainDbPath);
+      console.log('✅ [Database Guard] Restored brandsetu.db from uploads/brandsetu_persistent.db');
+    } else if (fs.existsSync(templateDbPath)) {
+      fs.copyFileSync(templateDbPath, mainDbPath);
+      console.log('✅ [Database Guard] Initialized brandsetu.db from template');
+    }
+  }
+
+  // Continuously sync a persistent copy to uploads folder (which is safe from git pull)
+  if (fs.existsSync(mainDbPath) && fs.statSync(mainDbPath).size > 1000) {
+    fs.copyFileSync(mainDbPath, persistentDbPath);
+  }
+} catch (dbGuardErr) {
+  console.warn('[Database Guard Note]:', dbGuardErr);
+}
+
 app.use('/uploads', (req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');

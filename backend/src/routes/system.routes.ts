@@ -3,6 +3,8 @@ import { AuthRequest, authenticateToken } from '../middleware/auth.middleware';
 import prisma from '../prisma';
 import { NotificationService } from '../services/NotificationService';
 import { AuditService } from '../services/AuditService';
+import path from 'path';
+import fs from 'fs';
 
 const router = Router();
 
@@ -72,6 +74,28 @@ router.get('/publishing-logs', authenticateToken, async (req: AuthRequest, res: 
     });
 
     return res.json(logs);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET download database backup (Admin only)
+router.get('/db/backup', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    if (req.user?.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Admin privileges required' });
+    }
+    const possiblePaths = [
+      path.join(__dirname, '../../prisma/brandsetu.db'),
+      path.join(__dirname, '../prisma/brandsetu.db'),
+      path.join(process.cwd(), 'prisma/brandsetu.db'),
+      path.join(process.cwd(), 'backend/prisma/brandsetu.db'),
+    ];
+    const foundPath = possiblePaths.find(p => fs.existsSync(p));
+    if (!foundPath) {
+      return res.status(404).json({ error: 'Database file not found on disk' });
+    }
+    return res.download(foundPath, `brandsetu_backup_${new Date().toISOString().slice(0, 10)}.db`);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
