@@ -775,7 +775,7 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
           <div>
             <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700">
               <AlertTriangle className="w-3.5 h-3.5" />
-              <span>Awaiting Approval</span>
+              <span>Awaiting Approval </span>
             </div>
             <div className="text-2xl font-black text-gray-900 mt-0.5">
               {pendingApprovalCount}
