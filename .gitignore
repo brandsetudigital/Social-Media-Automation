@@ -4,9 +4,19 @@ node_modules/
 dist/
 build/
 .vite/
+
+# Database files - MUST NEVER BE COMMITTED OR OVERWRITTEN BY GIT
+*.db
 *.db-journal
 *.db-wal
 *.db-shm
+*.sqlite
+*.sqlite3
+backend/prisma/*.db
+!backend/prisma/brandsetu_template.db
+db_backups/
+
+# Uploads
 backend/uploads/*
 !backend/uploads/sample_reel.mp4
 !backend/uploads/.gitkeep
