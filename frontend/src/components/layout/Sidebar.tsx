@@ -65,7 +65,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'analytics',
-      label: 'Analytics',
+      label: 'Analytics & Reporting',
       icon: BarChart3,
     },
     {

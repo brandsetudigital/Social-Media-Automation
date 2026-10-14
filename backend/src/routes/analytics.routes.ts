@@ -8,9 +8,9 @@ const router = Router();
 // GET agency analytics overview
 router.get('/overview', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const { clientId } = req.query;
+    const { clientId, range } = req.query;
     const cleanClientId = clientId && clientId !== 'ALL' && clientId !== 'undefined' ? (clientId as string) : undefined;
-    const overview = await AnalyticsService.getOverview(cleanClientId);
+    const overview = await AnalyticsService.getOverview(cleanClientId, (range as string) || '30D');
     return res.json(overview);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });

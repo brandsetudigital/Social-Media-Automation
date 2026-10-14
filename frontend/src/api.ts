@@ -22,9 +22,15 @@ export const getMediaUrl = (url?: string | null): string => {
     url.startsWith('blob:') ||
     url.startsWith('data:')
   ) {
+    if (url.includes('white-goshawk-289802.hostingersite.com/uploads/')) {
+      return url.replace('white-goshawk-289802.hostingersite.com', 'mediumspringgreen-wallaby-731721.hostingersite.com');
+    }
     return url;
   }
-  const backendBase = API_BASE.replace(/\/api\/?$/, '') || 'https://mediumspringgreen-wallaby-731721.hostingersite.com';
+  let backendBase = API_BASE.replace(/\/api\/?$/, '');
+  if (!backendBase || backendBase === '/' || backendBase.includes('white-goshawk-289802')) {
+    backendBase = 'https://mediumspringgreen-wallaby-731721.hostingersite.com';
+  }
   const cleanUrl = url.startsWith('/') ? url : `/${url}`;
   return `${backendBase}${cleanUrl}`;
 };
@@ -329,8 +335,8 @@ export const api = {
     apiFetch<any>('/ai/monthly-plan', { method: 'POST', body: JSON.stringify(data) }),
 
   // Analytics & Reports
-  getAnalyticsOverview: (clientId?: string) => {
-    const query = api.buildQuery({ clientId });
+  getAnalyticsOverview: (clientId?: string, range?: string) => {
+    const query = api.buildQuery({ clientId, range });
     return apiFetch<any>(`/analytics/overview${query}`);
   },
   getBufferHealth: (clientId?: string) => {

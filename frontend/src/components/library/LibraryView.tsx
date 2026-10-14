@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { getMediaUrl } from '../../api';
 import {
   FolderKanban,
   Plus,
@@ -205,7 +206,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({ onUseTemplate }) => {
                 <tr key={s.id} className="hover:bg-gray-50/50">
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-3">
-                      <img src={s.mediaUrl} alt={s.title} className="w-10 h-10 rounded-lg object-cover" />
+                      <img src={getMediaUrl(s.mediaUrl)} alt={s.title} className="w-10 h-10 rounded-lg object-cover" />
                       <span className="font-semibold text-gray-900">{s.title}</span>
                     </div>
                   </td>

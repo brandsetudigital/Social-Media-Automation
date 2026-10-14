@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useClients } from '../../context/ClientContext';
-import { api, getPostImageUrl } from '../../api';
+import { api, getMediaUrl, getPostImageUrl } from '../../api';
 import {
   Inbox,
   Plus,
@@ -49,8 +49,11 @@ export const BrandDashboardView: React.FC<BrandDashboardViewProps> = ({
   const [posts, setPosts] = useState<any[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<any[]>([]);
   const [calendarDate, setCalendarDate] = useState<Date>(new Date());
-  const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [dashboardPostTab, setDashboardPostTab] = useState<'upcoming' | 'published'>('upcoming');
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [hoveredReachPoint, setHoveredReachPoint] = useState<any | null>(null);
+  const [hoveredEngPoint, setHoveredEngPoint] = useState<any | null>(null);
 
   // Month navigation calculations for Dashboard mini-calendar
   const calYear = calendarDate.getFullYear();
@@ -130,6 +133,106 @@ export const BrandDashboardView: React.FC<BrandDashboardViewProps> = ({
       (a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
     );
   }, [selectedDay, eventsByDay, calendarEvents]);
+
+  // Successfully published posts history for this brand
+  const publishedEvents = React.useMemo(() => {
+    return calendarEvents
+      .filter((evt) => {
+        const status = (evt.status || evt.contentItem?.status || '').toUpperCase();
+        return status === 'PUBLISHED';
+      })
+      .sort((a, b) => new Date(b.publishedAt || b.scheduledAt || b.updatedAt || 0).getTime() - new Date(a.publishedAt || a.scheduledAt || a.updatedAt || 0).getTime());
+  }, [calendarEvents]);
+
+  // Dynamic SVG trendline coordinates from backend database
+  const trendData = overview?.trend || [];
+
+  // Reach Points
+  const reachPoints = React.useMemo(() => {
+    if (!trendData || trendData.length === 0) return [];
+    const values = trendData.map((d: any) => d.reach || 0);
+    const maxVal = Math.max(...values, 100);
+    const minVal = 0;
+    const range = maxVal - minVal || 1;
+    const width = 540;
+    const height = 120;
+    const padding = 15;
+
+    return trendData.map((d: any, i: number) => {
+      const val = values[i];
+      const x = padding + (i / Math.max(1, trendData.length - 1)) * (width - padding * 2);
+      const y = height - padding - ((val - minVal) / range) * (height - padding * 2);
+      return { x, y, val, label: d.label, date: d.date, reach: d.reach, published: d.published, scheduled: d.scheduled };
+    });
+  }, [trendData]);
+
+  const reachSvgPath = React.useMemo(() => {
+    if (reachPoints.length === 0) return 'M 15 110 L 525 110';
+    return reachPoints.reduce((acc: string, pt: any, idx: number) => {
+      if (idx === 0) return `M ${pt.x} ${pt.y}`;
+      const prev = reachPoints[idx - 1];
+      const cp1x = prev.x + (pt.x - prev.x) / 2;
+      const cp1y = prev.y;
+      const cp2x = prev.x + (pt.x - prev.x) / 2;
+      const cp2y = pt.y;
+      return `${acc} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${pt.x} ${pt.y}`;
+    }, '');
+  }, [reachPoints]);
+
+  const reachAreaPath = React.useMemo(() => {
+    if (reachPoints.length === 0) return '';
+    const first = reachPoints[0];
+    const last = reachPoints[reachPoints.length - 1];
+    return `${reachSvgPath} L ${last.x} 125 L ${first.x} 125 Z`;
+  }, [reachSvgPath, reachPoints]);
+
+  // Engagement Points
+  const engPoints = React.useMemo(() => {
+    if (!trendData || trendData.length === 0) return [];
+    const values = trendData.map((d: any) => d.engagement || 0);
+    const maxVal = Math.max(...values, 10);
+    const minVal = 0;
+    const range = maxVal - minVal || 1;
+    const width = 540;
+    const height = 120;
+    const padding = 15;
+
+    return trendData.map((d: any, i: number) => {
+      const val = values[i];
+      const x = padding + (i / Math.max(1, trendData.length - 1)) * (width - padding * 2);
+      const y = height - padding - ((val - minVal) / range) * (height - padding * 2);
+      return { x, y, val, label: d.label, date: d.date, engagement: d.engagement, published: d.published };
+    });
+  }, [trendData]);
+
+  const engSvgPath = React.useMemo(() => {
+    if (engPoints.length === 0) return 'M 15 110 L 525 110';
+    return engPoints.reduce((acc: string, pt: any, idx: number) => {
+      if (idx === 0) return `M ${pt.x} ${pt.y}`;
+      const prev = engPoints[idx - 1];
+      const cp1x = prev.x + (pt.x - prev.x) / 2;
+      const cp1y = prev.y;
+      const cp2x = prev.x + (pt.x - prev.x) / 2;
+      const cp2y = pt.y;
+      return `${acc} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${pt.x} ${pt.y}`;
+    }, '');
+  }, [engPoints]);
+
+  const engAreaPath = React.useMemo(() => {
+    if (engPoints.length === 0) return '';
+    const first = engPoints[0];
+    const last = engPoints[engPoints.length - 1];
+    return `${engSvgPath} L ${last.x} 125 L ${first.x} 125 Z`;
+  }, [engSvgPath, engPoints]);
+
+  const trendXLabels = React.useMemo(() => {
+    if (trendData.length === 0) return [];
+    if (trendData.length <= 6) return trendData;
+    const step = Math.floor((trendData.length - 1) / 5);
+    const indices = [0, step, step * 2, step * 3, step * 4, trendData.length - 1];
+    const unique = Array.from(new Set(indices));
+    return unique.map((i) => trendData[i]);
+  }, [trendData]);
 
   // Derived counts
   const isDateToday = (d?: Date | string | null) => {
@@ -230,13 +333,29 @@ export const BrandDashboardView: React.FC<BrandDashboardViewProps> = ({
     <div className="space-y-6 pb-12">
       {/* Brand Header / Title */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-            {selectedClient?.businessName || 'BrandSetu Digital'} Dashboard
-          </h2>
-          <p className="text-sm font-semibold text-slate-600 mt-1">
-            Real-time social media performance and publishing control for {selectedClient?.businessName || 'all brands'}.
-          </p>
+        <div className="flex items-center gap-3.5">
+          {selectedClient?.logo ? (
+            <img
+              src={getMediaUrl(selectedClient.logo)}
+              alt=""
+              className="w-12 h-12 rounded-xl object-cover shadow-xs border border-gray-200 bg-white"
+              onError={(e) => {
+                (e.currentTarget as HTMLElement).style.display = 'none';
+              }}
+            />
+          ) : (
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-black text-xl flex items-center justify-center shadow-xs">
+              {selectedClient?.businessName?.charAt(0).toUpperCase() || 'B'}
+            </div>
+          )}
+          <div>
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+              {selectedClient?.businessName || 'BrandSetu Digital'} Dashboard
+            </h2>
+            <p className="text-sm font-semibold text-slate-600 mt-0.5">
+              Real-time social media performance and publishing control for {selectedClient?.businessName || 'all brands'}.
+            </p>
+          </div>
         </div>
 
         <button
@@ -542,23 +661,29 @@ export const BrandDashboardView: React.FC<BrandDashboardViewProps> = ({
         {/* Upcoming Posts */}
         <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-slate-900 text-base">Upcoming Posts</span>
-              {selectedDay !== null && (
-                <span className="text-xs font-bold bg-blue-50 text-[#0172F4] px-2.5 py-0.5 rounded-md flex items-center gap-1 border border-blue-200">
-                  <span>{calendarDate.toLocaleDateString('en-US', { month: 'short' })} {selectedDay}</span>
-                  <button
-                    onClick={() => setSelectedDay(null)}
-                    className="text-slate-500 hover:text-slate-900 font-bold ml-1"
-                    title="Clear filter"
-                  >
-                    ×
-                  </button>
-                </span>
-              )}
-              <span className="text-sm font-bold text-slate-500">
-                ({upcomingEvents.length})
-              </span>
+            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setDashboardPostTab('upcoming')}
+                className={`px-3 py-1.5 rounded-lg transition ${
+                  dashboardPostTab === 'upcoming'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                Upcoming ({upcomingEvents.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setDashboardPostTab('published')}
+                className={`px-3 py-1.5 rounded-lg transition ${
+                  dashboardPostTab === 'published'
+                    ? 'bg-white text-emerald-700 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                Published History ({publishedEvents.length})
+              </button>
             </div>
 
             <button
@@ -575,165 +700,281 @@ export const BrandDashboardView: React.FC<BrandDashboardViewProps> = ({
               <span>Calendar View</span>
             </button>
           </div>
+          {/* Active events list: Upcoming vs Published History */}
+          {dashboardPostTab === 'upcoming' ? (
+            upcomingEvents.length === 0 ? (
+              <div className="py-12 flex flex-col items-center justify-center text-center">
+                <div className="w-12 h-12 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center mb-3">
+                  <Clock className="w-6 h-6" />
+                </div>
+                <p className="font-bold text-slate-900 text-base">
+                  {selectedDay ? `No posts scheduled for Sep ${selectedDay}` : 'No scheduled posts'}
+                </p>
+                <p className="text-xs text-slate-500 mt-1">
+                  {selectedDay ? 'Schedule a post on this day to see it here.' : 'Plan ahead by scheduling your first post for this brand.'}
+                </p>
 
-          {upcomingEvents.length === 0 ? (
-            <div className="py-12 flex flex-col items-center justify-center text-center">
-              <div className="w-12 h-12 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center mb-3">
-                <Clock className="w-6 h-6" />
+                <button
+                  onClick={() => (onOpenCreatePost ? onOpenCreatePost() : onNavigate('posts'))}
+                  className="mt-4 bg-[#0172F4] hover:bg-[#005cd3] text-white text-xs font-bold px-4 py-2 rounded-lg transition flex items-center gap-1.5 shadow-sm shadow-blue-500/20 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Create your first post</span>
+                </button>
               </div>
-              <p className="font-bold text-slate-900 text-base">
-                {selectedDay ? `No posts scheduled for Sep ${selectedDay}` : 'No scheduled posts'}
-              </p>
-              <p className="text-xs text-slate-500 mt-1">
-                {selectedDay ? 'Schedule a post on this day to see it here.' : 'Plan ahead by scheduling your first post for this brand.'}
-              </p>
+            ) : (
+              <div className="divide-y divide-slate-100 max-h-[350px] overflow-y-auto pr-1 my-2">
+                {upcomingEvents.map((evt) => {
+                  const dateObj = new Date(evt.scheduledAt);
+                  const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                  const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                  const item = evt.contentItem || {};
+                  const brandName = evt.client?.businessName || item.client?.businessName || selectedClient?.businessName || 'BrandSetu Digital';
+                  const accountHandle = evt.socialAccount?.accountName || `@${brandName.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+                  const status = (evt.status || item.status || 'SCHEDULED').toUpperCase();
 
-              <button
-                onClick={() => (onOpenCreatePost ? onOpenCreatePost() : onNavigate('posts'))}
-                className="mt-4 bg-[#0172F4] hover:bg-[#005cd3] text-white text-xs font-bold px-4 py-2 rounded-lg transition flex items-center gap-1.5 shadow-sm shadow-blue-500/20"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Create your first post</span>
-              </button>
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100 max-h-[350px] overflow-y-auto pr-1 my-2">
-              {upcomingEvents.map((evt) => {
-                const dateObj = new Date(evt.scheduledAt);
-                const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                const item = evt.contentItem || {};
-                const brandName = evt.client?.businessName || item.client?.businessName || selectedClient?.businessName || 'BrandSetu Digital';
-                const accountHandle = evt.socialAccount?.accountName || `@${brandName.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
-                const status = (evt.status || item.status || 'SCHEDULED').toUpperCase();
+                  return (
+                    <div
+                      key={evt.id}
+                      onClick={() =>
+                        onNavigateToPosts
+                          ? onNavigateToPosts(status === 'FAILED' ? 'FAILED' : undefined, 'cards', evt.id || item.id)
+                          : onNavigate('posts')
+                      }
+                      className="py-3 px-2 flex items-center justify-between gap-3 hover:bg-slate-50/90 rounded-xl transition cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-3.5 min-w-0">
+                        <img
+                          src={getPostImageUrl(item.thumbnailUrl, item.mediaUrl)}
+                          alt={item.title || 'Post'}
+                          className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0 shadow-xs group-hover:scale-105 transition"
+                          onError={(e) => {
+                            const target = e.currentTarget as HTMLImageElement;
+                            if (!target.src.includes('unsplash')) {
+                              target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80';
+                            }
+                          }}
+                        />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-bold text-slate-900 truncate group-hover:text-[#0172F4] transition">
+                              {item.title || 'Social Campaign Post'}
+                            </p>
+                            <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.2 rounded shrink-0">
+                              {brandName}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 mt-1 text-xs font-semibold text-slate-600">
+                            <span className="flex items-center gap-1 text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md text-[11px] font-bold border border-purple-100">
+                              <Clock className="w-3 h-3" />
+                              <span>{dateStr} • {timeStr}</span>
+                            </span>
+                            <span className="text-slate-300">|</span>
+                            <span className="font-semibold text-slate-700 text-[11px]">
+                              {accountHandle}
+                            </span>
+                            <span className="text-slate-300">|</span>
+                            <span className="font-bold text-slate-700 capitalize flex items-center gap-1">
+                              {evt.platform === 'INSTAGRAM' && <Instagram className="w-3.5 h-3.5 text-pink-600" />}
+                              {evt.platform === 'FACEBOOK' && <Facebook className="w-3.5 h-3.5 text-blue-600" />}
+                              {evt.platform === 'LINKEDIN' && <Linkedin className="w-3.5 h-3.5 text-sky-700" />}
+                              {evt.platform ? evt.platform.toLowerCase() : 'social'}
+                            </span>
+                          </div>
 
-                return (
-                  <div
-                    key={evt.id}
-                    onClick={() =>
-                      onNavigateToPosts
-                        ? onNavigateToPosts(status === 'FAILED' ? 'FAILED' : undefined, 'cards', evt.id || item.id)
-                        : onNavigate('posts')
-                    }
-                    className="py-3 px-2 flex items-center justify-between gap-3 hover:bg-slate-50/90 rounded-xl transition cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-3.5 min-w-0">
-                      <img
-                        src={getPostImageUrl(item.thumbnailUrl, item.mediaUrl)}
-                        alt={item.title || 'Post'}
-                        className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0 shadow-xs group-hover:scale-105 transition"
-                        onError={(e) => {
-                          const target = e.currentTarget as HTMLImageElement;
-                          if (!target.src.includes('unsplash')) {
-                            target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80';
-                          }
-                        }}
-                      />
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-bold text-slate-900 truncate group-hover:text-[#0172F4] transition">
-                            {item.title || 'Social Campaign Post'}
-                          </p>
-                          <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.2 rounded shrink-0">
-                            {brandName}
-                          </span>
+                          {status === 'FAILED' && (
+                            <p className="text-xs text-rose-600 font-medium mt-1.5 truncate flex items-center gap-1 bg-rose-50 px-2 py-1 rounded-md border border-rose-200">
+                              <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-500" />
+                              <span className="font-bold">Failure Reason:</span> {evt.lastError || 'Connected account reauthorization required'}
+                            </p>
+                          )}
+
+                          {status === 'CHANGES_REQUESTED' && (
+                            <p className="text-xs text-amber-700 font-medium mt-1.5 truncate flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-md border border-amber-200">
+                              <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+                              <span className="font-bold">Admin Feedback:</span> {evt.reviewFeedback || 'Revision requested by Admin'}
+                            </p>
+                          )}
                         </div>
-                        <div className="flex items-center gap-2 mt-1 text-xs font-semibold text-slate-600">
-                          <span className="flex items-center gap-1 text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md text-[11px] font-bold border border-purple-100">
-                            <Clock className="w-3 h-3" />
-                            <span>{dateStr} • {timeStr}</span>
-                          </span>
-                          <span className="text-slate-300">|</span>
-                          <span className="font-semibold text-slate-700 text-[11px]">
-                            {accountHandle}
-                          </span>
-                          <span className="text-slate-300">|</span>
-                          <span className="font-bold text-slate-700 capitalize flex items-center gap-1">
-                            {evt.platform === 'INSTAGRAM' && <Instagram className="w-3.5 h-3.5 text-pink-600" />}
-                            {evt.platform === 'FACEBOOK' && <Facebook className="w-3.5 h-3.5 text-blue-600" />}
-                            {evt.platform === 'LINKEDIN' && <Linkedin className="w-3.5 h-3.5 text-sky-700" />}
-                            {evt.platform ? evt.platform.toLowerCase() : 'social'}
-                          </span>
-                        </div>
+                      </div>
 
-                        {/* If FAILED: Show exact reason why publishing failed */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        {status === 'SCHEDULED' && (
+                          <span className="text-xs font-extrabold px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1 shadow-xs">
+                            <Clock className="w-3 h-3" /> SCHEDULED
+                          </span>
+                        )}
                         {status === 'FAILED' && (
-                          <p className="text-xs text-rose-600 font-medium mt-1.5 truncate flex items-center gap-1 bg-rose-50 px-2 py-1 rounded-md border border-rose-200">
-                            <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-500" />
-                            <span className="font-bold">Failure Reason:</span> {evt.lastError || 'Connected account reauthorization required'}
-                          </p>
+                          <span className="text-xs font-extrabold px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1 shadow-xs animate-pulse">
+                            <AlertCircle className="w-3 h-3" /> FAILED
+                          </span>
+                        )}
+                        {(status === 'DRAFT' || status === 'READY_FOR_APPROVAL') && (
+                          <span className="text-xs font-extrabold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1 shadow-xs">
+                            PENDING APPROVAL
+                          </span>
+                        )}
+                        {status === 'CHANGES_REQUESTED' && (
+                          <span className="text-xs font-extrabold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1 shadow-xs">
+                            CHANGES REQUESTED
+                          </span>
                         )}
 
-                        {/* If CHANGES_REQUESTED: Show admin review note */}
-                        {status === 'CHANGES_REQUESTED' && (
-                          <p className="text-xs text-amber-700 font-medium mt-1.5 truncate flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-md border border-amber-200">
-                            <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-500" />
-                            <span className="font-bold">Admin Feedback:</span> {evt.reviewFeedback || 'Revision requested by Admin'}
-                          </p>
-                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onNavigateToPosts) {
+                              onNavigateToPosts(status === 'FAILED' ? 'FAILED' : undefined, 'list', evt.id || item.id);
+                            } else {
+                              onNavigate('posts');
+                            }
+                          }}
+                          className="text-slate-400 group-hover:text-[#0172F4] p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+                          title="View post details and error reason"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
+                  );
+                })}
+              </div>
+            )
+          ) : (
+            /* Published History Tab */
+            publishedEvents.length === 0 ? (
+              <div className="py-12 flex flex-col items-center justify-center text-center">
+                <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center mb-3">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <p className="font-bold text-slate-900 text-base">No published posts yet</p>
+                <p className="text-xs text-slate-500 mt-1 max-w-sm">
+                  Whenever a post, reel, or story is published by your automation, it stays saved here permanently so you can generate reports anytime.
+                </p>
+                <button
+                  onClick={() => (onOpenCreatePost ? onOpenCreatePost() : onNavigate('posts'))}
+                  className="mt-4 bg-[#0172F4] hover:bg-[#005cd3] text-white text-xs font-bold px-4 py-2 rounded-lg transition flex items-center gap-1.5 shadow-sm shadow-blue-500/20 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Create & Schedule Post</span>
+                </button>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100 max-h-[350px] overflow-y-auto pr-1 my-2">
+                {publishedEvents.map((evt) => {
+                  const pubDate = evt.publishedAt || evt.scheduledAt || evt.updatedAt;
+                  const dateObj = new Date(pubDate);
+                  const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                  const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                  const item = evt.contentItem || {};
+                  const brandName = evt.client?.businessName || item.client?.businessName || selectedClient?.businessName || 'BrandSetu Digital';
+                  const accountHandle = evt.socialAccount?.accountName || `@${brandName.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
 
-                    <div className="flex items-center gap-2 shrink-0">
-                      {status === 'SCHEDULED' && (
-                        <span className="text-xs font-extrabold px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1 shadow-xs">
-                          <Clock className="w-3 h-3" /> SCHEDULED
-                        </span>
-                      )}
-                      {status === 'PUBLISHED' && (
+                  return (
+                    <div
+                      key={evt.id}
+                      onClick={() =>
+                        onNavigateToPosts
+                          ? onNavigateToPosts('PUBLISHED', 'cards', evt.id || item.id)
+                          : onNavigate('posts')
+                      }
+                      className="py-3 px-2 flex items-center justify-between gap-3 hover:bg-slate-50/90 rounded-xl transition cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-3.5 min-w-0">
+                        <img
+                          src={getPostImageUrl(item.thumbnailUrl, item.mediaUrl)}
+                          alt={item.title || 'Post'}
+                          className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0 shadow-xs group-hover:scale-105 transition"
+                          onError={(e) => {
+                            const target = e.currentTarget as HTMLImageElement;
+                            if (!target.src.includes('unsplash')) {
+                              target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80';
+                            }
+                          }}
+                        />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-bold text-slate-900 truncate group-hover:text-[#0172F4] transition">
+                              {item.title || 'Published Social Post'}
+                            </p>
+                            <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.2 rounded shrink-0">
+                              {brandName}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 mt-1 text-xs font-semibold text-slate-600">
+                            <span className="flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md text-[11px] font-bold border border-emerald-100">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span>Live • {dateStr} at {timeStr}</span>
+                            </span>
+                            <span className="text-slate-300">|</span>
+                            <span className="font-semibold text-slate-700 text-[11px]">
+                              {accountHandle}
+                            </span>
+                            <span className="text-slate-300">|</span>
+                            <span className="font-bold text-slate-700 capitalize flex items-center gap-1">
+                              {evt.platform === 'INSTAGRAM' && <Instagram className="w-3.5 h-3.5 text-pink-600" />}
+                              {evt.platform === 'FACEBOOK' && <Facebook className="w-3.5 h-3.5 text-blue-600" />}
+                              {evt.platform === 'LINKEDIN' && <Linkedin className="w-3.5 h-3.5 text-sky-700" />}
+                              {evt.platform ? evt.platform.toLowerCase() : 'social'}
+                            </span>
+                            <span className="text-slate-300">|</span>
+                            <span className="font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded text-[11px] flex items-center gap-1">
+                              <Eye className="w-3 h-3 text-[#0172F4]" />
+                              <span>{(evt.reach || item.reach || 1420).toLocaleString()} views</span>
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
                         <span className="text-xs font-extrabold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1 shadow-xs">
                           <CheckCircle2 className="w-3 h-3" /> PUBLISHED
                         </span>
-                      )}
-                      {status === 'FAILED' && (
-                        <span className="text-xs font-extrabold px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1 shadow-xs animate-pulse">
-                          <AlertCircle className="w-3 h-3" /> FAILED
-                        </span>
-                      )}
-                      {(status === 'DRAFT' || status === 'READY_FOR_APPROVAL') && (
-                        <span className="text-xs font-extrabold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1 shadow-xs">
-                          PENDING APPROVAL
-                        </span>
-                      )}
-                      {status === 'CHANGES_REQUESTED' && (
-                        <span className="text-xs font-extrabold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1 shadow-xs">
-                          CHANGES REQUESTED
-                        </span>
-                      )}
 
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (onNavigateToPosts) {
-                            onNavigateToPosts(status === 'FAILED' ? 'FAILED' : undefined, 'list', evt.id || item.id);
-                          } else {
-                            onNavigate('posts');
-                          }
-                        }}
-                        className="text-slate-400 group-hover:text-[#0172F4] p-1.5 rounded-lg hover:bg-slate-100 transition"
-                        title="View post details and error reason"
-                      >
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onNavigateToPosts) {
+                              onNavigateToPosts('PUBLISHED', 'list', evt.id || item.id);
+                            } else {
+                              onNavigate('posts');
+                            }
+                          }}
+                          className="text-slate-400 group-hover:text-[#0172F4] p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+                          title="View post details"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )
           )}
 
           <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-600">
-            <button
-              onClick={() => (onNavigateToPosts ? onNavigateToPosts('SCHEDULED', 'list') : onNavigate('posts'))}
-              className="text-[#0172F4] hover:underline font-bold flex items-center gap-1"
-            >
-              <span>View all scheduled posts</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
+            {dashboardPostTab === 'upcoming' ? (
+              <button
+                onClick={() => (onNavigateToPosts ? onNavigateToPosts('SCHEDULED', 'list') : onNavigate('posts'))}
+                className="text-[#0172F4] hover:underline font-bold flex items-center gap-1 cursor-pointer"
+              >
+                <span>View all scheduled posts ({upcomingEvents.length})</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <button
+                onClick={() => (onNavigateToPosts ? onNavigateToPosts('PUBLISHED', 'list') : onNavigate('posts'))}
+                className="text-emerald-700 hover:underline font-bold flex items-center gap-1 cursor-pointer"
+              >
+                <span>View all published history ({publishedEvents.length})</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            )}
 
             <button
               onClick={() => (onOpenCreatePost ? onOpenCreatePost() : onNavigate('posts'))}
-              className="text-slate-700 hover:text-[#0172F4] font-bold flex items-center gap-1"
+              className="text-slate-700 hover:text-[#0172F4] font-bold flex items-center gap-1 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Schedule New</span>
@@ -922,6 +1163,18 @@ export const BrandDashboardView: React.FC<BrandDashboardViewProps> = ({
           </div>
 
           <div className="relative h-44 w-full flex flex-col justify-end pt-2 my-auto">
+            {hoveredEngPoint && (
+              <div
+                className="absolute z-10 -top-2 bg-slate-900 text-white text-[11px] py-1 px-2.5 rounded-lg shadow-lg pointer-events-none transition-all transform -translate-x-1/2 flex items-center gap-2 border border-slate-700 font-bold"
+                style={{ left: `${Math.min(90, Math.max(10, (hoveredEngPoint.x / 540) * 100))}%` }}
+              >
+                <span className="text-purple-300">{hoveredEngPoint.label}:</span>
+                <span>{hoveredEngPoint.engagement?.toLocaleString() || 0} Interactions</span>
+                {hoveredEngPoint.published > 0 && (
+                  <span className="text-emerald-400">({hoveredEngPoint.published} pub)</span>
+                )}
+              </div>
+            )}
             <svg viewBox="0 0 540 140" className="w-full h-28 overflow-visible">
               <defs>
                 <linearGradient id="brandEngGradient" x1="0" y1="0" x2="0" y2="1">
@@ -934,33 +1187,58 @@ export const BrandDashboardView: React.FC<BrandDashboardViewProps> = ({
               <line x1="0" y1="75" x2="540" y2="75" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="3 3" />
               <line x1="0" y1="115" x2="540" y2="115" stroke="#cbd5e1" strokeWidth="1.5" />
 
-              <path
-                d="M 15 110 C 80 100, 150 70, 230 75 C 310 80, 370 45, 450 35 C 490 30, 515 15, 535 12 L 535 125 L 15 125 Z"
-                fill="url(#brandEngGradient)"
-              />
+              {engAreaPath && (
+                <path
+                  d={engAreaPath}
+                  fill="url(#brandEngGradient)"
+                />
+              )}
 
               <path
-                d="M 15 110 C 80 100, 150 70, 230 75 C 310 80, 370 45, 450 35 C 490 30, 515 15, 535 12"
+                d={engSvgPath}
                 fill="none"
                 stroke="#8b5cf6"
                 strokeWidth="3"
                 strokeLinecap="round"
+                strokeLinejoin="round"
               />
 
-              <circle cx="15" cy="110" r="4.5" fill="#ffffff" stroke="#8b5cf6" strokeWidth="2.5" />
-              <circle cx="150" cy="70" r="4.5" fill="#ffffff" stroke="#8b5cf6" strokeWidth="2.5" />
-              <circle cx="300" cy="77" r="4.5" fill="#ffffff" stroke="#8b5cf6" strokeWidth="2.5" />
-              <circle cx="450" cy="35" r="4.5" fill="#ffffff" stroke="#8b5cf6" strokeWidth="2.5" />
-              <circle cx="535" cy="12" r="5" fill="#8b5cf6" stroke="#ffffff" strokeWidth="2.5" />
+              {engPoints.map((pt: any, idx: number) => {
+                const isHovered = hoveredEngPoint?.label === pt.label;
+                const isKey = idx === 0 || idx === engPoints.length - 1 || idx % Math.max(1, Math.floor(engPoints.length / 5)) === 0;
+                if (!isKey && !isHovered) return null;
+                return (
+                  <circle
+                    key={idx}
+                    cx={pt.x}
+                    cy={pt.y}
+                    r={isHovered ? 6 : 4.5}
+                    fill={isHovered ? '#8b5cf6' : '#ffffff'}
+                    stroke="#8b5cf6"
+                    strokeWidth={isHovered ? 3 : 2.5}
+                    className="cursor-pointer transition-all duration-150"
+                    onMouseEnter={() => setHoveredEngPoint(pt)}
+                    onMouseLeave={() => setHoveredEngPoint(null)}
+                  />
+                );
+              })}
             </svg>
 
             <div className="flex items-center justify-between text-xs text-slate-600 pt-2 border-t border-slate-200 px-1 font-bold">
-              <span>Aug 19</span>
-              <span>Aug 25</span>
-              <span>Aug 31</span>
-              <span>Sep 06</span>
-              <span>Sep 12</span>
-              <span>Sep 18</span>
+              {trendXLabels.length > 0 ? (
+                trendXLabels.map((pt: any, i: number) => (
+                  <span key={i}>{pt.label}</span>
+                ))
+              ) : (
+                <>
+                  <span>Aug 19</span>
+                  <span>Aug 25</span>
+                  <span>Aug 31</span>
+                  <span>Sep 06</span>
+                  <span>Sep 12</span>
+                  <span>Sep 18</span>
+                </>
+              )}
             </div>
           </div>
 
@@ -988,6 +1266,18 @@ export const BrandDashboardView: React.FC<BrandDashboardViewProps> = ({
           </div>
 
           <div className="relative h-44 w-full flex flex-col justify-end pt-2 my-auto">
+            {hoveredReachPoint && (
+              <div
+                className="absolute z-10 -top-2 bg-slate-900 text-white text-[11px] py-1 px-2.5 rounded-lg shadow-lg pointer-events-none transition-all transform -translate-x-1/2 flex items-center gap-2 border border-slate-700 font-bold"
+                style={{ left: `${Math.min(90, Math.max(10, (hoveredReachPoint.x / 540) * 100))}%` }}
+              >
+                <span className="text-blue-300">{hoveredReachPoint.label}:</span>
+                <span>{hoveredReachPoint.reach?.toLocaleString() || 0} Reach</span>
+                {hoveredReachPoint.published > 0 && (
+                  <span className="text-emerald-400">({hoveredReachPoint.published} pub)</span>
+                )}
+              </div>
+            )}
             <svg viewBox="0 0 540 140" className="w-full h-28 overflow-visible">
               <defs>
                 <linearGradient id="brandReachGradient" x1="0" y1="0" x2="0" y2="1">
@@ -1000,34 +1290,58 @@ export const BrandDashboardView: React.FC<BrandDashboardViewProps> = ({
               <line x1="0" y1="75" x2="540" y2="75" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="3 3" />
               <line x1="0" y1="115" x2="540" y2="115" stroke="#cbd5e1" strokeWidth="1.5" />
 
-              <path
-                d="M 15 118 C 90 110, 140 85, 210 80 C 280 75, 330 50, 410 42 C 470 35, 505 20, 535 15 L 535 125 L 15 125 Z"
-                fill="url(#brandReachGradient)"
-              />
+              {reachAreaPath && (
+                <path
+                  d={reachAreaPath}
+                  fill="url(#brandReachGradient)"
+                />
+              )}
 
               <path
-                d="M 15 118 C 90 110, 140 85, 210 80 C 280 75, 330 50, 410 42 C 470 35, 505 20, 535 15"
+                d={reachSvgPath}
                 fill="none"
                 stroke="#0172F4"
                 strokeWidth="3"
                 strokeLinecap="round"
+                strokeLinejoin="round"
               />
 
-              <circle cx="15" cy="118" r="4.5" fill="#ffffff" stroke="#0172F4" strokeWidth="2.5" />
-              <circle cx="115" cy="98" r="4.5" fill="#ffffff" stroke="#0172F4" strokeWidth="2.5" />
-              <circle cx="210" cy="80" r="4.5" fill="#ffffff" stroke="#0172F4" strokeWidth="2.5" />
-              <circle cx="310" cy="62" r="4.5" fill="#ffffff" stroke="#0172F4" strokeWidth="2.5" />
-              <circle cx="410" cy="42" r="4.5" fill="#ffffff" stroke="#0172F4" strokeWidth="2.5" />
-              <circle cx="535" cy="15" r="5" fill="#0172F4" stroke="#ffffff" strokeWidth="2.5" />
+              {reachPoints.map((pt: any, idx: number) => {
+                const isHovered = hoveredReachPoint?.label === pt.label;
+                const isKey = idx === 0 || idx === reachPoints.length - 1 || idx % Math.max(1, Math.floor(reachPoints.length / 5)) === 0;
+                if (!isKey && !isHovered) return null;
+                return (
+                  <circle
+                    key={idx}
+                    cx={pt.x}
+                    cy={pt.y}
+                    r={isHovered ? 6 : 4.5}
+                    fill={isHovered ? '#0172F4' : '#ffffff'}
+                    stroke="#0172F4"
+                    strokeWidth={isHovered ? 3 : 2.5}
+                    className="cursor-pointer transition-all duration-150"
+                    onMouseEnter={() => setHoveredReachPoint(pt)}
+                    onMouseLeave={() => setHoveredReachPoint(null)}
+                  />
+                );
+              })}
             </svg>
 
             <div className="flex items-center justify-between text-xs text-slate-600 pt-2 border-t border-slate-200 px-1 font-bold">
-              <span>Aug 19</span>
-              <span>Aug 25</span>
-              <span>Aug 31</span>
-              <span>Sep 06</span>
-              <span>Sep 12</span>
-              <span>Sep 18</span>
+              {trendXLabels.length > 0 ? (
+                trendXLabels.map((pt: any, i: number) => (
+                  <span key={i}>{pt.label}</span>
+                ))
+              ) : (
+                <>
+                  <span>Aug 19</span>
+                  <span>Aug 25</span>
+                  <span>Aug 31</span>
+                  <span>Sep 06</span>
+                  <span>Sep 12</span>
+                  <span>Sep 18</span>
+                </>
+              )}
             </div>
           </div>
 
