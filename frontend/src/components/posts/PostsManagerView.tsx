@@ -327,7 +327,23 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
       if (id && !seenIds.has(id) && !deletedIds.has(id)) {
         seenIds.add(id);
         const isReel = item.contentType === 'REEL';
-        const schedTime = item.scheduledPosts?.[0]?.scheduledAt || item.createdAt;
+        let schedTime = item.scheduledPosts?.[0]?.scheduledAt;
+        if (!schedTime && item.approvalRequests && item.approvalRequests.length > 0) {
+          const pendingReq = item.approvalRequests.find((r: any) => r.status === 'PENDING') || item.approvalRequests[0];
+          if (pendingReq?.feedbackNote && pendingReq.feedbackNote.trim().startsWith('{')) {
+            try {
+              const meta = JSON.parse(pendingReq.feedbackNote);
+              if (meta?.scheduledAt) {
+                schedTime = meta.scheduledAt;
+              }
+            } catch {
+              // ignore json parse error
+            }
+          }
+        }
+        if (!schedTime) {
+          schedTime = item.createdAt;
+        }
         const targetDate = schedTime ? new Date(schedTime) : new Date();
         const brandName = item.client?.businessName || selectedClient?.businessName || 'BrandSetu Digital';
         const accountName = item.scheduledPosts?.[0]?.socialAccount?.accountName || `@${brandName.toLowerCase().replace(/[^a-z0-9]/g, '')}`;

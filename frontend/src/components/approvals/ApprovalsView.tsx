@@ -175,13 +175,18 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = () => {
     if (!ok) return;
 
     try {
-      await api.deleteContentItem(post.id);
+      // Optimistically remove from state so the card vanishes immediately
+      setAllPosts((prev) => prev.filter((p) => p.id !== post.id));
+      if (previewItem?.id === post.id) setPreviewItem(null);
+
+      const targetId = post.contentItemId || post.id;
+      await api.deleteContentItem(targetId);
       setActionSuccess(`"${postTitle}" was deleted successfully.`);
       setTimeout(() => setActionSuccess(null), 4000);
-      if (previewItem?.id === post.id) setPreviewItem(null);
       await fetchData();
     } catch (err: any) {
       alert(`Failed to delete: ${err?.message || 'Server error'}`);
+      await fetchData();
     }
   };
 
@@ -507,9 +512,22 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = () => {
               post.status === 'PENDING' ||
               post.approvalRequests?.some((r: any) => r.status === 'PENDING');
 
-            const schedDate = post.scheduledPosts?.[0]?.scheduledAt
-              ? new Date(post.scheduledPosts[0].scheduledAt)
-              : null;
+            let schedDate: Date | null = null;
+            if (post.scheduledPosts?.[0]?.scheduledAt) {
+              schedDate = new Date(post.scheduledPosts[0].scheduledAt);
+            } else if (post.approvalRequests && post.approvalRequests.length > 0) {
+              const pendingReq = post.approvalRequests.find((r: any) => r.status === 'PENDING') || post.approvalRequests[0];
+              if (pendingReq?.feedbackNote && pendingReq.feedbackNote.trim().startsWith('{')) {
+                try {
+                  const meta = JSON.parse(pendingReq.feedbackNote);
+                  if (meta?.scheduledAt) {
+                    schedDate = new Date(meta.scheduledAt);
+                  }
+                } catch {
+                  // ignore JSON parse error
+                }
+              }
+            }
 
             const targetPlatforms = post.variants?.map((v: any) => v.platform) || ['INSTAGRAM', 'FACEBOOK'];
 

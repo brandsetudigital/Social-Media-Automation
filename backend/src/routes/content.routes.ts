@@ -450,7 +450,15 @@ router.post('/upload', authenticateToken, async (req: AuthRequest, res: Response
 // DELETE content item / post (For Admin and SMM)
 router.delete('/:id', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    let { id } = req.params;
+
+    // Handle compound calendar approval IDs like "approval_<reqId>_<platform>"
+    if (id && id.startsWith('approval_')) {
+      const parts = id.split('_');
+      if (parts.length >= 2) {
+        id = parts[1];
+      }
+    }
 
     // 1. Try finding by contentItemId
     const item = await prisma.contentItem.findUnique({
@@ -506,7 +514,50 @@ router.delete('/:id', authenticateToken, async (req: AuthRequest, res: Response)
       return res.json({ success: true, message: `Post "${postTitle}" deleted successfully.` });
     }
 
-    return res.status(404).json({ error: 'Post or content item not found.' });
+    // 3. Fallback: check if id is an ApprovalRequest id
+    const approval = await prisma.approvalRequest.findUnique({
+      where: { id },
+      include: { contentItem: true },
+    });
+
+    if (approval) {
+      const postTitle = approval.contentItem?.title || 'Pending Post';
+      const cId = approval.contentItemId;
+      await prisma.approvalRequest.delete({ where: { id } });
+
+      if (cId) {
+        await prisma.contentItem.delete({ where: { id: cId } }).catch(() => null);
+      }
+
+      await AuditService.logAction({
+        actorName: req.user?.name || 'User',
+        actorRole: req.user?.role || 'SMM',
+        action: 'DELETE_APPROVAL_REQUEST',
+        entityType: 'APPROVAL_REQUEST',
+        entityId: id,
+        clientId: approval.contentItem?.clientId || '',
+        details: { title: postTitle },
+      });
+
+      return res.json({ success: true, message: `Post "${postTitle}" deleted successfully.` });
+    }
+
+    // 4. Fallback: check if id is a ContentQueueItem
+    const queueItem = await prisma.contentQueueItem.findUnique({
+      where: { id },
+    });
+
+    if (queueItem) {
+      const cId = queueItem.contentItemId;
+      await prisma.contentQueueItem.delete({ where: { id } });
+      if (cId) {
+        await prisma.contentItem.delete({ where: { id: cId } }).catch(() => null);
+      }
+      return res.json({ success: true, message: 'Queue item removed successfully.' });
+    }
+
+    // 5. If not found in any table, it has already been deleted. Return success idempotently.
+    return res.json({ success: true, message: 'Post was already removed or deleted.' });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
