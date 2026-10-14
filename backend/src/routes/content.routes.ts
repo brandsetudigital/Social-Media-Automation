@@ -3,6 +3,7 @@ import { AuthRequest, authenticateToken } from '../middleware/auth.middleware';
 import prisma from '../prisma';
 import { AuditService } from '../services/AuditService';
 import { NotificationService } from '../services/NotificationService';
+import { CreativeAuditService } from '../services/CreativeAuditService';
 import path from 'path';
 import fs from 'fs';
 
@@ -204,10 +205,25 @@ router.put('/:id/review', authenticateToken, async (req: AuthRequest, res: Respo
   }
 });
 
+// POST audit graphic with AI Vision against client details (brand, phone, address)
+router.post('/audit-graphic', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { clientId, mediaUrl, base64Data } = req.body;
+    if (!clientId) {
+      return res.status(400).json({ error: 'clientId is required' });
+    }
+    const auditResult = await CreativeAuditService.auditGraphic({ clientId, mediaUrl, base64Data });
+    return res.json(auditResult);
+  } catch (err: any) {
+    console.error('[audit-graphic error]:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // POST create manual creative
 router.post('/create', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    let { clientId, title, contentType, mediaUrl, thumbnailUrl, caption, hashtags, platforms, publishMode, scheduledAt, submitForApproval, platformCaptions, platformHashtags } = req.body;
+    let { clientId, title, contentType, mediaUrl, thumbnailUrl, caption, hashtags, platforms, publishMode, scheduledAt, submitForApproval, platformCaptions, platformHashtags, skipAudit } = req.body;
 
     if (!title || !mediaUrl) {
       return res.status(400).json({ error: 'title and mediaUrl are required' });
@@ -237,7 +253,26 @@ router.post('/create', authenticateToken, async (req: AuthRequest, res: Response
 
     clientId = client.id;
 
+    // AI Graphic Brand & Contact Safety Gate:
+    // If post is intended for schedule or immediate publish, ensure graphic matches client details
     const requestedStatus = req.body.status;
+    const isSchedulingOrPublishing = requestedStatus === 'SCHEDULED' || requestedStatus === 'PUBLISHED' || !!scheduledAt;
+
+    if (isSchedulingOrPublishing && skipAudit !== true && mediaUrl) {
+      try {
+        const audit = await CreativeAuditService.auditGraphic({ clientId, mediaUrl });
+        if (!audit.isValid) {
+          return res.status(422).json({
+            error: 'GRAPHIC_VALIDATION_FAILED',
+            message: audit.blockReason || 'Graphic verification failed: client information mismatch',
+            auditResult: audit,
+          });
+        }
+      } catch (auditErr: any) {
+        console.warn('[CreateContent] Creative audit check warning:', auditErr.message);
+      }
+    }
+
     let finalStatus = 'DRAFT';
 
     // Admin Approval Master Gate:

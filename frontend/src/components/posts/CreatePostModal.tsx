@@ -34,6 +34,9 @@ import {
   MessageCircle,
   Play,
   Video,
+  ShieldCheck,
+  ShieldAlert,
+  AlertTriangle,
 } from 'lucide-react';
 import { openGoogleDrivePicker } from '../../utils/googleDrivePicker';
 
@@ -139,7 +142,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   const [isAiGenerating, setIsAiGenerating] = useState(false);
   const [isGeneratingHashtags, setIsGeneratingHashtags] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [uploadSource, setUploadSource] = useState<'upload' | 'drive' | 'url' | 'sample'>('upload');
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [thumbnailUrl, setThumbnailUrl] = useState<string>('');
@@ -150,6 +153,27 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [mediaFit, setMediaFit] = useState<'contain' | 'cover'>('contain');
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  // AI Graphic Brand & Contact Safety States
+  const [auditResult, setAuditResult] = useState<{
+    isValid: boolean;
+    detectedBrand: string | null;
+    detectedPhone: string | null;
+    detectedAddress: string | null;
+    detectedWebsite: string | null;
+    isBrandMatch: boolean;
+    isPhoneMatch: boolean;
+    isAddressMatch: boolean;
+    conflictingClientName: string | null;
+    blockReason: string | null;
+    issues: string[];
+    extractedTextSummary: string;
+    checkedAt: string;
+    isSkipped?: boolean;
+  } | null>(null);
+  const [isAuditing, setIsAuditing] = useState(false);
+  const [adminOverride, setAdminOverride] = useState(false);
+  const [showAuditBlockModal, setShowAuditBlockModal] = useState(false);
 
   const extractVideoThumbnail = (file: File): Promise<string> => {
     return new Promise((resolve) => {
@@ -290,6 +314,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         setMediaUrl(uploaded.url);
         if (!isVideo) {
           setThumbnailUrl(uploaded.url);
+          runGraphicAudit(uploaded.url, getEffectiveClientId());
         }
       }
     } catch (uploadErr) {
@@ -381,6 +406,39 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     if (clients.length > 0) return clients[0].id;
     return '';
   };
+
+  const runGraphicAudit = async (targetMediaUrl?: string, targetBrandId?: string) => {
+    const url = targetMediaUrl || mediaUrl;
+    const bId = targetBrandId || getEffectiveClientId();
+    if (!url || !bId) return;
+
+    if (isVideoMedia(url, contentType, uploadedFileName)) {
+      setAuditResult(null);
+      return;
+    }
+
+    setIsAuditing(true);
+    try {
+      const res = await api.auditGraphic({
+        clientId: bId,
+        mediaUrl: url,
+      });
+      setAuditResult(res);
+      if (!res.isValid) {
+        setAdminOverride(false);
+      }
+    } catch (err: any) {
+      console.warn('Graphic audit failed:', err);
+    } finally {
+      setIsAuditing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen && mediaUrl && !isVideoMedia(mediaUrl, contentType, uploadedFileName) && !mediaUrl.startsWith('blob:')) {
+      runGraphicAudit(mediaUrl, brandId);
+    }
+  }, [mediaUrl, brandId, isOpen]);
 
   const handleAiCaption = async (targetPlatform?: any) => {
     setIsAiGenerating(true);
@@ -576,14 +634,45 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       return;
     }
 
+    if (isAuditing) {
+      setStatusMessage({ type: 'error', text: 'AI Vision से ग्राफ़िक्स वेरिफाई हो रहा है, कृपया 2 सेकंड प्रतीक्षा करें...' });
+      return;
+    }
+
+    const activeClientId = getEffectiveClientId();
+    const clientObj = clients.find((c) => c.id === activeClientId);
+    const isVideo = isVideoMedia(mediaUrl, contentType, uploadedFileName);
+
+    // AI Graphic Quality & Contact Safety Gate:
+    // If scheduling or publishing an image, check graphic details against client profile
+    if ((action === 'SCHEDULE' || action === 'PUBLISH') && !isVideo && !adminOverride) {
+      let currentAudit = auditResult;
+      if (!currentAudit && mediaUrl && !mediaUrl.startsWith('blob:')) {
+        setIsSubmitting(true);
+        setStatusMessage({ type: 'info', text: 'ग्राफ़िक्स में ब्रांड नाम और फ़ोन नंबर जांचा जा रहा है...' });
+        try {
+          currentAudit = await api.auditGraphic({ clientId: activeClientId, mediaUrl });
+          setAuditResult(currentAudit);
+        } catch (e) {
+          console.warn('Audit error:', e);
+        }
+        setIsSubmitting(false);
+      }
+
+      if (currentAudit && !currentAudit.isValid) {
+        setStatusMessage({
+          type: 'error',
+          text: `🚫 पोस्ट शेड्यूल नहीं हो सकती: ${currentAudit.blockReason || 'ग्राफ़िक्स में ग़लत जानकारी पाई गई'}`,
+        });
+        setShowAuditBlockModal(true);
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     setStatusMessage(null);
 
     try {
-      const activeClientId = getEffectiveClientId();
-      const clientObj = clients.find((c) => c.id === activeClientId);
-      const isVideo = isVideoMedia(mediaUrl, contentType, uploadedFileName);
-
       const effectiveMediaUrl = mediaUrl || '';
       const effectiveThumbnail = (thumbnailUrl && !thumbnailUrl.startsWith('blob:'))
         ? thumbnailUrl
@@ -607,6 +696,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         platforms: selectedPlatforms,
         status: action === 'PUBLISH' ? 'PUBLISHED' : action === 'SCHEDULE' ? 'SCHEDULED' : 'DRAFT',
         scheduledAt: action === 'SCHEDULE' ? new Date(`${scheduleDate}T${scheduleTime}:00`).toISOString() : undefined,
+        skipAudit: adminOverride,
       });
 
       setStatusMessage({
@@ -675,15 +765,20 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         {/* Feedback Alert */}
         {statusMessage && (
           <div
-            className={`mx-6 mt-4 p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${statusMessage.type === 'success'
+            className={`mx-6 mt-4 p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+              statusMessage.type === 'success'
                 ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                : statusMessage.type === 'info'
+                ? 'bg-blue-50 text-blue-800 border border-blue-200 animate-pulse'
                 : 'bg-rose-50 text-rose-800 border border-rose-200'
-              }`}
+            }`}
           >
             {statusMessage.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            ) : statusMessage.type === 'info' ? (
+              <RefreshCw className="w-4 h-4 text-blue-600 animate-spin shrink-0" />
             ) : (
-              <AlertCircle className="w-4 h-4 text-rose-600" />
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
             )}
             <span>{statusMessage.text}</span>
           </div>
@@ -1060,6 +1155,161 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 </div>
               )}
             </div>
+
+            {/* AI Graphic Brand & Contact Safety Verification Banner */}
+            {!isVideoMedia(displayMediaUrl, contentType, uploadedFileName) && displayMediaUrl && (
+              <div
+                className={`p-3.5 rounded-xl border transition-all ${
+                  isAuditing
+                    ? 'bg-blue-50/70 border-blue-200'
+                    : auditResult?.isValid
+                    ? 'bg-emerald-50/80 border-emerald-300'
+                    : auditResult && !auditResult.isValid
+                    ? 'bg-rose-50 border-rose-300 ring-1 ring-rose-200 shadow-xs'
+                    : 'bg-gray-50 border-gray-200'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2.5">
+                  <div className="flex items-start gap-2.5">
+                    <div
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
+                        isAuditing
+                          ? 'bg-blue-600 text-white animate-pulse'
+                          : auditResult?.isValid
+                          ? 'bg-emerald-600 text-white'
+                          : auditResult && !auditResult.isValid
+                          ? 'bg-rose-600 text-white animate-bounce'
+                          : 'bg-gray-400 text-white'
+                      }`}
+                    >
+                      {isAuditing ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : auditResult?.isValid ? (
+                        <ShieldCheck className="w-5 h-5" />
+                      ) : auditResult && !auditResult.isValid ? (
+                        <ShieldAlert className="w-5 h-5" />
+                      ) : (
+                        <Sparkles className="w-4 h-4" />
+                      )}
+                    </div>
+
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-xs font-bold text-gray-900">
+                          {isAuditing
+                            ? 'AI Vision Graphic Inspection (जांच जारी है...)'
+                            : auditResult?.isValid
+                            ? '✅ Graphic Verified (ग्राफ़िक्स सत्यापित)'
+                            : auditResult && !auditResult.isValid
+                            ? '🚫 ग़लत जानकारी डिटेक्ट हुई (Wrong Graphic Detected!)'
+                            : 'AI Graphic Safety Check'}
+                        </h4>
+                        {auditResult?.isValid && (
+                          <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                            Safe to Schedule ✓
+                          </span>
+                        )}
+                        {auditResult && !auditResult.isValid && (
+                          <span className="text-[10px] font-bold bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full">
+                            Schedule Blocked ✕
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-[11px] text-gray-600 mt-0.5">
+                        {isAuditing
+                          ? 'इमेज में लिखा ब्रांड नाम, फ़ोन नंबर और पता क्लाइंट डेटा से मैच किया जा रहा है...'
+                          : auditResult?.isValid
+                          ? `इमेज में ब्रांड नाम और संपर्क जानकारी क्लाइंट (${clients.find(c => c.id === getEffectiveClientId())?.businessName}) से सही मैच है।`
+                          : auditResult && !auditResult.isValid
+                          ? auditResult.blockReason
+                          : 'इमेज अपलोड होने पर AI स्वचालित रूप से जांच करेगा।'}
+                      </p>
+
+                      {/* Details / Issues */}
+                      {auditResult && !auditResult.isValid && auditResult.issues && auditResult.issues.length > 0 && (
+                        <div className="mt-2.5 p-2 bg-rose-100/70 border border-rose-200 rounded-lg space-y-1">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-rose-900 block">
+                            पाई गई गलतियां (Found Discrepancies):
+                          </span>
+                          {auditResult.issues.map((issue, idx) => (
+                            <div key={idx} className="flex items-start gap-1.5 text-xs text-rose-800 font-medium">
+                              <span className="text-rose-600 font-bold">•</span>
+                              <span>{issue}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Detected pills when valid */}
+                      {auditResult?.isValid && (
+                        <div className="mt-2 flex flex-wrap gap-1.5 text-[10px]">
+                          {auditResult.detectedBrand && (
+                            <span className="bg-emerald-100/80 text-emerald-900 px-2 py-0.5 rounded-md font-semibold">
+                              🏷️ Brand: {auditResult.detectedBrand}
+                            </span>
+                          )}
+                          {auditResult.detectedPhone && (
+                            <span className="bg-emerald-100/80 text-emerald-900 px-2 py-0.5 rounded-md font-semibold">
+                              📞 Phone: {auditResult.detectedPhone}
+                            </span>
+                          )}
+                          {auditResult.detectedAddress && (
+                            <span className="bg-emerald-100/80 text-emerald-900 px-2 py-0.5 rounded-md font-semibold">
+                              📍 Address: {auditResult.detectedAddress}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => runGraphicAudit()}
+                      disabled={isAuditing}
+                      className="text-[11px] font-semibold text-blue-700 bg-white hover:bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg transition flex items-center gap-1 cursor-pointer shadow-2xs"
+                      title="Re-run AI graphic verification"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${isAuditing ? 'animate-spin' : ''}`} />
+                      <span>पुनः जांचें</span>
+                    </button>
+
+                    {auditResult && !auditResult.isValid && (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="text-[11px] font-bold text-white bg-rose-600 hover:bg-rose-700 px-2.5 py-1 rounded-lg transition flex items-center gap-1 cursor-pointer shadow-xs"
+                      >
+                        <UploadCloud className="w-3 h-3" />
+                        <span>सही इमेज लगाएं</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Admin Override Checkbox if audit failed */}
+                {auditResult && !auditResult.isValid && (
+                  <div className="mt-3 pt-2.5 border-t border-rose-200 flex items-center justify-between">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={adminOverride}
+                        onChange={(e) => setAdminOverride(e.target.checked)}
+                        className="w-4 h-4 text-[#0172F4] rounded border-gray-300 focus:ring-blue-500"
+                      />
+                      <span>Admin Override: मुझे पता है, फिर भी इस इमेज को शेड्यूल करें</span>
+                    </label>
+                    {adminOverride && (
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md">
+                        ⚠️ Warning: Override Enabled
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Caption Editor with AI Assist */}
             {/* Caption Editor with Channel Tabs & AI Assist */}
@@ -1510,24 +1760,134 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
               type="button"
               disabled={isSubmitting}
               onClick={() => handleSubmit('SCHEDULE')}
-              className="px-4 py-2 text-xs font-semibold border border-blue-200 bg-blue-50 hover:bg-blue-100 text-[#0172F4] rounded-lg transition flex items-center gap-1.5"
+              className={`px-4 py-2 text-xs font-semibold rounded-lg transition flex items-center gap-1.5 cursor-pointer ${
+                auditResult && !auditResult.isValid && !adminOverride
+                  ? 'border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-700'
+                  : 'border border-blue-200 bg-blue-50 hover:bg-blue-100 text-[#0172F4]'
+              }`}
             >
-              <Calendar className="w-3.5 h-3.5" />
-              <span>Schedule</span>
+              {auditResult && !auditResult.isValid && !adminOverride ? (
+                <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
+              ) : (
+                <Calendar className="w-3.5 h-3.5" />
+              )}
+              <span>{auditResult && !auditResult.isValid && !adminOverride ? 'Blocked: Fix Graphic' : 'Schedule'}</span>
             </button>
 
             <button
               type="button"
               disabled={isSubmitting}
               onClick={() => handleSubmit('PUBLISH')}
-              className="px-4 py-2 text-xs font-semibold bg-[#0172F4] hover:bg-[#005cd3] text-white rounded-lg transition flex items-center gap-1.5 shadow-xs shadow-blue-500/20"
+              className={`px-4 py-2 text-xs font-semibold rounded-lg transition flex items-center gap-1.5 shadow-xs cursor-pointer ${
+                auditResult && !auditResult.isValid && !adminOverride
+                  ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-500/20'
+                  : 'bg-[#0172F4] hover:bg-[#005cd3] text-white shadow-blue-500/20'
+              }`}
             >
-              <Send className="w-3.5 h-3.5" />
+              {auditResult && !auditResult.isValid && !adminOverride ? (
+                <ShieldAlert className="w-3.5 h-3.5" />
+              ) : (
+                <Send className="w-3.5 h-3.5" />
+              )}
               <span>Publish Now</span>
             </button>
           </div>
         </div>
       </div>
+
+      {/* Prominent Graphic Safety Blocking Modal */}
+      {showAuditBlockModal && auditResult && !auditResult.isValid && (
+        <div className="fixed inset-0 z-60 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-rose-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-4 ring-8 ring-rose-50">
+              <ShieldAlert className="w-8 h-8" />
+            </div>
+
+            <h3 className="text-lg font-extrabold text-gray-900 text-center">
+              🚫 पोस्ट शेड्यूल नहीं हो सकती!
+            </h3>
+            <p className="text-xs text-rose-600 font-bold text-center mt-1">
+              (Graphic Verification Failed - जानकारी मिसमैच)
+            </p>
+
+            <p className="text-xs text-gray-600 text-center mt-2.5 leading-relaxed">
+              इस ग्राफ़िक्स में जो जानकारी (ब्रांड नाम, फ़ोन नंबर या पता) है वह चुने गए क्लाइंट की आधिकारिक डिटेल्स से मेल नहीं खाती।
+            </p>
+
+            {/* Target Client vs Graphic Mismatch Card */}
+            <div className="mt-4 p-3.5 bg-gray-50 rounded-xl border border-gray-200 text-xs space-y-2">
+              <div className="flex items-center justify-between pb-2 border-b border-gray-200">
+                <span className="font-semibold text-gray-500">चुना गया क्लाइंट (Target Client):</span>
+                <span className="font-bold text-gray-900">{clients.find(c => c.id === getEffectiveClientId())?.businessName}</span>
+              </div>
+              <div className="flex items-center justify-between pb-2 border-b border-gray-200">
+                <span className="font-semibold text-gray-500">क्लाइंट का असली फ़ोन नंबर:</span>
+                <span className="font-bold text-gray-900">{clients.find(c => c.id === getEffectiveClientId())?.phone || 'N/A'}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-gray-500">क्लाइंट का स्थान (Location):</span>
+                <span className="font-bold text-gray-900">{clients.find(c => c.id === getEffectiveClientId())?.location || 'N/A'}</span>
+              </div>
+            </div>
+
+            {/* Discrepancies List */}
+            <div className="mt-4 p-3.5 bg-rose-50 rounded-xl border border-rose-200 space-y-2">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-rose-900">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>पाई गई गलतियां (Detected Issues):</span>
+              </div>
+              <div className="space-y-1.5">
+                {auditResult.issues.map((issue, idx) => (
+                  <div key={idx} className="flex items-start gap-2 text-xs text-rose-800">
+                    <span className="text-rose-500 font-bold">•</span>
+                    <span>{issue}</span>
+                  </div>
+                ))}
+              </div>
+              {auditResult.blockReason && (
+                <p className="text-xs text-rose-900 font-semibold pt-1 border-t border-rose-200/80">
+                  ⚠️ {auditResult.blockReason}
+                </p>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="mt-6 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAuditBlockModal(false);
+                  fileInputRef.current?.click();
+                }}
+                className="w-full py-2.5 px-4 bg-[#0172F4] hover:bg-[#005cd3] text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+              >
+                <UploadCloud className="w-4 h-4" />
+                <span>सही ग्राफ़िक्स अपलोड करें (Upload Right Graphic)</span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAuditBlockModal(false)}
+                  className="flex-1 py-2 px-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs rounded-xl transition cursor-pointer"
+                >
+                  क्लाइंट या इमेज बदलें
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAdminOverride(true);
+                    setShowAuditBlockModal(false);
+                  }}
+                  className="flex-1 py-2 px-3 border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold text-xs rounded-xl transition cursor-pointer"
+                >
+                  Admin Override (फोर्स शेड्यूल करें)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
