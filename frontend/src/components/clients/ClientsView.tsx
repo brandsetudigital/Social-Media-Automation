@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useClients } from '../../context/ClientContext';
-import { api } from '../../api';
+import { api, getMediaUrl } from '../../api';
 import { Client, SocialAccount } from '../../types';
 import {
   Building2,
@@ -43,7 +43,7 @@ import { CreatePostModal } from '../posts/CreatePostModal';
 
 export const ClientsView: React.FC = () => {
   const { role } = useAuth();
-  const { clients, refreshClients, setSelectedClientId } = useClients();
+  const { clients, refreshClients, selectedClientId, setSelectedClientId } = useClients();
 
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [activeTab, setActiveTab] = useState<'brand_knowledge' | 'documents' | 'profile' | 'accounts' | 'drive'>('brand_knowledge');
@@ -102,10 +102,14 @@ export const ClientsView: React.FC = () => {
 
   // Select first client by default
   useEffect(() => {
-    if (clients.length > 0 && !selectedClient) {
+    if (selectedClientId && selectedClientId !== 'ALL') {
+      if (selectedClient?.id !== selectedClientId) {
+        loadClientDetails(selectedClientId);
+      }
+    } else if (clients.length > 0 && !selectedClient) {
       loadClientDetails(clients[0].id);
     }
-  }, [clients]);
+  }, [selectedClientId, clients]);
 
   const loadClientDetails = async (id: string) => {
     try {
@@ -235,22 +239,26 @@ export const ClientsView: React.FC = () => {
 
   const handleUploadLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !selectedClient) return;
+    if (!file) return;
 
     try {
       setStatusNotification('Uploading client brand logo...');
       const uploaded = await api.uploadMedia(file);
       if (uploaded?.url) {
         setFormData((prev) => ({ ...prev, logo: uploaded.url }));
-        await api.updateClient(selectedClient.id, { logo: uploaded.url });
-        setSelectedClient((prev) => (prev ? { ...prev, logo: uploaded.url } : null));
-        await refreshClients();
+        if (selectedClient?.id) {
+          await api.updateClient(selectedClient.id, { logo: uploaded.url });
+          setSelectedClient((prev) => (prev ? { ...prev, logo: uploaded.url } : null));
+          await refreshClients();
+        }
         setStatusNotification('Client logo updated successfully!');
         setTimeout(() => setStatusNotification(null), 3500);
       }
     } catch (err: any) {
       alert(`Logo upload failed: ${err.message}`);
       setStatusNotification(null);
+    } finally {
+      if (e.target) e.target.value = '';
     }
   };
 
@@ -388,7 +396,10 @@ export const ClientsView: React.FC = () => {
               return (
                 <div
                   key={c.id}
-                  onClick={() => loadClientDetails(c.id)}
+                  onClick={() => {
+                    loadClientDetails(c.id);
+                    setSelectedClientId(c.id);
+                  }}
                   className={`p-4 rounded-2xl cursor-pointer border transition shadow-xs ${
                     isSelected
                       ? 'bg-blue-50/70 border-blue-300 ring-2 ring-[#0172F4]'
@@ -401,7 +412,7 @@ export const ClientsView: React.FC = () => {
                     <div className="flex items-center gap-3 min-w-0">
                       {c.logo ? (
                         <img
-                          src={c.logo}
+                          src={getMediaUrl(c.logo)}
                           alt=""
                           className="w-10 h-10 rounded-xl object-cover shadow-xs border border-gray-100 shrink-0 bg-white"
                           onError={(e) => {
@@ -482,7 +493,7 @@ export const ClientsView: React.FC = () => {
                   <div className="relative group/logo shrink-0">
                     {selectedClient.logo ? (
                       <img
-                        src={selectedClient.logo}
+                        src={getMediaUrl(selectedClient.logo)}
                         alt=""
                         className="w-14 h-14 rounded-2xl object-cover shadow-md border-2 border-white ring-1 ring-gray-200 bg-white"
                       />
@@ -506,13 +517,6 @@ export const ClientsView: React.FC = () => {
                       <Image className="w-4 h-4 mb-0.5" />
                       <span>Logo</span>
                     </button>
-                    <input
-                      ref={logoFileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleUploadLogo}
-                      className="hidden"
-                    />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
@@ -1156,11 +1160,27 @@ export const ClientsView: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => logoFileInputRef.current?.click()}
-                          className="px-3 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl text-xs font-semibold shrink-0"
+                          className="px-3 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl text-xs font-semibold shrink-0 cursor-pointer"
                         >
                           Upload
                         </button>
                       </div>
+                      {formData.logo && (
+                        <div className="mt-2.5 flex items-center gap-3 p-2.5 bg-gray-50 rounded-xl border border-gray-200">
+                          <img
+                            src={getMediaUrl(formData.logo)}
+                            alt="Logo preview"
+                            className="w-12 h-12 rounded-lg object-contain bg-white border border-gray-200 p-0.5 shadow-xs"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLElement).style.opacity = '0.3';
+                            }}
+                          />
+                          <div className="min-w-0 flex-1 text-xs">
+                            <span className="font-semibold text-gray-800 truncate block">{formData.logo}</span>
+                            <span className="text-[10px] text-emerald-600 font-bold">✓ Active Logo Loaded</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1427,6 +1447,14 @@ export const ClientsView: React.FC = () => {
           }}
         />
       )}
+      {/* Global file input for Brand Logo upload - always mounted */}
+      <input
+        ref={logoFileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleUploadLogo}
+        className="hidden"
+      />
     </div>
   );
 };

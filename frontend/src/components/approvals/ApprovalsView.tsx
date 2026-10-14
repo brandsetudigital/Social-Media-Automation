@@ -98,6 +98,10 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = () => {
     fetchData();
   }, [filterClient]);
 
+  useEffect(() => {
+    setFilterClient(selectedClientId);
+  }, [selectedClientId]);
+
   // Actions
   const handleApprove = async (item: any, mode: 'IMMEDIATE' | 'SCHEDULED' = 'IMMEDIATE') => {
     try {
