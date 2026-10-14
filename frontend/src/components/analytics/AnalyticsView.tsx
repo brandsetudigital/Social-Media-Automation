@@ -41,6 +41,7 @@ export const AnalyticsView: React.FC = () => {
   const [overview, setOverview] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hoveredPoint, setHoveredPoint] = useState<any | null>(null);
+  const [showDayTable, setShowDayTable] = useState(true);
 
   const platforms = [
     { id: 'ALL', name: 'All Channels', icon: Layers, color: 'text-gray-700' },
@@ -517,6 +518,65 @@ export const AnalyticsView: React.FC = () => {
                   ✓ {hoveredPoint.published} Post(s) Published
                 </div>
               )}
+            </div>
+          )}
+        </div>
+
+        {/* Day-by-Day Detailed Breakdown Table */}
+        <div className="pt-3 border-t border-gray-100">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5 text-[#0172F4]" />
+              <span>Day-Wise Breakdown Table ({trendData.length} Days)</span>
+            </span>
+            <button
+              onClick={() => setShowDayTable(!showDayTable)}
+              className="text-xs font-bold text-[#0172F4] hover:underline cursor-pointer"
+            >
+              {showDayTable ? 'Hide Table ▲' : 'View Day-by-Day Table ▼'}
+            </button>
+          </div>
+
+          {showDayTable && (
+            <div className="overflow-x-auto rounded-xl border border-gray-100">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-gray-50 text-gray-500 font-semibold border-b border-gray-100">
+                  <tr>
+                    <th className="py-2.5 px-3">Date</th>
+                    <th className="py-2.5 px-3">Reach</th>
+                    <th className="py-2.5 px-3">Impressions</th>
+                    <th className="py-2.5 px-3">Engagement</th>
+                    <th className="py-2.5 px-3">Published Posts</th>
+                    <th className="py-2.5 px-3">Cadence Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {[...trendData].reverse().map((d: any, idx: number) => (
+                    <tr key={d.date || idx} className="hover:bg-gray-50/60 transition">
+                      <td className="py-2 px-3 font-bold text-gray-900">{d.label} ({d.date})</td>
+                      <td className="py-2 px-3 font-semibold text-blue-600">{(d.reach || 0).toLocaleString()}</td>
+                      <td className="py-2 px-3 font-semibold text-purple-600">{(d.impressions || 0).toLocaleString()}</td>
+                      <td className="py-2 px-3 font-semibold text-rose-500">{(d.engagement || 0).toLocaleString()}</td>
+                      <td className="py-2 px-3">
+                        {d.published > 0 ? (
+                          <span className="bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded-full border border-emerald-200">
+                            ✓ {d.published} Published
+                          </span>
+                        ) : d.scheduled > 0 ? (
+                          <span className="bg-purple-50 text-purple-700 font-bold px-2 py-0.5 rounded-full border border-purple-200">
+                            {d.scheduled} Scheduled
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 font-medium">—</span>
+                        )}
+                      </td>
+                      <td className="py-2 px-3 text-gray-500 font-medium">
+                        {d.published > 0 ? 'Live Activity' : 'Organic Baseline'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
