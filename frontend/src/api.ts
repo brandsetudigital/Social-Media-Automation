@@ -230,6 +230,8 @@ export const api = {
     apiFetch<any>(`/content/${id}/review`, { method: 'PUT', body: JSON.stringify(data) }),
   createManualContent: (data: any) =>
     apiFetch<any>('/content/create', { method: 'POST', body: JSON.stringify(data) }),
+  auditGraphic: (data: { clientId: string; mediaUrl?: string; base64Data?: string }) =>
+    apiFetch<any>('/content/audit-graphic', { method: 'POST', body: JSON.stringify(data) }),
   uploadMedia: async (file: File) => {
     return new Promise<{ url: string; filename: string; size: number; mimeType: string }>((resolve, reject) => {
       const reader = new FileReader();

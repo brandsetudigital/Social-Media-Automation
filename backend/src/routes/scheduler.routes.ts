@@ -4,6 +4,7 @@ import prisma from '../prisma';
 import { SchedulerService } from '../services/SchedulerService';
 import { PublishingService } from '../services/PublishingService';
 import { AuditService } from '../services/AuditService';
+import { CreativeAuditService } from '../services/CreativeAuditService';
 
 const router = Router();
 
@@ -58,6 +59,26 @@ router.post('/schedule-single', authenticateToken, async (req: AuthRequest, res:
     // Client Isolation Check
     if (socialAccount.clientId !== contentItem.clientId) {
       return res.status(400).json({ error: 'Security error: Selected social account does not belong to this client!' });
+    }
+
+    // AI Graphic Brand & Contact Safety Gate:
+    // Ensure graphic does not belong to another client or have wrong contact info
+    if (req.body.skipAudit !== true && contentItem.mediaUrl) {
+      try {
+        const audit = await CreativeAuditService.auditGraphic({
+          clientId: contentItem.clientId,
+          mediaUrl: contentItem.mediaUrl,
+        });
+        if (!audit.isValid) {
+          return res.status(422).json({
+            error: 'GRAPHIC_VALIDATION_FAILED',
+            message: audit.blockReason || 'Graphic verification failed: image details do not match client.',
+            auditResult: audit,
+          });
+        }
+      } catch (auditErr: any) {
+        console.warn('[schedule-single] Creative audit check warning:', auditErr.message);
+      }
     }
 
     const idempotencyKey = `sched_man_${contentItem.clientId}_${contentItemId}_${platform}_${new Date(scheduledAt).getTime()}`;
