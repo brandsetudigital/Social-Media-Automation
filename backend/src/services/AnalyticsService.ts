@@ -324,8 +324,25 @@ export class AnalyticsService {
       ? parseFloat(((finalPeriodEngagement / finalPeriodImpressions) * 100).toFixed(1))
       : 3.8;
 
-    // Top posts for this client in the period
-    const topPosts = periodPosts.slice(0, 8).map((p, idx) => {
+    // Top posts for this client in the period (or fallback to recent client posts)
+    let displayTopPosts = periodPosts.filter((p) => p.status === 'PUBLISHED');
+    if (displayTopPosts.length === 0) {
+      displayTopPosts = await prisma.scheduledPost.findMany({
+        where: {
+          ...(clientId ? { clientId } : {}),
+        },
+        include: {
+          contentItem: {
+            include: { variants: true },
+          },
+          socialAccount: true,
+        },
+        orderBy: { scheduledAt: 'desc' },
+        take: 8,
+      });
+    }
+
+    const topPosts = displayTopPosts.slice(0, 8).map((p, idx) => {
       const estReach = p.status === 'PUBLISHED' ? 1680 + (idx * 210) : 850 + (idx * 90);
       const estLikes = Math.round(estReach * 0.052);
       const estComments = Math.max(2, Math.round(estReach * 0.008));
