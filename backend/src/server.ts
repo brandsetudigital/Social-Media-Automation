@@ -34,30 +34,73 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Database Guard: Ensure SQLite database is preserved and auto-recovered
-try {
-  const prismaDir = path.join(__dirname, '../prisma');
-  const mainDbPath = path.join(prismaDir, 'brandsetu.db');
-  const templateDbPath = path.join(prismaDir, 'brandsetu_template.db');
-  const persistentDbPath = path.join(uploadsDir, 'brandsetu_persistent.db');
+// Database Guard: Ensure SQLite database is preserved and auto-recovered across deployments
+const prismaDir = path.join(__dirname, '../prisma');
+const mainDbPath = path.join(prismaDir, 'brandsetu.db');
+const templateDbPath = path.join(prismaDir, 'brandsetu_template.db');
+const userHomeDir = require('os').homedir();
 
-  if (!fs.existsSync(mainDbPath) || fs.statSync(mainDbPath).size === 0) {
-    if (fs.existsSync(persistentDbPath) && fs.statSync(persistentDbPath).size > 1000) {
-      fs.copyFileSync(persistentDbPath, mainDbPath);
-      console.log('✅ [Database Guard] Restored brandsetu.db from uploads/brandsetu_persistent.db');
-    } else if (fs.existsSync(templateDbPath)) {
-      fs.copyFileSync(templateDbPath, mainDbPath);
-      console.log('✅ [Database Guard] Initialized brandsetu.db from template');
+export const persistentDbLocations = [
+  path.join(userHomeDir, '.brandsetu_data', 'brandsetu_persistent.db'),
+  path.join(userHomeDir, 'brandsetu_persistent.db'),
+  path.join(uploadsDir, 'brandsetu_persistent.db'),
+];
+
+export function syncPersistentBackup() {
+  try {
+    if (!fs.existsSync(mainDbPath) || fs.statSync(mainDbPath).size < 1000) return;
+    for (const targetPath of persistentDbLocations) {
+      try {
+        const targetDir = path.dirname(targetPath);
+        if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+        fs.copyFileSync(mainDbPath, targetPath);
+      } catch {}
+    }
+  } catch (err) {
+    console.warn('[DbBackup Warning]:', err);
+  }
+}
+
+try {
+  let restored = false;
+  // 1. Check persistent backup locations outside the git repository
+  for (const loc of persistentDbLocations) {
+    if (fs.existsSync(loc) && fs.statSync(loc).size > 1000) {
+      const persistentMtime = fs.statSync(loc).mtimeMs;
+      const mainMtime = fs.existsSync(mainDbPath) ? fs.statSync(mainDbPath).mtimeMs : 0;
+      const mainSize = fs.existsSync(mainDbPath) ? fs.statSync(mainDbPath).size : 0;
+
+      // If main db doesn't exist, is empty, or persistent backup is newer/larger:
+      if (!fs.existsSync(mainDbPath) || mainSize === 0 || persistentMtime > mainMtime) {
+        try {
+          fs.copyFileSync(loc, mainDbPath);
+          console.log(`✅ [Database Guard] Restored brandsetu.db from safe persistent backup: ${loc}`);
+          restored = true;
+          break;
+        } catch (copyErr) {
+          console.warn('[DbGuard restore copy warning]:', copyErr);
+        }
+      } else {
+        restored = true; // Main db is already fresh
+        break;
+      }
     }
   }
 
-  // Continuously sync a persistent copy to uploads folder (which is safe from git pull)
-  if (fs.existsSync(mainDbPath) && fs.statSync(mainDbPath).size > 1000) {
-    fs.copyFileSync(mainDbPath, persistentDbPath);
+  // 2. Fallback to template only if no persistent database was ever saved
+  if (!restored && (!fs.existsSync(mainDbPath) || fs.statSync(mainDbPath).size === 0) && fs.existsSync(templateDbPath)) {
+    fs.copyFileSync(templateDbPath, mainDbPath);
+    console.log('✅ [Database Guard] Initialized brandsetu.db from template');
   }
+
+  // Immediately mirror active db to all safe persistent locations
+  syncPersistentBackup();
 } catch (dbGuardErr) {
   console.warn('[Database Guard Note]:', dbGuardErr);
 }
+
+// Background Database Sync: Auto-backup every 10 seconds to safe persistent storage
+setInterval(syncPersistentBackup, 10000);
 
 app.use('/uploads', (req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
@@ -107,6 +150,9 @@ app.get('/api/health', (req, res) => {
     status: 'online',
     system: 'BrandSetu Digital - Agency Operating System',
     timestamp: new Date().toISOString(),
+    cwd: process.cwd(),
+    homedir: require('os').homedir(),
+    dirname: __dirname,
   });
 });
 

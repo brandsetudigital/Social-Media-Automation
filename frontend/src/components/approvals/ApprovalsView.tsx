@@ -187,7 +187,7 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = () => {
 
   // Filter calculation
   const pendingCount = allPosts.filter(
-    (p) => p.status === 'READY_FOR_APPROVAL' || p.status === 'PENDING' || p.approvalRequests?.some((r: any) => r.status === 'PENDING')
+    (p) => p.status === 'READY_FOR_APPROVAL' || p.status === 'PENDING' || p.status === 'CHANGES_REQUESTED' || p.approvalRequests?.some((r: any) => r.status === 'PENDING' || r.status === 'CHANGES_REQUESTED')
   ).length;
 
   const scheduledCount = allPosts.filter((p) => p.status === 'SCHEDULED').length;
@@ -201,7 +201,8 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = () => {
       const isPending =
         post.status === 'READY_FOR_APPROVAL' ||
         post.status === 'PENDING' ||
-        post.approvalRequests?.some((r: any) => r.status === 'PENDING');
+        post.status === 'CHANGES_REQUESTED' ||
+        post.approvalRequests?.some((r: any) => r.status === 'PENDING' || r.status === 'CHANGES_REQUESTED');
       if (!isPending) return false;
     } else if (activeTab === 'SCHEDULED' && post.status !== 'SCHEDULED') {
       return false;
@@ -591,7 +592,10 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = () => {
 
                     {/* Status Pill */}
                     <span
-                      className={`absolute top-2 right-2 backdrop-blur-xs text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-xs z-20 ${isPending
+                      className={`absolute top-2 right-2 backdrop-blur-xs text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-xs z-20 ${
+                        post.status === 'CHANGES_REQUESTED'
+                          ? 'bg-rose-600 text-white font-bold'
+                          : isPending
                           ? 'bg-amber-500 text-white animate-pulse'
                           : post.status === 'SCHEDULED'
                             ? 'bg-purple-600 text-white'
@@ -600,7 +604,11 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = () => {
                               : 'bg-gray-700 text-white'
                         }`}
                     >
-                      {isPending ? 'PENDING APPROVAL' : post.status}
+                      {post.status === 'CHANGES_REQUESTED'
+                        ? 'CHANGES REQUESTED'
+                        : isPending
+                        ? 'PENDING APPROVAL'
+                        : post.status}
                     </span>
                   </div>
 

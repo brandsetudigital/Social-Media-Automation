@@ -39,7 +39,7 @@ router.get('/pending', authenticateToken, async (req: AuthRequest, res: Response
 
     const pending = await prisma.approvalRequest.findMany({
       where: {
-        status: 'PENDING',
+        status: { in: ['PENDING', 'CHANGES_REQUESTED'] },
         ...((clientId && clientId !== 'ALL' && clientId !== 'undefined' && clientId !== 'null') ? { contentItem: { clientId: clientId as string } } : {}),
       },
       include: {
