@@ -324,7 +324,9 @@ export class SchedulerService {
       const approvalRequests = await prisma.approvalRequest.findMany({
         where: {
           status: targetApprovalStatus,
-          contentItem: params.clientId ? { clientId: params.clientId } : undefined,
+          contentItem: (params.clientId && params.clientId !== 'ALL' && params.clientId !== 'undefined' && params.clientId !== 'null')
+            ? { clientId: params.clientId }
+            : undefined,
         },
         include: {
           reviewedBy: { select: { id: true, name: true, role: true } },
