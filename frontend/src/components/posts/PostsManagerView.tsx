@@ -299,6 +299,7 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
           clientId: cid,
           title: item.title || evt.title || 'Scheduled Social Post',
           caption: item.variants?.[0]?.caption || item.caption || evt.caption || '',
+          hashtags: item.variants?.[0]?.hashtags || item.hashtags || evt.hashtags || '',
           mediaUrl: item.mediaUrl || item.thumbnailUrl || '',
           thumbnailUrl: item.thumbnailUrl || item.mediaUrl || '',
           platform: (evt.platform || 'INSTAGRAM').toUpperCase(),
@@ -378,6 +379,7 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
           clientId: item.clientId,
           title: item.title || 'Social Media Update',
           caption: item.variants?.[0]?.caption || item.caption || '',
+          hashtags: item.variants?.[0]?.hashtags || item.hashtags || '',
           mediaUrl: item.mediaUrl || item.thumbnailUrl || '',
           thumbnailUrl: item.thumbnailUrl || item.mediaUrl || '',
           platform: (item.scheduledPosts?.[0]?.platform || 'INSTAGRAM').toUpperCase(),
@@ -2127,6 +2129,11 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                             {post.caption}
                           </p>
                         )}
+                        {post.hashtags && (
+                          <p className="text-[11px] text-[#0172F4] line-clamp-1 font-medium">
+                            {post.hashtags}
+                          </p>
+                        )}
 
                         {/* When will it be posted (Schedule badge) */}
                         {post.status === 'FAILED' ? (
@@ -2566,6 +2573,11 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                 <p className="text-xs text-gray-600 mt-2 leading-relaxed whitespace-pre-line">
                   {selectedPostDetail.caption || 'No caption written.'}
                 </p>
+                {selectedPostDetail.hashtags && (
+                  <p className="text-xs text-[#0172F4] font-medium mt-2 leading-relaxed">
+                    {selectedPostDetail.hashtags}
+                  </p>
+                )}
               </div>
 
               {/* LIVE VIEWS & ENGAGEMENT METRICS FOR PUBLISHED POSTS */}

@@ -12,7 +12,9 @@ export class PublishingService {
     const post = await prisma.scheduledPost.findUnique({
       where: { id: scheduledPostId },
       include: {
-        client: true,
+        client: {
+          include: { brandProfile: true },
+        },
         socialAccount: true,
         contentItem: {
           include: { variants: true },
@@ -94,9 +96,33 @@ export class PublishingService {
     const startTime = Date.now();
     let result: { success: boolean; externalPostId?: string; errorCode?: string; errorMessage?: string; rawResponse?: any };
 
-    // Resolve variant or content caption
-    const variant = post.contentItem.variants.find((v) => v.platform === post.platform);
-    const caption = variant?.caption || post.contentItem.title;
+    // Resolve variant or content caption & hashtags
+    const variant = post.contentItem.variants.find((v) => v.platform === post.platform) || post.contentItem.variants[0];
+    const baseCaption = (variant?.caption || post.contentItem.title || '').trim();
+    const variantHashtags = (variant?.hashtags || '').trim();
+    const brandProfileHashtags = (post.client as any)?.brandProfile?.hashtags?.trim() || '';
+    const rawHashtags = variantHashtags || brandProfileHashtags;
+
+    let fullCaption = baseCaption;
+    if (rawHashtags) {
+      // Clean and normalize tags: split by whitespace, ensure each starts with #
+      const tags = rawHashtags
+        .split(/\s+/)
+        .map((t: string) => t.trim())
+        .filter(Boolean)
+        .map((t: string) => (t.startsWith('#') ? t : `#${t}`));
+
+      // Check if caption already contains these hashtags (check first 2 tags)
+      const sampleTags = tags.slice(0, 2);
+      const alreadyInCaption = sampleTags.length > 0 && sampleTags.every((t: string) => baseCaption.includes(t));
+
+      if (!alreadyInCaption && tags.length > 0) {
+        const joinedTags = tags.join(' ');
+        fullCaption = fullCaption ? `${fullCaption}\n\n${joinedTags}` : joinedTags;
+      }
+    }
+
+    const caption = fullCaption;
     const mediaUrl = variant?.specificMediaUrl || post.contentItem.mediaUrl;
 
     const defaultMetaToken = process.env.META_DEFAULT_ACCESS_TOKEN?.trim() || '';
