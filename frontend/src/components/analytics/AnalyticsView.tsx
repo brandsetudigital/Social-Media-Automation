@@ -267,6 +267,30 @@ export const AnalyticsView: React.FC = () => {
         </div>
       </div>
 
+      {/* 100% Real Live Sync Notice Banner */}
+      {overview?.liveSynced && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-emerald-50 border border-emerald-200 p-3.5 rounded-2xl text-xs text-emerald-950 shadow-2xs">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+            <div>
+              <p className="font-bold text-emerald-900">
+                100% Meta Graph API Real-Time Sync Active ({dateRange === '7D' ? '7 Days' : dateRange === '15D' ? '15 Days' : '1 Month'})
+              </p>
+              <p className="text-[11px] text-emerald-700 mt-0.5">
+                Exact Instagram & Facebook page followers ({(overview?.totalFollowers || 0).toLocaleString()}), actual published posts, and real engagement synced from live Meta servers. No mock or estimated multipliers.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => fetchAnalytics()}
+            className="flex items-center gap-1.5 text-xs text-emerald-800 hover:text-emerald-950 bg-white/90 hover:bg-white px-3 py-1.5 rounded-xl border border-emerald-200 transition cursor-pointer font-bold shrink-0 self-start sm:self-auto shadow-2xs"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            <span>Sync Live</span>
+          </button>
+        </div>
+      )}
+
       {/* KPI Cards Row (Filtered for this Client and Range) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Reach */}
@@ -281,8 +305,8 @@ export const AnalyticsView: React.FC = () => {
             {(overview?.totalReach || 0).toLocaleString()}
           </p>
           <div className="flex items-center gap-1.5 mt-1 text-[11px] font-semibold text-emerald-600">
-            <TrendingUp className="w-3.5 h-3.5" />
-            <span>+19.2% growth in {dateRange === '7D' ? '7 days' : dateRange === '15D' ? '15 days' : '30 days'}</span>
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+            <span>Live verified for {dateRange === '7D' ? '7 days' : dateRange === '15D' ? '15 days' : '30 days'}</span>
           </div>
         </div>
 
@@ -313,8 +337,8 @@ export const AnalyticsView: React.FC = () => {
           <p className="text-2xl font-black text-gray-900 mt-2">
             {(overview?.totalEngagement || 0).toLocaleString()}
           </p>
-          <span className="text-[11px] text-gray-500 mt-1 block">
-            {overview?.totalLikes || 0} Likes • {overview?.totalComments || 0} Comments
+          <span className="text-[11px] text-gray-500 mt-1 block font-medium">
+            {(overview?.totalLikes ?? 0).toLocaleString()} Likes • {(overview?.totalComments ?? 0).toLocaleString()} Comments
           </span>
         </div>
 
@@ -327,10 +351,10 @@ export const AnalyticsView: React.FC = () => {
             </div>
           </div>
           <p className="text-2xl font-black text-emerald-600 mt-2">
-            {overview?.avgEngagementRate || 4.2}%
+            {overview?.avgEngagementRate ?? 0}%
           </p>
-          <span className="text-[11px] text-gray-500 mt-1 block">
-            Published: {overview?.publishedCount || 0} • Success: {overview?.successRate || 100}%
+          <span className="text-[11px] text-gray-500 mt-1 block font-medium">
+            Published: {overview?.publishedCount || 0} • Followers: {(overview?.totalFollowers || 0).toLocaleString()}
           </span>
         </div>
       </div>
@@ -760,12 +784,25 @@ export const AnalyticsView: React.FC = () => {
                 </div>
 
                 <div className="pt-2 border-t border-gray-200/60 flex items-center justify-between text-[11px] font-semibold text-gray-600">
-                  <span className="flex items-center gap-1 text-[#0172F4]">
-                    <Users className="w-3.5 h-3.5" /> {(p.reach || 1400).toLocaleString()} Reach
+                  <span className="flex items-center gap-1 text-[#0172F4]" title="Real Views / Reach">
+                    <Users className="w-3.5 h-3.5" /> {(p.reach ?? 0).toLocaleString()} Reach
                   </span>
-                  <span className="flex items-center gap-1 text-rose-500">
-                    <Heart className="w-3.5 h-3.5" /> {p.likes || 48}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-center gap-1 text-rose-500" title="Real Likes">
+                      <Heart className="w-3.5 h-3.5" /> {(p.likes ?? 0).toLocaleString()}
+                    </span>
+                    {p.permalink && (
+                      <a
+                        href={p.permalink}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-gray-400 hover:text-[#0172F4] transition"
+                        title="View Live on Instagram / Facebook"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}

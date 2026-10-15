@@ -1521,11 +1521,19 @@ export const AgencyDashboardView: React.FC<AgencyDashboardViewProps> = ({
                               {evt.platform === 'LINKEDIN' && <Linkedin className="w-3.5 h-3.5 text-sky-700" />}
                               {evt.platform ? evt.platform.toLowerCase() : 'Social'}
                             </span>
-                            <span className="text-gray-400 font-medium">|</span>
-                            <span className="font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded text-[10px] flex items-center gap-1">
+                            <span className="font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded text-[10px] flex items-center gap-1" title="Real Meta Live Views">
                               <Eye className="w-3 h-3 text-[#0172F4]" />
-                              <span>{(evt.reach || item.reach || 1420).toLocaleString()} views</span>
+                              <span>{((evt.reach !== undefined ? evt.reach : item.reach) ?? 0).toLocaleString()} views</span>
                             </span>
+                            {((evt.likes !== undefined ? evt.likes : item.likes) !== undefined) && (
+                              <>
+                                <span className="text-gray-400 font-medium">|</span>
+                                <span className="font-bold text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded text-[10px] flex items-center gap-1" title="Real Likes">
+                                  <Heart className="w-3 h-3 text-rose-500" />
+                                  <span>{((evt.likes !== undefined ? evt.likes : item.likes) ?? 0).toLocaleString()} likes</span>
+                                </span>
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>

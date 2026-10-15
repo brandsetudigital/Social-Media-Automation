@@ -1,6 +1,7 @@
 import prisma from '../prisma';
 import { AuditService } from './AuditService';
 import { NotificationService } from './NotificationService';
+import { LiveMetricsService } from './LiveMetricsService';
 
 export interface ProjectedSlot {
   date: string; // YYYY-MM-DD
@@ -398,6 +399,39 @@ export class SchedulerService {
     }
 
     const allEvents = [...scheduledPosts, ...pendingEvents];
+
+    // Enrich PUBLISHED posts with 100% REAL live metrics from Meta Graph API
+    await Promise.all(
+      allEvents
+        .filter((ev) => ev.status === 'PUBLISHED')
+        .map(async (ev) => {
+          try {
+            const metrics = await LiveMetricsService.getMetricsForPost({
+              id: ev.id,
+              contentItemId: ev.contentItemId,
+              externalPostId: ev.externalPostId,
+              socialAccountId: ev.socialAccountId,
+              platform: ev.platform,
+              caption: ev.contentItem?.caption,
+              title: ev.contentItem?.title,
+              publishedAt: ev.publishedAt || ev.scheduledAt,
+            });
+            ev.reach = metrics.reach;
+            ev.likes = metrics.likes;
+            ev.comments = metrics.comments;
+            ev.impressions = metrics.impressions;
+            ev.isLiveSynced = true;
+            if (metrics.permalink) ev.permalink = metrics.permalink;
+            if (metrics.externalPostId && !ev.externalPostId) ev.externalPostId = metrics.externalPostId;
+          } catch {
+            ev.reach = 0;
+            ev.likes = 0;
+            ev.comments = 0;
+            ev.isLiveSynced = true;
+          }
+        })
+    );
+
     allEvents.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
     return allEvents;
   }

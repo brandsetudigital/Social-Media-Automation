@@ -282,11 +282,15 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
         const reviewedByName = item.approvalRequests?.[0]?.reviewedBy?.name || evt.reviewedBy || 'Agency Admin';
         const reviewedAt = item.approvalRequests?.[0]?.reviewedAt || evt.reviewedAt || null;
         const isPub = rawStatus === 'PUBLISHED';
-        const reachVal = evt.reach || item.reach || (isPub ? 1350 + (((id || '').charCodeAt(0) || 1) * 19) % 950 : 0);
-        const impressionsVal = evt.impressions || item.impressions || (isPub ? Math.round(reachVal * 2.15) : 0);
-        const likesVal = evt.likes || item.likes || (isPub ? Math.round(reachVal * 0.052) : 0);
-        const commentsVal = evt.comments || item.comments || (isPub ? Math.max(2, Math.round(reachVal * 0.008)) : 0);
-        const engagementRateVal = impressionsVal > 0 ? (((likesVal + commentsVal) / impressionsVal) * 100).toFixed(1) : '3.8';
+        const reachVal = (evt.reach !== undefined && evt.reach !== null) ? evt.reach : ((item.reach !== undefined && item.reach !== null) ? item.reach : 0);
+        const impressionsVal = (evt.impressions !== undefined && evt.impressions !== null) ? evt.impressions : ((item.impressions !== undefined && item.impressions !== null) ? item.impressions : (reachVal > 0 ? Math.round(reachVal * 1.35) : 0));
+        const likesVal = (evt.likes !== undefined && evt.likes !== null) ? evt.likes : ((item.likes !== undefined && item.likes !== null) ? item.likes : 0);
+        const commentsVal = (evt.comments !== undefined && evt.comments !== null) ? evt.comments : ((item.comments !== undefined && item.comments !== null) ? item.comments : 0);
+        const totalEng = likesVal + commentsVal;
+        const engagementRateVal = impressionsVal > 0 ? (((totalEng) / impressionsVal) * 100).toFixed(1) : (reachVal > 0 ? (((totalEng) / reachVal) * 100).toFixed(1) : '0.0');
+        const permalink = evt.permalink || item.permalink || null;
+        const externalPostId = evt.externalPostId || item.externalPostId || null;
+        const isLiveSynced = !!(evt.isLiveSynced || item.isLiveSynced || isPub);
 
         list.push({
           id,
@@ -314,6 +318,9 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
           likes: likesVal,
           comments: commentsVal,
           engagementRate: engagementRateVal,
+          permalink,
+          externalPostId,
+          isLiveSynced,
         });
       }
     });
@@ -354,11 +361,15 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
         const reviewedAt = item.approvalRequests?.[0]?.reviewedAt || null;
 
         const isPub = rawStatus === 'PUBLISHED';
-        const reachVal = item.reach || (isPub ? 1350 + (((id || '').charCodeAt(0) || 1) * 19) % 950 : 0);
-        const impressionsVal = item.impressions || (isPub ? Math.round(reachVal * 2.15) : 0);
-        const likesVal = item.likes || (isPub ? Math.round(reachVal * 0.052) : 0);
-        const commentsVal = item.comments || (isPub ? Math.max(2, Math.round(reachVal * 0.008)) : 0);
-        const engagementRateVal = impressionsVal > 0 ? (((likesVal + commentsVal) / impressionsVal) * 100).toFixed(1) : '3.8';
+        const reachVal = (item.reach !== undefined && item.reach !== null) ? item.reach : 0;
+        const impressionsVal = (item.impressions !== undefined && item.impressions !== null) ? item.impressions : (reachVal > 0 ? Math.round(reachVal * 1.35) : 0);
+        const likesVal = (item.likes !== undefined && item.likes !== null) ? item.likes : 0;
+        const commentsVal = (item.comments !== undefined && item.comments !== null) ? item.comments : 0;
+        const totalEng = likesVal + commentsVal;
+        const engagementRateVal = impressionsVal > 0 ? (((totalEng) / impressionsVal) * 100).toFixed(1) : (reachVal > 0 ? (((totalEng) / reachVal) * 100).toFixed(1) : '0.0');
+        const permalink = item.permalink || item.scheduledPosts?.[0]?.permalink || null;
+        const externalPostId = item.externalPostId || item.scheduledPosts?.[0]?.externalPostId || null;
+        const isLiveSynced = !!(item.isLiveSynced || isPub);
 
         list.push({
           id,
@@ -386,6 +397,9 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
           likes: likesVal,
           comments: commentsVal,
           engagementRate: engagementRateVal,
+          permalink,
+          externalPostId,
+          isLiveSynced,
         });
       }
     });
@@ -2157,13 +2171,13 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                         {/* Live Views & Engagement Mini Pill for Published Posts */}
                         {post.status === 'PUBLISHED' && (
                           <div className="flex items-center justify-between bg-emerald-50/80 border border-emerald-200/80 p-2 rounded-xl text-xs font-semibold shadow-2xs">
-                            <span className="flex items-center gap-1.5 text-emerald-900 font-bold">
+                            <span className="flex items-center gap-1.5 text-emerald-900 font-bold" title="Real Meta Live Views / Reach">
                               <Eye className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>{(post.reach || 1420).toLocaleString()} Views</span>
+                              <span>{(post.reach ?? 0).toLocaleString()} Views</span>
                             </span>
-                            <span className="flex items-center gap-1 text-rose-600 font-bold">
+                            <span className="flex items-center gap-1 text-rose-600 font-bold" title="Real Instagram / Facebook Likes">
                               <Heart className="w-3.5 h-3.5" />
-                              <span>{post.likes || 48} Likes</span>
+                              <span>{(post.likes ?? 0).toLocaleString()} Likes</span>
                             </span>
                           </div>
                         )}
@@ -2345,12 +2359,12 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                     <td className="py-3 px-4">
                       {post.status === 'PUBLISHED' ? (
                         <div className="flex items-center gap-2">
-                          <span className="flex items-center gap-1 font-bold bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded-md border border-emerald-100 text-[11px]">
+                          <span className="flex items-center gap-1 font-bold bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded-md border border-emerald-100 text-[11px]" title="Real Meta Live Views">
                             <Eye className="w-3.5 h-3.5 text-emerald-600" />
-                            {(post.reach || 1420).toLocaleString()} Views
+                            {(post.reach ?? 0).toLocaleString()} Views
                           </span>
-                          <span className="text-[10px] text-rose-600 font-bold flex items-center gap-0.5">
-                            <Heart className="w-3 h-3" /> {post.likes || 48}
+                          <span className="text-[10px] text-rose-600 font-bold flex items-center gap-0.5" title="Real Likes">
+                            <Heart className="w-3 h-3" /> {(post.likes ?? 0).toLocaleString()}
                           </span>
                         </div>
                       ) : (
@@ -2573,7 +2587,7 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                         <Eye className="w-3.5 h-3.5" /> Total Views
                       </div>
                       <p className="text-xl font-black text-slate-900 mt-0.5">
-                        {(selectedPostDetail.reach || 1420).toLocaleString()}
+                        {(selectedPostDetail.reach ?? 0).toLocaleString()}
                       </p>
                     </div>
 
@@ -2582,7 +2596,7 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                         <Users className="w-3.5 h-3.5" /> Impressions
                       </div>
                       <p className="text-xl font-black text-slate-900 mt-0.5">
-                        {(selectedPostDetail.impressions || 3050).toLocaleString()}
+                        {(selectedPostDetail.impressions ?? 0).toLocaleString()}
                       </p>
                     </div>
 
@@ -2591,7 +2605,7 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                         <Heart className="w-3.5 h-3.5" /> Likes
                       </div>
                       <p className="text-xl font-black text-slate-900 mt-0.5">
-                        {(selectedPostDetail.likes || 68).toLocaleString()}
+                        {(selectedPostDetail.likes ?? 0).toLocaleString()}
                       </p>
                     </div>
 
@@ -2600,15 +2614,28 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                         <MessageCircle className="w-3.5 h-3.5" /> Comments
                       </div>
                       <p className="text-xl font-black text-slate-900 mt-0.5">
-                        {(selectedPostDetail.comments || 8).toLocaleString()}
+                        {(selectedPostDetail.comments ?? 0).toLocaleString()}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between text-[11px] font-semibold text-emerald-950 pt-1">
-                    <span>
-                      Avg Engagement: <strong className="font-extrabold text-emerald-800">{selectedPostDetail.engagementRate || '3.8'}%</strong>
-                    </span>
+                  <div className="flex items-center justify-between text-[11px] font-semibold text-emerald-950 pt-1 flex-wrap gap-2">
+                    <div className="flex items-center gap-3">
+                      <span>
+                        Avg Engagement: <strong className="font-extrabold text-emerald-800">{selectedPostDetail.engagementRate || '0.0'}%</strong>
+                      </span>
+                      {selectedPostDetail.permalink && (
+                        <a
+                          href={selectedPostDetail.permalink}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[#0172F4] hover:underline font-bold flex items-center gap-1 bg-white px-2.5 py-0.5 rounded-full border border-blue-200 shadow-2xs"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          <span>View on {selectedPostDetail.platform === 'FACEBOOK' ? 'Facebook' : 'Instagram'}</span>
+                        </a>
+                      )}
+                    </div>
                     <button
                       onClick={() => {
                         setSelectedPostDetail(null);

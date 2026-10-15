@@ -4,6 +4,7 @@ import prisma from '../prisma';
 import { AuditService } from '../services/AuditService';
 import { NotificationService } from '../services/NotificationService';
 import { CreativeAuditService } from '../services/CreativeAuditService';
+import { LiveMetricsService } from '../services/LiveMetricsService';
 import path from 'path';
 import fs from 'fs';
 
@@ -64,7 +65,35 @@ router.get('/inbox', authenticateToken, async (req: AuthRequest, res: Response) 
       }
     });
 
-    return res.json(items);
+    // Attach real live Meta Graph API metrics to published items
+    const enrichedItems = await Promise.all(
+      items.map(async (item: any) => {
+        if (item.status === 'PUBLISHED') {
+          const metrics = await LiveMetricsService.getMetricsForPost({
+            id: item.id,
+            contentItemId: item.id,
+            title: item.title,
+            caption: item.variants?.[0]?.caption || item.title,
+            publishedAt: item.scheduledPosts?.[0]?.publishedAt || item.updatedAt,
+            status: item.status,
+            platform: item.scheduledPosts?.[0]?.platform || item.variants?.[0]?.platform,
+            socialAccountId: item.scheduledPosts?.[0]?.socialAccountId,
+          });
+          return {
+            ...item,
+            reach: metrics.reach,
+            impressions: metrics.impressions,
+            likes: metrics.likes,
+            comments: metrics.comments,
+            permalink: metrics.permalink,
+            isLiveSynced: true,
+          };
+        }
+        return item;
+      })
+    );
+
+    return res.json(enrichedItems);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
