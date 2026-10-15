@@ -7,6 +7,31 @@ import { PublishingService } from '../services/PublishingService';
 
 const router = Router();
 
+function getKnownSocialAccountDetails(businessName: string, platform: string) {
+  const name = (businessName || '').toLowerCase();
+  const isAirawati = name.includes('airawati');
+  const isPropBabu = name.includes('property babu');
+
+  if (platform === 'INSTAGRAM') {
+    if (isAirawati) return { accountId: '17841446137902662', accountName: '@airawatifashions (Airawati Fashions)' };
+    if (isPropBabu) return { accountId: '17841449083241879', accountName: '@propertybabu (Property Babu)' };
+    return { accountId: '17841479535088692', accountName: '@brandsetudigital (BrandSetu Digital)' };
+  }
+
+  if (platform === 'FACEBOOK') {
+    if (isAirawati) return { accountId: '801485533039311', accountName: 'Airawati fashions' };
+    if (isPropBabu) return { accountId: '1005980055935239', accountName: '@propertybabu (Property Babu)' };
+    return { accountId: '846536121883769', accountName: 'BrandSetu Digital' };
+  }
+
+  if (platform === 'GOOGLE_BUSINESS') {
+    if (isPropBabu) return { accountId: '2359884925523845124', accountName: '@propertybabu (Property Babu - Google Maps)' };
+    return { accountId: '4475899898765251271', accountName: '@brandsetudigital (BrandSetu Digital)' };
+  }
+
+  return { accountId: `${platform.toLowerCase()}_${Date.now()}`, accountName: `@${name.replace(/[^a-z0-9]/g, '')}` };
+}
+
 // GET pending approvals (Admin view)
 router.get('/pending', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
@@ -135,20 +160,17 @@ router.post('/:id/approve', authenticateToken, requireAdmin, async (req: AuthReq
 
         if (!socialAccount) {
           const isGmb = plat === 'GOOGLE_BUSINESS';
-          const isPropBabu = approval.contentItem.client.businessName.toLowerCase().includes('property babu');
-          const defaultAccId = isGmb 
-            ? (isPropBabu ? '2359884925523845124' : '4475899898765251271')
-            : `${plat.toLowerCase()}_${Date.now()}`;
+          const knownDetails = getKnownSocialAccountDetails(approval.contentItem.client.businessName, plat);
           const defaultToken = isGmb
             ? (process.env.GOOGLE_BUSINESS_ACCESS_TOKEN || '')
-            : (process.env.META_DEFAULT_ACCESS_TOKEN || `oauth_tok_${plat.toLowerCase()}_${Date.now()}`);
+            : (process.env.META_DEFAULT_ACCESS_TOKEN || '');
 
           socialAccount = await prisma.socialAccount.create({
             data: {
               clientId: approval.contentItem.clientId,
               platform: plat,
-              accountName: `@${approval.contentItem.client.businessName.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
-              accountId: defaultAccId,
+              accountName: knownDetails.accountName,
+              accountId: knownDetails.accountId,
               status: 'CONNECTED',
               accessToken: defaultToken,
               tokenExpiresAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
@@ -195,14 +217,19 @@ router.post('/:id/approve', authenticateToken, requireAdmin, async (req: AuthReq
         });
 
         if (!socialAccount) {
+          const knownDetails = getKnownSocialAccountDetails(approval.contentItem.client.businessName, plat);
+          const defaultToken = plat === 'GOOGLE_BUSINESS'
+            ? (process.env.GOOGLE_BUSINESS_ACCESS_TOKEN || '')
+            : (process.env.META_DEFAULT_ACCESS_TOKEN || '');
+
           socialAccount = await prisma.socialAccount.create({
             data: {
               clientId: approval.contentItem.clientId,
               platform: plat,
-              accountName: `@${approval.contentItem.client.businessName.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
-              accountId: `${plat.toLowerCase()}_${Date.now()}`,
+              accountName: knownDetails.accountName,
+              accountId: knownDetails.accountId,
               status: 'CONNECTED',
-              accessToken: process.env.META_DEFAULT_ACCESS_TOKEN || `oauth_tok_${plat.toLowerCase()}_${Date.now()}`,
+              accessToken: defaultToken,
               tokenExpiresAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
             },
           });

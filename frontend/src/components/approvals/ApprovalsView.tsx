@@ -46,7 +46,7 @@ const isVideoMedia = (url?: string | null, type?: string | null): boolean => {
   return type === 'REEL' || type === 'VIDEO';
 };
 
-interface ApprovalsViewProps {}
+interface ApprovalsViewProps { }
 
 export const ApprovalsView: React.FC<ApprovalsViewProps> = () => {
   const { role } = useAuth();
@@ -175,18 +175,13 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = () => {
     if (!ok) return;
 
     try {
-      // Optimistically remove from state so the card vanishes immediately
-      setAllPosts((prev) => prev.filter((p) => p.id !== post.id));
-      if (previewItem?.id === post.id) setPreviewItem(null);
-
-      const targetId = post.contentItemId || post.id;
-      await api.deleteContentItem(targetId);
+      await api.deleteContentItem(post.id);
       setActionSuccess(`"${postTitle}" was deleted successfully.`);
       setTimeout(() => setActionSuccess(null), 4000);
+      if (previewItem?.id === post.id) setPreviewItem(null);
       await fetchData();
     } catch (err: any) {
       alert(`Failed to delete: ${err?.message || 'Server error'}`);
-      await fetchData();
     }
   };
 
@@ -302,9 +297,8 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = () => {
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
         <div
           onClick={() => setActiveTab('ALL')}
-          className={`bg-white rounded-xl p-4 border transition cursor-pointer hover:shadow-sm ${
-            activeTab === 'ALL' ? 'border-[#0172F4] ring-2 ring-[#0172F4]/20' : 'border-gray-200'
-          }`}
+          className={`bg-white rounded-xl p-4 border transition cursor-pointer hover:shadow-sm ${activeTab === 'ALL' ? 'border-[#0172F4] ring-2 ring-[#0172F4]/20' : 'border-gray-200'
+            }`}
         >
           <div className="flex items-center justify-between">
             <div>
@@ -320,9 +314,8 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = () => {
 
         <div
           onClick={() => setActiveTab('PENDING')}
-          className={`bg-white rounded-xl p-4 border transition cursor-pointer hover:shadow-sm ${
-            activeTab === 'PENDING' ? 'border-amber-400 ring-2 ring-amber-400/20' : 'border-gray-200'
-          }`}
+          className={`bg-white rounded-xl p-4 border transition cursor-pointer hover:shadow-sm ${activeTab === 'PENDING' ? 'border-amber-400 ring-2 ring-amber-400/20' : 'border-gray-200'
+            }`}
         >
           <div className="flex items-center justify-between">
             <div>
@@ -341,9 +334,8 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = () => {
 
         <div
           onClick={() => setActiveTab('SCHEDULED')}
-          className={`bg-white rounded-xl p-4 border transition cursor-pointer hover:shadow-sm ${
-            activeTab === 'SCHEDULED' ? 'border-purple-400 ring-2 ring-purple-400/20' : 'border-gray-200'
-          }`}
+          className={`bg-white rounded-xl p-4 border transition cursor-pointer hover:shadow-sm ${activeTab === 'SCHEDULED' ? 'border-purple-400 ring-2 ring-purple-400/20' : 'border-gray-200'
+            }`}
         >
           <div className="flex items-center justify-between">
             <div>
@@ -359,9 +351,8 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = () => {
 
         <div
           onClick={() => setActiveTab('PUBLISHED')}
-          className={`bg-white rounded-xl p-4 border transition cursor-pointer hover:shadow-sm ${
-            activeTab === 'PUBLISHED' ? 'border-emerald-400 ring-2 ring-emerald-400/20' : 'border-gray-200'
-          }`}
+          className={`bg-white rounded-xl p-4 border transition cursor-pointer hover:shadow-sm ${activeTab === 'PUBLISHED' ? 'border-emerald-400 ring-2 ring-emerald-400/20' : 'border-gray-200'
+            }`}
         >
           <div className="flex items-center justify-between">
             <div>
@@ -377,9 +368,8 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = () => {
 
         <div
           onClick={() => setActiveTab('FAILED')}
-          className={`bg-white rounded-xl p-4 border transition cursor-pointer hover:shadow-sm ${
-            activeTab === 'FAILED' ? 'border-rose-500 ring-2 ring-rose-400/20' : 'border-gray-200'
-          }`}
+          className={`bg-white rounded-xl p-4 border transition cursor-pointer hover:shadow-sm ${activeTab === 'FAILED' ? 'border-rose-500 ring-2 ring-rose-400/20' : 'border-gray-200'
+            }`}
         >
           <div className="flex items-center justify-between">
             <div>
@@ -414,19 +404,17 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`px-3 py-1.5 rounded-md font-semibold transition flex items-center gap-1.5 ${
-                activeTab === tab.id
+              className={`px-3 py-1.5 rounded-md font-semibold transition flex items-center gap-1.5 ${activeTab === tab.id
                   ? 'bg-white text-gray-900 shadow-xs'
                   : 'text-gray-600 hover:text-gray-900'
-              }`}
+                }`}
             >
               <span>{tab.label}</span>
               <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                  tab.highlight
+                className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${tab.highlight
                     ? 'bg-amber-100 text-amber-800 font-bold'
                     : 'bg-gray-200/70 text-gray-700'
-                }`}
+                  }`}
               >
                 {tab.count}
               </span>
@@ -603,15 +591,14 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = () => {
 
                     {/* Status Pill */}
                     <span
-                      className={`absolute top-2 right-2 backdrop-blur-xs text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-xs z-20 ${
-                        isPending
+                      className={`absolute top-2 right-2 backdrop-blur-xs text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-xs z-20 ${isPending
                           ? 'bg-amber-500 text-white animate-pulse'
                           : post.status === 'SCHEDULED'
-                          ? 'bg-purple-600 text-white'
-                          : post.status === 'PUBLISHED'
-                          ? 'bg-emerald-600 text-white'
-                          : 'bg-gray-700 text-white'
-                      }`}
+                            ? 'bg-purple-600 text-white'
+                            : post.status === 'PUBLISHED'
+                              ? 'bg-emerald-600 text-white'
+                              : 'bg-gray-700 text-white'
+                        }`}
                     >
                       {isPending ? 'PENDING APPROVAL' : post.status}
                     </span>

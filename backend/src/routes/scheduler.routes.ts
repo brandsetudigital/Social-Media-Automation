@@ -198,14 +198,7 @@ router.post('/publish-now/:id', authenticateToken, async (req: AuthRequest, res:
 // DELETE scheduled post / calendar event
 router.delete('/:id', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    let { id } = req.params;
-
-    if (id && id.startsWith('approval_')) {
-      const parts = id.split('_');
-      if (parts.length >= 2) {
-        id = parts[1];
-      }
-    }
+    const { id } = req.params;
 
     const scheduled = await prisma.scheduledPost.findUnique({
       where: { id },
@@ -251,18 +244,7 @@ router.delete('/:id', authenticateToken, async (req: AuthRequest, res: Response)
       return res.json({ success: true, message: `Post deleted successfully.` });
     }
 
-    // Fallback: check if id is an ApprovalRequest
-    const approval = await prisma.approvalRequest.findUnique({ where: { id } });
-    if (approval) {
-      const cId = approval.contentItemId;
-      await prisma.approvalRequest.delete({ where: { id } });
-      if (cId) {
-        await prisma.contentItem.delete({ where: { id: cId } }).catch(() => null);
-      }
-      return res.json({ success: true, message: `Approval post deleted successfully.` });
-    }
-
-    return res.json({ success: true, message: `Post was already removed or deleted.` });
+    return res.status(404).json({ error: 'Post not found.' });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
