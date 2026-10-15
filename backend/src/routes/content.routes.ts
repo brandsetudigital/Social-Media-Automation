@@ -60,7 +60,7 @@ router.get('/inbox', authenticateToken, async (req: AuthRequest, res: Response) 
         prisma.contentItem.update({
           where: { id: item.id },
           data: { thumbnailUrl: item.mediaUrl },
-        }).catch(() => {});
+        }).catch(() => { });
       }
     });
 
@@ -331,20 +331,35 @@ router.post('/create', authenticateToken, async (req: AuthRequest, res: Response
         });
 
         if (!soc) {
-          const isGmb = p === 'GOOGLE_BUSINESS';
-          const isPropBabu = (client.businessName || '').toLowerCase().includes('property babu');
-          const defaultAccId = isGmb
-            ? (isPropBabu ? '2359884925523845124' : '4475899898765251271')
-            : `acc_${p.toLowerCase()}_${Date.now()}`;
-          const defaultToken = isGmb
+          const name = (client.businessName || '').toLowerCase();
+          const isAirawati = name.includes('airawati');
+          const isPropBabu = name.includes('property babu');
+
+          let defaultAccId = `acc_${p.toLowerCase()}_${Date.now()}`;
+          let defaultAccName = `${client.businessName} (${p})`;
+
+          if (p === 'INSTAGRAM') {
+            if (isAirawati) { defaultAccId = '17841446137902662'; defaultAccName = '@airawatifashions (Airawati Fashions)'; }
+            else if (isPropBabu) { defaultAccId = '17841449083241879'; defaultAccName = '@propertybabu (Property Babu)'; }
+            else { defaultAccId = '17841479535088692'; defaultAccName = '@brandsetudigital (BrandSetu Digital)'; }
+          } else if (p === 'FACEBOOK') {
+            if (isAirawati) { defaultAccId = '801485533039311'; defaultAccName = 'Airawati fashions'; }
+            else if (isPropBabu) { defaultAccId = '1005980055935239'; defaultAccName = '@propertybabu (Property Babu)'; }
+            else { defaultAccId = '846536121883769'; defaultAccName = 'BrandSetu Digital'; }
+          } else if (p === 'GOOGLE_BUSINESS') {
+            if (isPropBabu) { defaultAccId = '2359884925523845124'; defaultAccName = '@propertybabu (Property Babu - Google Maps)'; }
+            else { defaultAccId = '4475899898765251271'; defaultAccName = '@brandsetudigital (BrandSetu Digital)'; }
+          }
+
+          const defaultToken = p === 'GOOGLE_BUSINESS'
             ? (process.env.GOOGLE_BUSINESS_ACCESS_TOKEN || '')
-            : (process.env.META_DEFAULT_ACCESS_TOKEN || `oauth_tok_${p.toLowerCase()}_${Date.now()}`);
+            : (process.env.META_DEFAULT_ACCESS_TOKEN || '');
 
           soc = await prisma.socialAccount.create({
             data: {
               clientId,
               platform: p,
-              accountName: `${client.businessName} (${p})`,
+              accountName: defaultAccName,
               accountId: defaultAccId,
               status: 'CONNECTED',
               accessToken: defaultToken,
@@ -450,15 +465,7 @@ router.post('/upload', authenticateToken, async (req: AuthRequest, res: Response
 // DELETE content item / post (For Admin and SMM)
 router.delete('/:id', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    let { id } = req.params;
-
-    // Handle compound calendar approval IDs like "approval_<reqId>_<platform>"
-    if (id && id.startsWith('approval_')) {
-      const parts = id.split('_');
-      if (parts.length >= 2) {
-        id = parts[1];
-      }
-    }
+    const { id } = req.params;
 
     // 1. Try finding by contentItemId
     const item = await prisma.contentItem.findUnique({
@@ -514,50 +521,7 @@ router.delete('/:id', authenticateToken, async (req: AuthRequest, res: Response)
       return res.json({ success: true, message: `Post "${postTitle}" deleted successfully.` });
     }
 
-    // 3. Fallback: check if id is an ApprovalRequest id
-    const approval = await prisma.approvalRequest.findUnique({
-      where: { id },
-      include: { contentItem: true },
-    });
-
-    if (approval) {
-      const postTitle = approval.contentItem?.title || 'Pending Post';
-      const cId = approval.contentItemId;
-      await prisma.approvalRequest.delete({ where: { id } });
-
-      if (cId) {
-        await prisma.contentItem.delete({ where: { id: cId } }).catch(() => null);
-      }
-
-      await AuditService.logAction({
-        actorName: req.user?.name || 'User',
-        actorRole: req.user?.role || 'SMM',
-        action: 'DELETE_APPROVAL_REQUEST',
-        entityType: 'APPROVAL_REQUEST',
-        entityId: id,
-        clientId: approval.contentItem?.clientId || '',
-        details: { title: postTitle },
-      });
-
-      return res.json({ success: true, message: `Post "${postTitle}" deleted successfully.` });
-    }
-
-    // 4. Fallback: check if id is a ContentQueueItem
-    const queueItem = await prisma.contentQueueItem.findUnique({
-      where: { id },
-    });
-
-    if (queueItem) {
-      const cId = queueItem.contentItemId;
-      await prisma.contentQueueItem.delete({ where: { id } });
-      if (cId) {
-        await prisma.contentItem.delete({ where: { id: cId } }).catch(() => null);
-      }
-      return res.json({ success: true, message: 'Queue item removed successfully.' });
-    }
-
-    // 5. If not found in any table, it has already been deleted. Return success idempotently.
-    return res.json({ success: true, message: 'Post was already removed or deleted.' });
+    return res.status(404).json({ error: 'Post or content item not found.' });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
