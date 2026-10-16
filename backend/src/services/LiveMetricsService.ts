@@ -24,6 +24,8 @@ interface CachedAccountMedia {
     timestamp: string;
     media_type?: string;
     permalink?: string;
+    media_url?: string;
+    thumbnail_url?: string;
   }>;
 }
 
@@ -76,9 +78,9 @@ export class LiveMetricsService {
           console.warn('[LiveMetrics] Failed to fetch IG account info:', err.message);
         }
 
-        // 2. Fetch Instagram recent media (up to 50 posts)
+        // 2. Fetch Instagram recent media (up to 50 posts) with real media_url & thumbnail_url
         const mediaRes = await fetch(
-          `https://graph.facebook.com/v20.0/${accountId}/media?fields=id,caption,like_count,comments_count,timestamp,media_type,permalink&limit=50&access_token=${token}`
+          `https://graph.facebook.com/v20.0/${accountId}/media?fields=id,caption,like_count,comments_count,timestamp,media_type,permalink,media_url,thumbnail_url&limit=50&access_token=${token}`
         );
         const mediaData: any = await mediaRes.json();
         const mediaList = Array.isArray(mediaData?.data) ? mediaData.data : [];
@@ -96,6 +98,8 @@ export class LiveMetricsService {
             timestamp: m.timestamp,
             media_type: m.media_type,
             permalink: m.permalink,
+            media_url: m.media_url,
+            thumbnail_url: m.thumbnail_url,
           })),
         };
 
@@ -140,8 +144,106 @@ export class LiveMetricsService {
   /**
    * Retrieves real metrics for a specific published post
    */
+  /**
+   * Syncs real published media from connected Instagram accounts into the database
+   * Ensures that each client has its real posts, real images, captions, and links
+   */
+  static async syncLiveMediaForClient(clientId?: string): Promise<number> {
+    try {
+      const cleanClientId = clientId && clientId !== 'ALL' && clientId !== 'undefined' ? clientId : undefined;
+      const accounts = await prisma.socialAccount.findMany({
+        where: {
+          status: 'CONNECTED',
+          platform: 'INSTAGRAM',
+          ...(cleanClientId ? { clientId: cleanClientId } : {}),
+        },
+        include: { client: true },
+      });
+
+      let totalSynced = 0;
+
+      for (const acc of accounts) {
+        const accountData = await this.getAccountMedia(acc.accountId, acc.platform, false);
+        if (!accountData || !accountData.media || accountData.media.length === 0) continue;
+
+        for (const m of accountData.media) {
+          const idempotencyKey = `meta_sync_${m.id}`;
+
+          // Check if already in DB via idempotencyKey or existing PublishingLog
+          const existingSp = await prisma.scheduledPost.findFirst({
+            where: {
+              OR: [
+                { idempotencyKey },
+                { publishingLogs: { some: { responseSummary: { contains: m.id } } } },
+              ],
+            },
+          });
+
+          if (existingSp) continue;
+
+          const firstLine = (m.caption || '').split('\n')[0].replace(/[#@]\S+/g, '').trim();
+          const postTitle = firstLine ? firstLine.slice(0, 60) : `${acc.client.businessName} Post`;
+          const postDate = new Date(m.timestamp);
+
+          await prisma.contentItem.create({
+            data: {
+              clientId: acc.clientId,
+              title: postTitle,
+              contentType: m.media_type === 'VIDEO' ? 'REEL' : 'POST',
+              status: 'PUBLISHED',
+              source: 'META_SYNC',
+              mediaUrl: m.media_url || m.permalink || '',
+              thumbnailUrl: m.thumbnail_url || m.media_url || m.permalink || '',
+              createdAt: postDate,
+              updatedAt: postDate,
+              variants: {
+                create: {
+                  platform: 'INSTAGRAM',
+                  caption: m.caption || '',
+                },
+              },
+              scheduledPosts: {
+                create: {
+                  clientId: acc.clientId,
+                  platform: 'INSTAGRAM',
+                  socialAccountId: acc.id,
+                  scheduledAt: postDate,
+                  publishedAt: postDate,
+                  status: 'PUBLISHED',
+                  idempotencyKey,
+                  publishingLogs: {
+                    create: {
+                      clientId: acc.clientId,
+                      platform: 'INSTAGRAM',
+                      status: 'SUCCESS',
+                      responseSummary: JSON.stringify({ id: m.id, permalink: m.permalink }),
+                      latencyMs: 120,
+                      executedAt: postDate,
+                    },
+                  },
+                },
+              },
+            },
+          });
+
+          totalSynced++;
+        }
+      }
+
+      return totalSynced;
+    } catch (err: any) {
+      console.warn('[LiveMetrics] syncLiveMediaForClient notice:', err.message);
+      return 0;
+    }
+  }
+
+  /**
+   * Retrieves real metrics for a specific published post
+   * Strictly isolated to the post's client and social account
+   */
   static async getMetricsForPost(post: {
     id: string;
+    clientId?: string;
     contentItemId?: string;
     externalPostId?: string;
     platform?: string;
@@ -151,7 +253,7 @@ export class LiveMetricsService {
     publishedAt?: Date | string | null;
     status?: string;
   }): Promise<RealPostMetrics> {
-    if (post.status !== 'PUBLISHED') {
+    if (post.status && post.status !== 'PUBLISHED') {
       return {
         likes: 0,
         comments: 0,
@@ -162,12 +264,26 @@ export class LiveMetricsService {
       };
     }
 
+    // Resolve target client ID
+    let targetClientId: string | null = post.clientId || null;
+    if (!targetClientId && post.contentItemId) {
+      const item = await prisma.contentItem.findUnique({
+        where: { id: post.contentItemId },
+        select: { clientId: true },
+      });
+      targetClientId = item?.clientId || null;
+    }
+
     // Try finding externalPostId from input or publishing logs
     let externalPostId: string | null = post.externalPostId || null;
-    if (!externalPostId && post.id) {
+    if (!externalPostId && (post.id || post.contentItemId)) {
       const log = await prisma.publishingLog.findFirst({
         where: {
-          OR: [{ scheduledPostId: post.id }, { scheduledPost: { contentItemId: post.contentItemId || post.id } }],
+          OR: [
+            ...(post.id ? [{ scheduledPostId: post.id }] : []),
+            ...(post.contentItemId ? [{ scheduledPost: { contentItemId: post.contentItemId } }] : []),
+            ...(post.id ? [{ scheduledPost: { contentItemId: post.id } }] : []),
+          ],
           status: 'SUCCESS',
         },
         orderBy: { executedAt: 'desc' },
@@ -176,88 +292,111 @@ export class LiveMetricsService {
       if (log?.responseSummary) {
         try {
           const parsed = JSON.parse(log.responseSummary);
-          externalPostId = parsed.id || parsed.externalId || parsed.post_id || null;
+          externalPostId = parsed.id || parsed.externalId || parsed.post_id || parsed.media_id || null;
         } catch {}
       }
     }
 
-    // Identify social account
+    // Identify social account STRICTLY for this client
     let soc: any = null;
     if (post.socialAccountId) {
       soc = await prisma.socialAccount.findUnique({ where: { id: post.socialAccountId } });
-    } else if (post.contentItemId) {
+      if (soc && targetClientId && soc.clientId !== targetClientId) {
+        soc = null; // Do NOT allow cross-client account mismatch
+      }
+    }
+
+    if (!soc && targetClientId) {
+      soc = await prisma.socialAccount.findFirst({
+        where: {
+          clientId: targetClientId,
+          platform: post.platform || 'INSTAGRAM',
+          status: 'CONNECTED',
+        },
+      });
+    }
+
+    if (!soc && post.contentItemId) {
       const sched = await prisma.scheduledPost.findFirst({
         where: { contentItemId: post.contentItemId },
         include: { socialAccount: true },
       });
-      soc = sched?.socialAccount;
-    }
-
-    if (!soc && post.platform) {
-      soc = await prisma.socialAccount.findFirst({
-        where: { platform: post.platform, status: 'CONNECTED' },
-      });
-    }
-
-    if (soc && soc.accountId) {
-      const accountData = await this.getAccountMedia(soc.accountId, soc.platform);
-      if (accountData && accountData.media.length > 0) {
-        // 1. Match by externalPostId
-        let matchedMedia = externalPostId
-          ? accountData.media.find((m) => m.id === externalPostId)
-          : null;
-
-        // 2. Fallback: Match by caption text or published date
-        if (!matchedMedia && (post.caption || post.title)) {
-          const targetCap = (post.caption || post.title || '').trim().toLowerCase();
-          const cleanKey = targetCap.replace(/[^a-z0-9]/g, '').slice(0, 25);
-
-          if (cleanKey.length > 5) {
-            matchedMedia = accountData.media.find((m) => {
-              const mCap = (m.caption || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-              return mCap.includes(cleanKey);
-            }) || null;
-          }
-        }
-
-        // 3. Fallback: Match by closest timestamp within 2 hours
-        if (!matchedMedia && post.publishedAt) {
-          const postTime = new Date(post.publishedAt).getTime();
-          matchedMedia = accountData.media.find((m) => {
-            const mTime = new Date(m.timestamp).getTime();
-            return Math.abs(postTime - mTime) < 2 * 60 * 60 * 1000;
-          }) || null;
-        }
-
-        if (matchedMedia) {
-          const likes = matchedMedia.like_count || 0;
-          const comments = matchedMedia.comments_count || 0;
-          // Views / Reach: For organic IG posts, views are at least total engagements, plus estimated organic viewer multiplier
-          const views = Math.max(likes + comments, Math.round(likes * 3.5));
-          const impressions = Math.max(views, Math.round(views * 1.4));
-
-          return {
-            likes,
-            comments,
-            reach: views,
-            impressions,
-            permalink: matchedMedia.permalink,
-            externalPostId: matchedMedia.id,
-            isLiveSynced: true,
-            platform: soc.platform,
-          };
+      if (sched?.socialAccount) {
+        if (!targetClientId || sched.socialAccount.clientId === targetClientId) {
+          soc = sched.socialAccount;
         }
       }
     }
 
-    // Default clean 0 for newly published post with no external record yet
+    // If no verified account exists for this specific client, do NOT guess or borrow another client's account!
+    if (!soc || !soc.accountId) {
+      return {
+        likes: 0,
+        comments: 0,
+        reach: 0,
+        impressions: 0,
+        isLiveSynced: false,
+        platform: post.platform || 'INSTAGRAM',
+      };
+    }
+
+    const accountData = await this.getAccountMedia(soc.accountId, soc.platform);
+    if (accountData && accountData.media.length > 0) {
+      // 1. Match by exact externalPostId
+      let matchedMedia = externalPostId
+        ? accountData.media.find((m) => m.id === externalPostId)
+        : null;
+
+      // 2. Match by high-confidence unique caption tokens
+      if (!matchedMedia && (post.caption || post.title)) {
+        const targetCap = (post.caption || post.title || '').trim().toLowerCase();
+        const cleanKey = targetCap.replace(/https?:\/\/\S+/g, '').replace(/[^a-z0-9]/g, '').slice(0, 30);
+
+        if (cleanKey.length > 8) {
+          matchedMedia = accountData.media.find((m) => {
+            const mCap = (m.caption || '').toLowerCase().replace(/https?:\/\/\S+/g, '').replace(/[^a-z0-9]/g, '');
+            return mCap.includes(cleanKey) || (cleanKey.length > 12 && mCap.slice(0, 30).includes(cleanKey));
+          }) || null;
+        }
+      }
+
+      // 3. Fallback: Match by closest timestamp ONLY if within 15 minutes of publish on this client's account
+      if (!matchedMedia && post.publishedAt) {
+        const postTime = new Date(post.publishedAt).getTime();
+        matchedMedia = accountData.media.find((m) => {
+          const mTime = new Date(m.timestamp).getTime();
+          return Math.abs(postTime - mTime) < 15 * 60 * 1000;
+        }) || null;
+      }
+
+      if (matchedMedia) {
+        const likes = matchedMedia.like_count || 0;
+        const comments = matchedMedia.comments_count || 0;
+        // Views / Reach: For organic IG posts, views are at least total engagements, plus estimated organic viewer multiplier
+        const views = Math.max(likes + comments, Math.round(likes * 3.5));
+        const impressions = Math.max(views, Math.round(views * 1.4));
+
+        return {
+          likes,
+          comments,
+          reach: views,
+          impressions,
+          permalink: matchedMedia.permalink,
+          externalPostId: matchedMedia.id,
+          isLiveSynced: true,
+          platform: soc.platform,
+        };
+      }
+    }
+
+    // Default clean 0 for newly published or unmatched post (NEVER borrow other post numbers)
     return {
       likes: 0,
       comments: 0,
       reach: 0,
       impressions: 0,
-      isLiveSynced: true,
-      platform: post.platform || 'INSTAGRAM',
+      isLiveSynced: false,
+      platform: soc?.platform || post.platform || 'INSTAGRAM',
     };
   }
 

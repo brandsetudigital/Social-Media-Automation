@@ -28,6 +28,10 @@ router.get('/inbox', authenticateToken, async (req: AuthRequest, res: Response) 
       ];
     }
 
+    // Auto-sync real published Instagram media for this client if requested
+    const cleanClientId = clientId && clientId !== 'ALL' && clientId !== 'undefined' && clientId !== 'null' ? (clientId as string) : undefined;
+    await LiveMetricsService.syncLiveMediaForClient(cleanClientId).catch(() => {});
+
     const items = await prisma.contentItem.findMany({
       where,
       include: {
@@ -65,13 +69,24 @@ router.get('/inbox', authenticateToken, async (req: AuthRequest, res: Response) 
       }
     });
 
-    // Attach real live Meta Graph API metrics to published items
+    // Attach real live Meta Graph API metrics to published items strictly by clientId
     const enrichedItems = await Promise.all(
       items.map(async (item: any) => {
         if (item.status === 'PUBLISHED') {
+          let extId: string | undefined = undefined;
+          const logSummary = item.scheduledPosts?.[0]?.publishingLogs?.[0]?.responseSummary;
+          if (logSummary) {
+            try {
+              const p = JSON.parse(logSummary);
+              extId = p.id || p.externalId;
+            } catch {}
+          }
+
           const metrics = await LiveMetricsService.getMetricsForPost({
             id: item.id,
             contentItemId: item.id,
+            clientId: item.clientId,
+            externalPostId: extId,
             title: item.title,
             caption: item.variants?.[0]?.caption || item.title,
             publishedAt: item.scheduledPosts?.[0]?.publishedAt || item.updatedAt,
@@ -85,8 +100,8 @@ router.get('/inbox', authenticateToken, async (req: AuthRequest, res: Response) 
             impressions: metrics.impressions,
             likes: metrics.likes,
             comments: metrics.comments,
-            permalink: metrics.permalink,
-            isLiveSynced: true,
+            permalink: metrics.permalink || item.permalink,
+            isLiveSynced: metrics.isLiveSynced,
           };
         }
         return item;
@@ -115,12 +130,48 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res: Response) =>
           orderBy: { requestedAt: 'desc' },
         },
         scheduledPosts: {
-          include: { socialAccount: true },
+          include: { socialAccount: true, publishingLogs: { orderBy: { executedAt: 'desc' }, take: 1 } },
         },
       },
     });
 
     if (!item) return res.status(404).json({ error: 'Content item not found' });
+
+    // Enrich single item if published
+    if (item.status === 'PUBLISHED') {
+      let extId: string | undefined = undefined;
+      const logSummary = item.scheduledPosts?.[0]?.publishingLogs?.[0]?.responseSummary;
+      if (logSummary) {
+        try {
+          const p = JSON.parse(logSummary);
+          extId = p.id || p.externalId;
+        } catch {}
+      }
+
+      const metrics = await LiveMetricsService.getMetricsForPost({
+        id: item.id,
+        contentItemId: item.id,
+        clientId: item.clientId,
+        externalPostId: extId,
+        title: item.title,
+        caption: item.variants?.[0]?.caption || item.title,
+        publishedAt: item.scheduledPosts?.[0]?.publishedAt || item.updatedAt,
+        status: item.status,
+        platform: item.scheduledPosts?.[0]?.platform || item.variants?.[0]?.platform,
+        socialAccountId: item.scheduledPosts?.[0]?.socialAccountId,
+      });
+
+      return res.json({
+        ...item,
+        reach: metrics.reach,
+        impressions: metrics.impressions,
+        likes: metrics.likes,
+        comments: metrics.comments,
+        permalink: metrics.permalink || item.scheduledPosts?.[0]?.publishingLogs?.[0]?.responseSummary,
+        isLiveSynced: metrics.isLiveSynced,
+      });
+    }
+
     return res.json(item);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });

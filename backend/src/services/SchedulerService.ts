@@ -409,25 +409,27 @@ export class SchedulerService {
             const metrics = await LiveMetricsService.getMetricsForPost({
               id: ev.id,
               contentItemId: ev.contentItemId,
+              clientId: ev.clientId || ev.contentItem?.clientId,
               externalPostId: ev.externalPostId,
               socialAccountId: ev.socialAccountId,
               platform: ev.platform,
-              caption: ev.contentItem?.caption,
+              caption: ev.contentItem?.caption || ev.contentItem?.variants?.[0]?.caption,
               title: ev.contentItem?.title,
               publishedAt: ev.publishedAt || ev.scheduledAt,
+              status: ev.status,
             });
             ev.reach = metrics.reach;
             ev.likes = metrics.likes;
             ev.comments = metrics.comments;
             ev.impressions = metrics.impressions;
-            ev.isLiveSynced = true;
+            ev.isLiveSynced = metrics.isLiveSynced;
             if (metrics.permalink) ev.permalink = metrics.permalink;
             if (metrics.externalPostId && !ev.externalPostId) ev.externalPostId = metrics.externalPostId;
           } catch {
             ev.reach = 0;
             ev.likes = 0;
             ev.comments = 0;
-            ev.isLiveSynced = true;
+            ev.isLiveSynced = false;
           }
         })
     );
