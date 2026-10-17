@@ -335,8 +335,8 @@ export const api = {
     apiFetch<any>('/ai/monthly-plan', { method: 'POST', body: JSON.stringify(data) }),
 
   // Analytics & Reports
-  getAnalyticsOverview: (clientId?: string, range?: string) => {
-    const query = api.buildQuery({ clientId, range });
+  getAnalyticsOverview: (clientId?: string, range?: string, platform?: string) => {
+    const query = api.buildQuery({ clientId, range, platform });
     return apiFetch<any>(`/analytics/overview${query}`);
   },
   getBufferHealth: (clientId?: string) => {

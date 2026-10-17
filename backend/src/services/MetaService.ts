@@ -339,13 +339,11 @@ export class MetaService {
     const isVideo =
       params.contentType === 'REEL' ||
       /\.(mp4|mov|webm|mkv|ogg)$/i.test(params.mediaUrl);
+    const isStory = params.contentType === 'STORY';
 
     // Live Meta Graph API Publishing if real token provided
     if (token.startsWith('EAA')) {
       try {
-        const publishUrl = isVideo
-          ? `https://graph.facebook.com/v20.0/${params.pageId}/videos`
-          : `https://graph.facebook.com/v20.0/${params.pageId}/photos`;
         const isHttpUrl = params.mediaUrl.startsWith('http');
 
         let pageAccessToken = token;
@@ -358,6 +356,97 @@ export class MetaService {
         } catch {
           // Fall back to token
         }
+
+        // ==========================================
+        // 1. FACEBOOK STORY PUBLISHING (24-hr Story Carousel)
+        // ==========================================
+        if (isStory && !isVideo) {
+          let photoId: string | null = null;
+
+          if (!isHttpUrl) {
+            const localPath = resolveLocalPath(params.mediaUrl);
+            if (!localPath || !fs.existsSync(localPath)) {
+              return {
+                success: false,
+                errorCode: 'LOCAL_FILE_MISSING',
+                errorMessage: `Local creative file not found on server at: ${params.mediaUrl}`,
+              };
+            }
+            const fileBuffer = fs.readFileSync(localPath);
+            const blob = new Blob([fileBuffer]);
+            const formData = new FormData();
+            formData.append('source', blob, path.basename(localPath));
+            formData.append('published', 'false'); // CRITICAL: published=false prevents photo from posting to Page Wall Feed!
+            formData.append('access_token', pageAccessToken);
+
+            const uploadRes = await fetch(`https://graph.facebook.com/v20.0/${params.pageId}/photos`, {
+              method: 'POST',
+              body: formData,
+            });
+            const uploadData: any = await uploadRes.json();
+            if (!uploadRes.ok || !uploadData.id) {
+              return {
+                success: false,
+                errorCode: uploadData.error?.code?.toString() || 'FB_STORY_UPLOAD_ERROR',
+                errorMessage: `Facebook Story Photo Upload Error: ${uploadData.error?.message || 'Failed to upload photo for story.'}`,
+                rawResponse: uploadData,
+              };
+            }
+            photoId = uploadData.id;
+          } else {
+            const uploadRes = await fetch(`https://graph.facebook.com/v20.0/${params.pageId}/photos`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                url: params.mediaUrl,
+                published: false, // CRITICAL: published=false prevents photo from posting to Page Wall Feed!
+                access_token: pageAccessToken,
+              }),
+            });
+            const uploadData: any = await uploadRes.json();
+            if (!uploadRes.ok || !uploadData.id) {
+              return {
+                success: false,
+                errorCode: uploadData.error?.code?.toString() || 'FB_STORY_UPLOAD_ERROR',
+                errorMessage: `Facebook Story Photo Upload Error: ${uploadData.error?.message || 'Failed to upload photo for story.'}`,
+                rawResponse: uploadData,
+              };
+            }
+            photoId = uploadData.id;
+          }
+
+          // Step 2: Publish photo to Page Story
+          const storyRes = await fetch(`https://graph.facebook.com/v20.0/${params.pageId}/photo_stories`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              photo_id: photoId,
+              access_token: pageAccessToken,
+            }),
+          });
+          const storyData: any = await storyRes.json();
+          if (!storyRes.ok || storyData.error) {
+            return {
+              success: false,
+              errorCode: storyData.error?.code?.toString() || 'FB_STORY_PUBLISH_ERROR',
+              errorMessage: `Facebook Story Publish Error: ${storyData.error?.message || 'Failed to publish to Facebook Page Story.'}`,
+              rawResponse: storyData,
+            };
+          }
+
+          return {
+            success: true,
+            externalPostId: storyData.post_id || storyData.id || photoId,
+            rawResponse: storyData,
+          };
+        }
+
+        // ==========================================
+        // 2. FACEBOOK REGULAR POST & REEL PUBLISHING
+        // ==========================================
+        const publishUrl = isVideo
+          ? `https://graph.facebook.com/v20.0/${params.pageId}/videos`
+          : `https://graph.facebook.com/v20.0/${params.pageId}/photos`;
 
         if (!isHttpUrl) {
           // Local file upload directly to Facebook Page using multipart/form-data

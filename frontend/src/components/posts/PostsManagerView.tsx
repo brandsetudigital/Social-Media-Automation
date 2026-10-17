@@ -39,6 +39,7 @@ import {
   Heart,
   MessageCircle,
   Users,
+  ArrowUpDown,
 } from 'lucide-react';
 import { CreatePostModal } from './CreatePostModal';
 import { NavTab } from '../layout/Sidebar';
@@ -109,6 +110,7 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
 
   const [statusFilter, setStatusFilter] = useState(initialStatusFilter || 'ALL');
   const [platformFilter, setPlatformFilter] = useState<string>('ALL');
+  const [postSortOrder, setPostSortOrder] = useState<'DATE_DESC' | 'DATE_ASC'>('DATE_DESC');
   const [searchQuery, setSearchQuery] = useState('');
   const [posts, setPosts] = useState<any[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<any[]>([]);
@@ -261,69 +263,91 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
   // Consolidated posts list
   const consolidatedPosts = useMemo(() => {
     const list: any[] = [];
-    const seenIds = new Set<string>();
+    const itemMap = new Map<string, any>();
 
     // From calendar events
     calendarEvents.forEach((evt) => {
       const item = evt.contentItem || {};
-      const id = evt.id || item.id;
       const cid = evt.clientId || item.clientId;
       if (selectedClientId !== 'ALL' && cid && cid !== selectedClientId) {
         return;
       }
-      if (id && !seenIds.has(id) && !deletedIds.has(id) && !deletedIds.has(item.id) && !deletedIds.has(evt.id)) {
-        seenIds.add(id);
-        const isReel = item.contentType === 'REEL' || evt.contentType === 'REEL';
-        const brandName = evt.client?.businessName || item.client?.businessName || selectedClient?.businessName || 'BrandSetu Digital';
-        const accountName = evt.socialAccount?.accountName || `@${brandName.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
-        const rawStatus = (evt.status || item.status || 'SCHEDULED').toUpperCase();
-        const lastError = evt.lastError || item.lastError || (rawStatus === 'FAILED' ? 'Meta Graph API Error: Account authentication expired or media format needs verification. Please retry.' : null);
-        const feedbackNote = item.approvalRequests?.[0]?.feedbackNote || evt.reviewFeedback || evt.feedbackNote || null;
-        const reviewedByName = item.approvalRequests?.[0]?.reviewedBy?.name || evt.reviewedBy || 'Agency Admin';
-        const reviewedAt = item.approvalRequests?.[0]?.reviewedAt || evt.reviewedAt || null;
-        const isPub = rawStatus === 'PUBLISHED';
-        const reachVal = (evt.reach !== undefined && evt.reach !== null) ? evt.reach : ((item.reach !== undefined && item.reach !== null) ? item.reach : 0);
-        const impressionsVal = (evt.impressions !== undefined && evt.impressions !== null) ? evt.impressions : ((item.impressions !== undefined && item.impressions !== null) ? item.impressions : (reachVal > 0 ? Math.round(reachVal * 1.35) : 0));
-        const likesVal = (evt.likes !== undefined && evt.likes !== null) ? evt.likes : ((item.likes !== undefined && item.likes !== null) ? item.likes : 0);
-        const commentsVal = (evt.comments !== undefined && evt.comments !== null) ? evt.comments : ((item.comments !== undefined && item.comments !== null) ? item.comments : 0);
-        const totalEng = likesVal + commentsVal;
-        const engagementRateVal = impressionsVal > 0 ? (((totalEng) / impressionsVal) * 100).toFixed(1) : (reachVal > 0 ? (((totalEng) / reachVal) * 100).toFixed(1) : '0.0');
-        const permalink = evt.permalink || item.permalink || null;
-        const externalPostId = evt.externalPostId || item.externalPostId || null;
-        const isLiveSynced = !!(evt.isLiveSynced || item.isLiveSynced || isPub);
-
-        list.push({
-          id,
-          rawEventId: evt.id,
-          contentItemId: item.id || evt.contentItemId,
-          clientId: cid,
-          title: item.title || evt.title || 'Scheduled Social Post',
-          caption: item.variants?.[0]?.caption || item.caption || evt.caption || '',
-          hashtags: item.variants?.[0]?.hashtags || item.hashtags || evt.hashtags || '',
-          mediaUrl: item.mediaUrl || item.thumbnailUrl || '',
-          thumbnailUrl: item.thumbnailUrl || item.mediaUrl || '',
-          platform: (evt.platform || 'INSTAGRAM').toUpperCase(),
-          status: rawStatus,
-          scheduledAt: evt.scheduledAt,
-          targetDate: new Date(evt.scheduledAt),
-          clientName: brandName,
-          clientLogo: evt.client?.logo || item.client?.logo || null,
-          accountName,
-          lastError,
-          feedbackNote,
-          reviewedByName,
-          reviewedAt,
-          contentType: item.contentType || evt.contentType || (isReel ? 'REEL' : 'POST'),
-          reach: reachVal,
-          impressions: impressionsVal,
-          likes: likesVal,
-          comments: commentsVal,
-          engagementRate: engagementRateVal,
-          permalink,
-          externalPostId,
-          isLiveSynced,
-        });
+      if (deletedIds.has(item.id) || deletedIds.has(evt.id)) {
+        return;
       }
+
+      const groupingKey = item.id || evt.contentItemId || evt.id;
+      const plat = (evt.platform || 'INSTAGRAM').toUpperCase();
+
+      const reachVal = (evt.reach !== undefined && evt.reach !== null) ? evt.reach : ((item.reach !== undefined && item.reach !== null) ? item.reach : 0);
+      const impressionsVal = (evt.impressions !== undefined && evt.impressions !== null) ? evt.impressions : ((item.impressions !== undefined && item.impressions !== null) ? item.impressions : (reachVal > 0 ? Math.round(reachVal * 1.35) : 0));
+      const likesVal = (evt.likes !== undefined && evt.likes !== null) ? evt.likes : ((item.likes !== undefined && item.likes !== null) ? item.likes : 0);
+      const commentsVal = (evt.comments !== undefined && evt.comments !== null) ? evt.comments : ((item.comments !== undefined && item.comments !== null) ? item.comments : 0);
+
+      if (groupingKey && itemMap.has(groupingKey)) {
+        const existing = itemMap.get(groupingKey);
+        if (!existing.platforms.includes(plat)) {
+          existing.platforms.push(plat);
+        }
+        existing.reach += reachVal;
+        existing.impressions += impressionsVal;
+        existing.likes += likesVal;
+        existing.comments += commentsVal;
+        if (evt.status === 'PUBLISHED') existing.status = 'PUBLISHED';
+        return;
+      }
+
+      const isReel = item.contentType === 'REEL' || evt.contentType === 'REEL';
+      const isStory = item.contentType === 'STORY' || evt.contentType === 'STORY';
+      const brandName = evt.client?.businessName || item.client?.businessName || selectedClient?.businessName || 'BrandSetu Digital';
+      const accountName = evt.socialAccount?.accountName || `@${brandName.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+      const rawStatus = (evt.status || item.status || 'SCHEDULED').toUpperCase();
+      const lastError = evt.lastError || item.lastError || (rawStatus === 'FAILED' ? 'Meta Graph API Error: Account authentication expired or media format needs verification. Please retry.' : null);
+      const feedbackNote = item.approvalRequests?.[0]?.feedbackNote || evt.reviewFeedback || evt.feedbackNote || null;
+      const reviewedByName = item.approvalRequests?.[0]?.reviewedBy?.name || evt.reviewedBy || 'Agency Admin';
+      const reviewedAt = item.approvalRequests?.[0]?.reviewedAt || evt.reviewedAt || null;
+      const isPub = rawStatus === 'PUBLISHED';
+      const totalEng = likesVal + commentsVal;
+      const engagementRateVal = impressionsVal > 0 ? (((totalEng) / impressionsVal) * 100).toFixed(1) : (reachVal > 0 ? (((totalEng) / reachVal) * 100).toFixed(1) : '0.0');
+      const permalink = evt.permalink || item.permalink || null;
+      const externalPostId = evt.externalPostId || item.externalPostId || null;
+      const isLiveSynced = !!(evt.isLiveSynced || item.isLiveSynced || isPub);
+
+      const entry = {
+        id: groupingKey,
+        rawEventId: evt.id,
+        contentItemId: item.id || evt.contentItemId,
+        clientId: cid,
+        title: item.title || evt.title || (isStory ? `${brandName} Story` : 'Scheduled Social Post'),
+        caption: item.variants?.[0]?.caption || item.caption || evt.caption || '',
+        hashtags: item.variants?.[0]?.hashtags || item.hashtags || evt.hashtags || '',
+        mediaUrl: item.mediaUrl || item.thumbnailUrl || '',
+        thumbnailUrl: item.thumbnailUrl || item.mediaUrl || '',
+        platform: plat,
+        platforms: [plat],
+        status: rawStatus,
+        scheduledAt: evt.scheduledAt,
+        targetDate: new Date(evt.scheduledAt),
+        clientName: brandName,
+        clientLogo: evt.client?.logo || item.client?.logo || null,
+        accountName,
+        lastError,
+        feedbackNote,
+        reviewedByName,
+        reviewedAt,
+        contentType: isStory ? 'STORY' : (isReel ? 'REEL' : (item.contentType || evt.contentType || 'POST')),
+        reach: reachVal,
+        impressions: impressionsVal,
+        likes: likesVal,
+        comments: commentsVal,
+        engagementRate: engagementRateVal,
+        permalink,
+        externalPostId,
+        isLiveSynced,
+      };
+
+      itemMap.set(groupingKey, entry);
+      list.push(entry);
     });
 
     // From content inbox
@@ -332,8 +356,9 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
       if (selectedClientId !== 'ALL' && item.clientId && item.clientId !== selectedClientId) {
         return;
       }
-      if (id && !seenIds.has(id) && !deletedIds.has(id)) {
-        seenIds.add(id);
+      if (deletedIds.has(id) || itemMap.has(id)) {
+        return;
+      }
         const isReel = item.contentType === 'REEL';
         let schedTime = item.scheduledPosts?.[0]?.scheduledAt;
         if (!schedTime && item.approvalRequests && item.approvalRequests.length > 0) {
@@ -403,7 +428,6 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
           externalPostId,
           isLiveSynced,
         });
-      }
     });
 
     return list;
@@ -440,9 +464,58 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
     return dateObj.getTime() > todayEnd.getTime();
   };
 
-  // Filter posts by search and status
+  // Helper to extract post date object
+  const getPostDateObj = (post: any): Date | null => {
+    if (post.targetDate) {
+      const d = post.targetDate instanceof Date ? post.targetDate : new Date(post.targetDate);
+      if (!isNaN(d.getTime())) return d;
+    }
+    if (post.scheduledAt) {
+      const d = new Date(post.scheduledAt);
+      if (!isNaN(d.getTime())) return d;
+    }
+    if (post.createdAt) {
+      const d = new Date(post.createdAt);
+      if (!isNaN(d.getTime())) return d;
+    }
+    return null;
+  };
+
+  // Helper to format date label
+  const formatPostDateLabel = (dateObj: Date | null): string => {
+    if (!dateObj) return 'Not Scheduled';
+    const now = new Date();
+    const isToday =
+      dateObj.getDate() === now.getDate() &&
+      dateObj.getMonth() === now.getMonth() &&
+      dateObj.getFullYear() === now.getFullYear();
+
+    const yesterday = new Date();
+    yesterday.setDate(now.getDate() - 1);
+    const isYesterday =
+      dateObj.getDate() === yesterday.getDate() &&
+      dateObj.getMonth() === yesterday.getMonth() &&
+      dateObj.getFullYear() === yesterday.getFullYear();
+
+    const tomorrow = new Date();
+    tomorrow.setDate(now.getDate() + 1);
+    const isTomorrow =
+      dateObj.getDate() === tomorrow.getDate() &&
+      dateObj.getMonth() === tomorrow.getMonth() &&
+      dateObj.getFullYear() === tomorrow.getFullYear();
+
+    const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const dateStr = dateObj.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+
+    if (isToday) return `Today, ${dateStr} • ${timeStr}`;
+    if (isYesterday) return `Yesterday, ${dateStr} • ${timeStr}`;
+    if (isTomorrow) return `Tomorrow, ${dateStr} • ${timeStr}`;
+    return `${dateStr} • ${timeStr}`;
+  };
+
+  // Filter posts by search, status, and sort date-wise
   const filteredPosts = useMemo(() => {
-    return consolidatedPosts.filter((p) => {
+    const list = consolidatedPosts.filter((p) => {
       const matchesSearch =
         searchQuery === '' ||
         p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -469,7 +542,19 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
 
       return matchesSearch && matchesStatus && matchesPlatform;
     });
-  }, [consolidatedPosts, searchQuery, statusFilter, platformFilter]);
+
+    // Date-wise sorting (Default: DATE_DESC - Newest dates first / Abhi date wale pehle)
+    return list.sort((a, b) => {
+      const dA = getPostDateObj(a);
+      const dB = getPostDateObj(b);
+      const timeA = dA ? dA.getTime() : 0;
+      const timeB = dB ? dB.getTime() : 0;
+      if (postSortOrder === 'DATE_ASC') {
+        return timeA - timeB;
+      }
+      return timeB - timeA;
+    });
+  }, [consolidatedPosts, searchQuery, statusFilter, platformFilter, postSortOrder]);
 
   // Derived counts for Real-Time Metrics Bar & Card View
   const publishedTodayCount = useMemo(() => {
@@ -1931,6 +2016,17 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
+              {/* Date Sort Dropdown */}
+              <select
+                value={postSortOrder}
+                onChange={(e) => setPostSortOrder(e.target.value as any)}
+                className="text-xs bg-blue-50/70 border border-blue-200 rounded-lg px-3 py-2 text-[#0172F4] font-bold focus:outline-none shadow-xs cursor-pointer"
+                title="Sort posts date-wise"
+              >
+                <option value="DATE_DESC">📅 Date: Newest First </option>
+                <option value="DATE_ASC">📅 Date: Oldest First (Purane pehle)</option>
+              </select>
+
               {/* Platform Filter */}
               <select
                 value={platformFilter}
@@ -1961,12 +2057,13 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
               </select>
 
               {/* Reset filter button if any active */}
-              {(statusFilter !== 'ALL' || platformFilter !== 'ALL' || searchQuery !== '') && (
+              {(statusFilter !== 'ALL' || platformFilter !== 'ALL' || searchQuery !== '' || postSortOrder !== 'DATE_DESC') && (
                 <button
                   onClick={() => {
                     setStatusFilter('ALL');
                     setPlatformFilter('ALL');
                     setSearchQuery('');
+                    setPostSortOrder('DATE_DESC');
                   }}
                   className="text-xs font-semibold text-gray-500 hover:text-gray-800 px-2 py-1 rounded transition"
                 >
@@ -2002,9 +2099,8 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
               {filteredPosts.map((post) => {
-                const dateObj = post.targetDate ? new Date(post.targetDate) : null;
-                const dateStr = dateObj ? dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
-                const timeStr = dateObj ? dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                const dateObj = getPostDateObj(post);
+                const formattedDate = formatPostDateLabel(dateObj);
                 const isVideo = isVideoMedia(post.mediaUrl, post.contentType);
 
                 return (
@@ -2013,6 +2109,17 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                     className="bg-white rounded-2xl border border-gray-200 shadow-xs hover:shadow-md transition overflow-hidden flex flex-col justify-between group"
                   >
                     <div>
+                      {/* Card Top Date Header (Clear date-wise display) */}
+                      <div className="px-3.5 py-2 bg-gradient-to-r from-gray-50 to-blue-50/30 border-b border-gray-100 flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-1.5 font-bold text-gray-800">
+                          <CalendarIcon className="w-3.5 h-3.5 text-[#0172F4]" />
+                          <span>{formattedDate}</span>
+                        </div>
+                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                          {post.contentType || 'Post'}
+                        </span>
+                      </div>
+
                       {/* Media Header */}
                       <div
                         onClick={() => setSelectedPostDetail(post)}
@@ -2097,12 +2204,17 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                           <span className="text-[10px] font-mono text-gray-400 uppercase tracking-wider font-semibold">
                             {post.contentType || 'POST'}
                           </span>
-                          <div className="flex items-center gap-1">
-                            {post.platform === 'INSTAGRAM' && <Instagram className="w-3.5 h-3.5 text-pink-600" />}
-                            {post.platform === 'FACEBOOK' && <Facebook className="w-3.5 h-3.5 text-blue-600" />}
-                            {post.platform === 'LINKEDIN' && <Linkedin className="w-3.5 h-3.5 text-sky-700" />}
+                          <div className="flex items-center gap-1.5">
+                            {(post.platforms || [post.platform]).map((plat: string) => (
+                              <span key={plat} className="flex items-center" title={plat}>
+                                {plat === 'INSTAGRAM' && <Instagram className="w-3.5 h-3.5 text-pink-600" />}
+                                {plat === 'FACEBOOK' && <Facebook className="w-3.5 h-3.5 text-blue-600" />}
+                                {plat === 'LINKEDIN' && <Linkedin className="w-3.5 h-3.5 text-sky-700" />}
+                                {plat === 'GOOGLE_BUSINESS' && <Globe className="w-3.5 h-3.5 text-emerald-600" />}
+                              </span>
+                            ))}
                             <span className="text-[10px] font-bold text-gray-600 capitalize">
-                              {post.platform}
+                              {(post.platforms && post.platforms.length > 1) ? `${post.platforms.length} Platforms` : post.platform}
                             </span>
                           </div>
                         </div>
@@ -2166,7 +2278,7 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                           >
                             <Clock className="w-3.5 h-3.5 shrink-0" />
                             <span className="truncate">
-                              {post.status === 'PUBLISHED' ? 'Published' : 'Scheduled for'} {dateStr} at {timeStr}
+                              {post.status === 'PUBLISHED' ? 'Published:' : 'Scheduled for:'} {formattedDate}
                             </span>
                           </div>
                         ) : (
@@ -2182,10 +2294,16 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                               <Eye className="w-3.5 h-3.5 text-emerald-600" />
                               <span>{(post.reach ?? 0).toLocaleString()} Views</span>
                             </span>
-                            <span className="flex items-center gap-1 text-rose-600 font-bold" title="Real Instagram / Facebook Likes">
-                              <Heart className="w-3.5 h-3.5" />
-                              <span>{(post.likes ?? 0).toLocaleString()} Likes</span>
-                            </span>
+                            {post.contentType === 'STORY' ? (
+                              <span className="text-[10px] font-bold text-purple-700 bg-purple-100/90 px-2 py-0.5 rounded-md" title="Stories expire after 24h on Meta servers">
+                                24h Story
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1 text-rose-600 font-bold" title="Real Instagram / Facebook Likes">
+                                <Heart className="w-3.5 h-3.5" />
+                                <span>{(post.likes ?? 0).toLocaleString()} Likes</span>
+                              </span>
+                            )}
                           </div>
                         )}
                       </div>
@@ -2229,12 +2347,12 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
       {/* 6. LIST VIEW (When List toggle is clicked in top right) */}
       {mainViewMode === 'list' && (
         <div className="bg-white rounded-xl border border-gray-200 shadow-xs overflow-hidden">
-          {/* List Search & Filter Header */}
-          <div className="p-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {/* List Search & Filter Header with Date Sorting */}
+          <div className="p-4 border-b border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div className="relative max-w-sm w-full">
               <input
                 type="text"
-                placeholder="Search posts by title or caption..."
+                placeholder="Search posts by title, brand, or caption..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0172F4]"
@@ -2242,18 +2360,61 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
               <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
             </div>
 
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-2 text-gray-700 font-semibold focus:outline-none shadow-xs cursor-pointer"
-            >
-              <option value="ALL">All Status</option>
-              <option value="SCHEDULED">Scheduled</option>
-              <option value="PUBLISHED">Published</option>
-              <option value="DRAFT">Draft / In Review</option>
-              <option value="FAILED">Failed (View Reasons)</option>
-              <option value="CHANGES_REQUESTED">Changes Requested (Admin Feedback)</option>
-            </select>
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Date Sort Dropdown */}
+              <select
+                value={postSortOrder}
+                onChange={(e) => setPostSortOrder(e.target.value as any)}
+                className="text-xs bg-blue-50/70 border border-blue-200 rounded-lg px-3 py-2 text-[#0172F4] font-bold focus:outline-none shadow-xs cursor-pointer"
+                title="Sort posts date-wise"
+              >
+                <option value="DATE_DESC">📅 Date: Newest First</option>
+                <option value="DATE_ASC">📅 Date: Oldest First (Purane pehle)</option>
+              </select>
+
+              {/* Platform Selector */}
+              <select
+                value={platformFilter}
+                onChange={(e) => setPlatformFilter(e.target.value)}
+                className="text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-gray-700 font-semibold focus:outline-none shadow-xs cursor-pointer"
+              >
+                <option value="ALL">All Platforms</option>
+                <option value="INSTAGRAM">Instagram</option>
+                <option value="FACEBOOK">Facebook</option>
+                <option value="LINKEDIN">LinkedIn</option>
+                <option value="TWITTER">X / Twitter</option>
+                <option value="YOUTUBE">YouTube</option>
+                <option value="GOOGLE_BUSINESS">Google Business</option>
+              </select>
+
+              {/* Status Selector */}
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-gray-700 font-semibold focus:outline-none shadow-xs cursor-pointer"
+              >
+                <option value="ALL">All Status</option>
+                <option value="SCHEDULED">Scheduled</option>
+                <option value="PUBLISHED">Published</option>
+                <option value="DRAFT">Draft / In Review</option>
+                <option value="FAILED">Failed (View Reasons)</option>
+                <option value="CHANGES_REQUESTED">Changes Requested (Admin Feedback)</option>
+              </select>
+
+              {(statusFilter !== 'ALL' || platformFilter !== 'ALL' || searchQuery !== '' || postSortOrder !== 'DATE_DESC') && (
+                <button
+                  onClick={() => {
+                    setStatusFilter('ALL');
+                    setPlatformFilter('ALL');
+                    setSearchQuery('');
+                    setPostSortOrder('DATE_DESC');
+                  }}
+                  className="text-xs font-semibold text-gray-500 hover:text-gray-800 px-2 py-1 rounded transition"
+                >
+                  Clear Filters
+                </button>
+              )}
+            </div>
           </div>
 
           <table className="w-full text-left text-xs">
@@ -2264,7 +2425,19 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                 <th className="py-3 px-4">Platform</th>
                 <th className="py-3 px-4">Status</th>
                 <th className="py-3 px-4">Performance / Views</th>
-                <th className="py-3 px-4">Scheduled Date</th>
+                <th
+                  onClick={() => setPostSortOrder(postSortOrder === 'DATE_DESC' ? 'DATE_ASC' : 'DATE_DESC')}
+                  className="py-3 px-4 cursor-pointer hover:bg-gray-100 transition select-none text-gray-700"
+                  title="Click to toggle Date sorting (Newest / Oldest)"
+                >
+                  <div className="flex items-center gap-1.5 font-bold">
+                    <span>Date & Time</span>
+                    <ArrowUpDown className="w-3.5 h-3.5 text-[#0172F4]" />
+                    <span className="text-[10px] text-[#0172F4] bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                      {postSortOrder === 'DATE_DESC' ? 'Newest ▼' : 'Oldest ▲'}
+                    </span>
+                  </div>
+                </th>
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
@@ -2370,23 +2543,31 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                             <Eye className="w-3.5 h-3.5 text-emerald-600" />
                             {(post.reach ?? 0).toLocaleString()} Views
                           </span>
-                          <span className="text-[10px] text-rose-600 font-bold flex items-center gap-0.5" title="Real Likes">
-                            <Heart className="w-3 h-3" /> {(post.likes ?? 0).toLocaleString()}
-                          </span>
+                          {post.contentType === 'STORY' ? (
+                            <span className="text-[10px] text-purple-700 font-bold bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                              24h Story
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-rose-600 font-bold flex items-center gap-0.5" title="Real Likes">
+                              <Heart className="w-3 h-3" /> {(post.likes ?? 0).toLocaleString()}
+                            </span>
+                          )}
                         </div>
                       ) : (
                         <span className="text-gray-400 font-medium">—</span>
                       )}
                     </td>
-                    <td className="py-3 px-4 text-gray-600">
-                      <span className="flex items-center gap-1 font-medium">
-                        <Clock className="w-3.5 h-3.5 text-gray-400" />
-                        {post.targetDate
-                          ? post.targetDate.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) +
-                            ' • ' +
-                            post.targetDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                          : 'Not scheduled'}
-                      </span>
+                    <td className="py-3 px-4 text-gray-700">
+                      {(() => {
+                        const dateObj = getPostDateObj(post);
+                        const formatted = formatPostDateLabel(dateObj);
+                        return (
+                          <div className="flex items-center gap-1.5 font-bold">
+                            <CalendarIcon className="w-3.5 h-3.5 text-[#0172F4] shrink-0" />
+                            <span className="text-xs">{formatted}</span>
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
