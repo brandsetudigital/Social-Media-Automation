@@ -6,9 +6,12 @@ export class AnalyticsService {
    * Returns high-level agency and client specific performance metrics
    * Powered by LIVE Meta Graph API synchronization (Instagram & Facebook real data)
    */
-  static async getOverview(clientId?: string, range: string = '30D') {
+  static async getOverview(clientId?: string, range: string = '30D', platform: string = 'ALL') {
     // 1. Fetch live metrics from Meta Graph API
-    const realOverview = await LiveMetricsService.getRealClientOverview(clientId, range);
+    const realOverview = await LiveMetricsService.getRealClientOverview(clientId, range, false, platform);
+
+    const cleanPlatform = (platform || 'ALL').toUpperCase();
+    const filterPlatform = cleanPlatform !== 'ALL' && cleanPlatform !== 'UNDEFINED' ? cleanPlatform : undefined;
 
     // 2. Fetch agency-level totals
     const clientsCount = await prisma.client.count();
@@ -19,6 +22,7 @@ export class AnalyticsService {
       where: {
         status: 'CONNECTED',
         ...(clientId ? { clientId } : {}),
+        ...(filterPlatform ? { platform: filterPlatform } : {}),
       },
     });
 
@@ -96,13 +100,15 @@ export class AnalyticsService {
         totalPublished: realData.publishedCount,
         totalFailed: failed,
         successRate: `${successRate}%`,
+        totalViews: realData.totalViews || realData.totalReach,
+        totalReach: realData.totalReach,
+        totalImpressions: realData.totalImpressions,
         totalLikes: realData.totalLikes,
         totalComments: realData.totalComments,
         totalEngagement: realData.totalEngagement,
-        totalReach: realData.totalReach,
-        totalImpressions: realData.totalImpressions,
         avgEngagementRate: `${realData.avgEngagementRate}%`,
         followersCount: realData.totalFollowers,
+        channelBreakdown: realData.channelBreakdown,
       },
       topPosts: realData.topPosts.slice(0, 5).map((p) => ({
         id: p.id,
