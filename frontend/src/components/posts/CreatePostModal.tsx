@@ -96,28 +96,28 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
     if (/sweet|food|restaurant|cafe|bakery|namkeen|chaat|mithai|panna/i.test(cat)) {
       return {
-        caption: `#${cleanName} #${cleanLoc}Foodie #${cleanLoc}Food #MithaiLovers #FoodLovers`,
-        comment: `#${cleanLoc}City #ExploreFood #StreetFood${cleanLoc} #WeekendVibes #FoodieGram`,
+        caption: `#${cleanName} #${cleanLoc}Foodie #MithaiLovers #DesiFlavors #AuthenticTaste`,
+        comment: `#WeekendVibes #${cleanLoc}CityLife #ExploreEats #TrendingBites #FoodCulture`,
       };
     } else if (/real\s*estate|property|plot|flat|builder|construction|babu|broker/i.test(cat)) {
       return {
-        caption: `#${cleanName} #${cleanLoc}RealEstate #PlotsIn${cleanLoc} #${cleanLoc}Property #RealEstateIndia`,
-        comment: `#${cleanLoc}Properties #PropertyInvestment #InvestIn${cleanLoc} #DreamHome #CommercialProperty`,
+        caption: `#${cleanName} #${cleanLoc}RealEstate #PlotsIn${cleanLoc} #RealEstateIndia #PropertyAdvisory`,
+        comment: `#DreamHome #NewHomeVibes #ArchitectureLovers #InvestSmart #CityLiving`,
       };
     } else if (/fashion|saree|ethnic|boutique|cloth|apparel|dress|airawati/i.test(cat)) {
       return {
-        caption: `#${cleanName} #${cleanLoc}Fashion #EthnicWear #SareeLove #IndianFashion`,
-        comment: `#SareesOfInstagram #TraditionalWear #FestiveOutfit #ExploreFashion #${cleanLoc}Boutique`,
+        caption: `#${cleanName} #${cleanLoc}Fashion #EthnicWear #SareeLove #IndianCouture`,
+        comment: `#OOTDIndia #FestiveLook #TraditionalVibes #StyleInspiration #WardrobeGoals`,
       };
     } else if (/marketing|digital|agency|brandsetu|social/i.test(cat)) {
       return {
-        caption: `#${cleanName} #SocialMediaMarketing #DigitalMarketing${cleanLoc} #BusinessGrowth #BrandBuilding`,
-        comment: `#MarketingStrategy #OnlineMarketing #StartupIndia #ExplorePage #BusinessTips`,
+        caption: `#${cleanName} #SocialMediaMarketing #DigitalGrowth #BrandStrategy #AgencyLife`,
+        comment: `#StartupIndia #BusinessTips #OnlineSuccess #CreatorEconomy #EntrepreneurVibes`,
       };
     }
     return {
-      caption: `#${cleanName} #${cleanLoc} #TopQuality #TrustedBrand #BestService`,
-      comment: `#${cleanLoc}City #Explore${cleanLoc} #TrendingNow #LocalLove #ViralFeed`,
+      caption: `#${cleanName} #${cleanLoc}Business #TopQuality #TrustedService #ProfessionalCare`,
+      comment: `#ExplorePage #CustomerFirst #DailyInspiration #LocalPride #TrendingNow`,
     };
   };
 
@@ -544,25 +544,53 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       });
 
       if (res?.caption) {
+        // Strip any trailing hashtags from caption body so it stays 100% clean copy
+        const cleanCaption = res.caption.replace(/(?:[\s\r\n]*#[A-Za-z0-9_]+)+$/g, '').trim();
         setPlatformCaptions((prev) => ({
           ...prev,
-          [platformToUse]: res.caption,
+          [platformToUse]: cleanCaption,
         }));
-        setCaption(res.caption);
+        setCaption(cleanCaption);
       }
 
-      let capTags = res?.captionHashtags?.trim();
+      let capTags = res?.captionHashtags?.trim() || res?.hashtags?.trim();
       let comTags = res?.commentHashtags?.trim();
 
-      if (!capTags || !comTags) {
-        const clientDefaults = getInitialClientTags(activeClientId);
-        if (!capTags) capTags = res?.hashtags?.trim() || clientDefaults.caption;
-        if (!comTags) comTags = clientDefaults.comment;
-      }
+      const clientDefaults = getInitialClientTags(activeClientId);
+      if (!capTags) capTags = clientDefaults.caption;
+      if (!comTags) comTags = clientDefaults.comment;
 
-      setCaptionHashtags(capTags);
-      setCommentHashtags(comTags);
-      const combined = `${capTags} \n---FIRST_COMMENT---\n ${comTags}`;
+      // Strictly limit to 5 SEO hashtags (no more, no less)
+      const strictly5CaptionTags = capTags
+        .split(/\s+/)
+        .map((t: string) => t.trim())
+        .filter((t: string) => t.startsWith('#'))
+        .slice(0, 5)
+        .join(' ');
+
+      const rawCommentTags = comTags
+        .split(/\s+/)
+        .map((t: string) => t.trim())
+        .filter((t: string) => t.startsWith('#'));
+
+      // Strictly enforce that comment tags have ZERO overlap with caption tags
+      const captionRoots = new Set(
+        strictly5CaptionTags.split(/\s+/).map((t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, ''))
+      );
+      const filteredComment = rawCommentTags.filter((t: string) => !captionRoots.has(t.toLowerCase().replace(/[^a-z0-9]/g, '')));
+      const genericExplore = ['#ExplorePage', '#TrendingNow', '#CommunityVibes', '#DailyHighlight', '#MustVisit'];
+      for (const ge of genericExplore) {
+        if (filteredComment.length >= 5) break;
+        const root = ge.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (!captionRoots.has(root) && !filteredComment.some((c: string) => c.toLowerCase().replace(/[^a-z0-9]/g, '') === root)) {
+          filteredComment.push(ge);
+        }
+      }
+      const strictly5CommentTags = filteredComment.slice(0, 5).join(' ');
+
+      setCaptionHashtags(strictly5CaptionTags);
+      setCommentHashtags(strictly5CommentTags);
+      const combined = `${strictly5CaptionTags} \n---FIRST_COMMENT---\n ${strictly5CommentTags}`;
 
       setPlatformHashtags((prev) => ({
         ...prev,
@@ -572,7 +600,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
       setStatusMessage({
         type: 'success',
-        text: `✨ Caption + 4-5 Reach Hashtags + 5 Auto-Comment tags generated for ${platformIcons[platformToUse]?.name || platformToUse} (${res?.aiModelUsed || 'AI Engine'})`,
+        text: `✨ Caption + strictly 5 SEO Reach Hashtags + 5 Unique Auto-Comment tags generated for ${platformIcons[platformToUse]?.name || platformToUse} (${res?.aiModelUsed || 'AI Engine'})`,
       });
     } catch (err: any) {
       console.warn('[CreatePostModal] AI caption error:', err);
@@ -616,29 +644,48 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         : `${clientObj?.businessName || 'Brand'} spotlight`);
 
       const res = await api.generateAIHashtags(activeClientId, defaultTopic);
-      let capTags = res?.captionHashtags?.trim();
+      let capTags = res?.captionHashtags?.trim() || res?.hashtags?.trim();
       let comTags = res?.commentHashtags?.trim();
 
-      if (!capTags && res?.hashtags) {
-        const splitted = res.hashtags.split(/\s+/).filter((t: string) => t.startsWith('#'));
-        capTags = splitted.slice(0, 5).join(' ');
-        comTags = splitted.slice(5, 10).join(' ');
-      }
+      const defaults = getInitialClientTags(activeClientId);
+      if (!capTags) capTags = defaults.caption;
+      if (!comTags) comTags = defaults.comment;
 
-      if (!capTags || !comTags) {
-        const defaults = getInitialClientTags(activeClientId);
-        if (!capTags) capTags = defaults.caption;
-        if (!comTags) comTags = defaults.comment;
-      }
+      // Strictly limit to 5 SEO hashtags
+      const strictly5CaptionTags = capTags
+        .split(/\s+/)
+        .map((t: string) => t.trim())
+        .filter((t: string) => t.startsWith('#'))
+        .slice(0, 5)
+        .join(' ');
 
-      setCaptionHashtags(capTags);
-      setCommentHashtags(comTags);
-      const combined = `${capTags} \n---FIRST_COMMENT---\n ${comTags}`;
+      const rawCommentTags = comTags
+        .split(/\s+/)
+        .map((t: string) => t.trim())
+        .filter((t: string) => t.startsWith('#'));
+
+      const captionRoots = new Set(
+        strictly5CaptionTags.split(/\s+/).map((t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, ''))
+      );
+      const filteredComment = rawCommentTags.filter((t: string) => !captionRoots.has(t.toLowerCase().replace(/[^a-z0-9]/g, '')));
+      const genericExplore = ['#ExplorePage', '#TrendingNow', '#CommunityVibes', '#DailyHighlight', '#MustVisit'];
+      for (const ge of genericExplore) {
+        if (filteredComment.length >= 5) break;
+        const root = ge.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (!captionRoots.has(root) && !filteredComment.some((c: string) => c.toLowerCase().replace(/[^a-z0-9]/g, '') === root)) {
+          filteredComment.push(ge);
+        }
+      }
+      const strictly5CommentTags = filteredComment.slice(0, 5).join(' ');
+
+      setCaptionHashtags(strictly5CaptionTags);
+      setCommentHashtags(strictly5CommentTags);
+      const combined = `${strictly5CaptionTags} \n---FIRST_COMMENT---\n ${strictly5CommentTags}`;
       setHashtags(combined);
       setPlatformHashtags((prev) => ({ ...prev, [plat]: combined }));
       setStatusMessage({
         type: 'success',
-        text: `✨ Generated 4-5 caption reach tags + 5 auto-comment tags for ${platformIcons[plat]?.name || plat}!`,
+        text: `✨ Generated strictly 5 SEO caption reach tags + 5 distinct auto-comment tags for ${platformIcons[plat]?.name || plat}!`,
       });
     } catch (err: any) {
       console.warn('[CreatePostModal] AI hashtags fallback:', err);
@@ -729,7 +776,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     }
 
     if (isAuditing) {
-      setStatusMessage({ type: 'error', text: 'AI Vision से ग्राफ़िक्स वेरिफाई हो रहा है, कृपया 2 सेकंड प्रतीक्षा करें...' });
+      setStatusMessage({ type: 'error', text: 'AI Vision is verifying graphics, please wait a moment...' });
       return;
     }
 
@@ -743,7 +790,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       let currentAudit = auditResult;
       if (!currentAudit && mediaUrl && !mediaUrl.startsWith('blob:')) {
         setIsSubmitting(true);
-        setStatusMessage({ type: 'info', text: 'ग्राफ़िक्स में ब्रांड नाम और फ़ोन नंबर जांचा जा रहा है...' });
+        setStatusMessage({ type: 'info', text: 'Verifying brand name and contact details in graphic...' });
         try {
           currentAudit = await api.auditGraphic({ clientId: activeClientId, mediaUrl });
           setAuditResult(currentAudit);
@@ -756,7 +803,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       if (currentAudit && !currentAudit.isValid) {
         setStatusMessage({
           type: 'error',
-          text: `🚫 पोस्ट शेड्यूल नहीं हो सकती: ${currentAudit.blockReason || 'ग्राफ़िक्स में ग़लत जानकारी पाई गई'}`,
+          text: `🚫 Cannot schedule post: ${currentAudit.blockReason || 'Discrepancy detected in graphic details'}`,
         });
         setShowAuditBlockModal(true);
         return;
@@ -1299,11 +1346,11 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                       <div className="flex items-center gap-2 flex-wrap">
                         <h4 className="text-xs font-bold text-gray-900">
                           {isAuditing
-                            ? 'AI Vision Graphic Inspection (जांच जारी है...)'
+                            ? 'AI Vision Graphic Inspection (Verifying...)'
                             : auditResult?.isValid
-                            ? '✅ Graphic Verified (ग्राफ़िक्स सत्यापित)'
+                            ? '✅ Graphic Verified (Client Details Match)'
                             : auditResult && !auditResult.isValid
-                            ? '🚫 ग़लत जानकारी डिटेक्ट हुई (Wrong Graphic Detected!)'
+                            ? '🚫 Verification Alert: Graphic Discrepancy Detected'
                             : 'AI Graphic Safety Check'}
                         </h4>
                         {auditResult?.isValid && (
@@ -1320,19 +1367,19 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
                       <p className="text-[11px] text-gray-600 mt-0.5">
                         {isAuditing
-                          ? 'इमेज में लिखा ब्रांड नाम, फ़ोन नंबर और पता क्लाइंट डेटा से मैच किया जा रहा है...'
+                          ? 'Verifying brand name, phone number, and address against client profile...'
                           : auditResult?.isValid
-                          ? `इमेज में ब्रांड नाम और संपर्क जानकारी क्लाइंट (${clients.find(c => c.id === getEffectiveClientId())?.businessName}) से सही मैच है।`
+                          ? `Brand name and contact details in graphic match client (${clients.find(c => c.id === getEffectiveClientId())?.businessName}).`
                           : auditResult && !auditResult.isValid
                           ? auditResult.blockReason
-                          : 'इमेज अपलोड होने पर AI स्वचालित रूप से जांच करेगा।'}
+                          : 'AI will automatically verify graphic details upon upload.'}
                       </p>
 
                       {/* Details / Issues */}
                       {auditResult && !auditResult.isValid && auditResult.issues && auditResult.issues.length > 0 && (
                         <div className="mt-2.5 p-2 bg-rose-100/70 border border-rose-200 rounded-lg space-y-1">
                           <span className="text-[10px] font-bold uppercase tracking-wider text-rose-900 block">
-                            पाई गई गलतियां (Found Discrepancies):
+                            Detected Discrepancies:
                           </span>
                           {auditResult.issues.map((issue, idx) => (
                             <div key={idx} className="flex items-start gap-1.5 text-xs text-rose-800 font-medium">
@@ -1375,7 +1422,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                       title="Re-run AI graphic verification"
                     >
                       <RefreshCw className={`w-3 h-3 ${isAuditing ? 'animate-spin' : ''}`} />
-                      <span>पुनः जांचें</span>
+                      <span>Re-verify</span>
                     </button>
 
                     {auditResult && !auditResult.isValid && (
@@ -1385,7 +1432,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                         className="text-[11px] font-bold text-white bg-rose-600 hover:bg-rose-700 px-2.5 py-1 rounded-lg transition flex items-center gap-1 cursor-pointer shadow-xs"
                       >
                         <UploadCloud className="w-3 h-3" />
-                        <span>सही इमेज लगाएं</span>
+                        <span>Replace Graphic</span>
                       </button>
                     )}
                   </div>
@@ -1401,7 +1448,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                         onChange={(e) => setAdminOverride(e.target.checked)}
                         className="w-4 h-4 text-[#0172F4] rounded border-gray-300 focus:ring-blue-500"
                       />
-                      <span>Admin Override: मुझे पता है, फिर भी इस इमेज को शेड्यूल करें</span>
+                      <span>Admin Override: I understand the risks, schedule this graphic anyway</span>
                     </label>
                     {adminOverride && (
                       <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md">
@@ -1531,7 +1578,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                     <span className="w-2 h-2 rounded-full bg-blue-500"></span>
                     <span className="text-xs font-bold text-gray-800">1. Post Caption Hashtags</span>
                     <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
-                      Top 4-5 Tags (Maximum Reach & Views)
+                      Strictly 5 SEO Keywords (Maximum Reach & Views)
                     </span>
                   </div>
                   <span className="text-[10px] font-semibold text-gray-500">
@@ -1539,7 +1586,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   </span>
                 </div>
                 <p className="text-[11px] text-gray-500">
-                  Instagram & Meta algorithm ke mutabik 4-5 best niche keywords caption ke end me lagte hain reach aur views maximise karne ke liye.
+                  Algorithm-optimized. Curated high-intent SEO keywords embedded in the post caption for maximum search discovery and organic reach.
                 </p>
                 <div className="relative">
                   <input
@@ -1566,7 +1613,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                     <MessageCircle className="w-3.5 h-3.5 text-indigo-600" />
                     <span className="text-xs font-bold text-gray-800">2. First-Comment Hashtags</span>
                     <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200">
-                      5 Tags (Auto-Comment on Publish)
+                      5 Community Boost Tags (Zero Overlap with Caption)
                     </span>
                   </div>
                   <span className="text-[10px] font-semibold text-indigo-600">
@@ -1574,7 +1621,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   </span>
                 </div>
                 <p className="text-[11px] text-gray-600">
-                  Post live hote hi client ke official account se pehla comment ye 5 hashtags automatically post karega ({clients.find((c) => c.id === brandId)?.businessName || 'Client'} ke hisab se).
+                  5 unique community discovery tags tailored for {clients.find((c) => c.id === brandId)?.businessName || 'the client'} with zero caption overlap. Automatically published as the author's first comment.
                 </p>
                 <div className="relative">
                   <input
@@ -1999,28 +2046,28 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
             </div>
 
             <h3 className="text-lg font-extrabold text-gray-900 text-center">
-              🚫 पोस्ट शेड्यूल नहीं हो सकती!
+              🚫 Post Cannot Be Scheduled
             </h3>
             <p className="text-xs text-rose-600 font-bold text-center mt-1">
-              (Graphic Verification Failed - जानकारी मिसमैच)
+              (Graphic Verification Failed - Profile Discrepancy)
             </p>
 
             <p className="text-xs text-gray-600 text-center mt-2.5 leading-relaxed">
-              इस ग्राफ़िक्स में जो जानकारी (ब्रांड नाम, फ़ोन नंबर या पता) है वह चुने गए क्लाइंट की आधिकारिक डिटेल्स से मेल नहीं खाती।
+              The branding, phone number, or address detected on this graphic does not match the official details of the selected client.
             </p>
 
             {/* Target Client vs Graphic Mismatch Card */}
             <div className="mt-4 p-3.5 bg-gray-50 rounded-xl border border-gray-200 text-xs space-y-2">
               <div className="flex items-center justify-between pb-2 border-b border-gray-200">
-                <span className="font-semibold text-gray-500">चुना गया क्लाइंट (Target Client):</span>
+                <span className="font-semibold text-gray-500">Selected Client:</span>
                 <span className="font-bold text-gray-900">{clients.find(c => c.id === getEffectiveClientId())?.businessName}</span>
               </div>
               <div className="flex items-center justify-between pb-2 border-b border-gray-200">
-                <span className="font-semibold text-gray-500">क्लाइंट का असली फ़ोन नंबर:</span>
+                <span className="font-semibold text-gray-500">Official Client Phone:</span>
                 <span className="font-bold text-gray-900">{clients.find(c => c.id === getEffectiveClientId())?.phone || 'N/A'}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="font-semibold text-gray-500">क्लाइंट का स्थान (Location):</span>
+                <span className="font-semibold text-gray-500">Official Location:</span>
                 <span className="font-bold text-gray-900">{clients.find(c => c.id === getEffectiveClientId())?.location || 'N/A'}</span>
               </div>
             </div>
@@ -2029,7 +2076,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
             <div className="mt-4 p-3.5 bg-rose-50 rounded-xl border border-rose-200 space-y-2">
               <div className="flex items-center gap-1.5 text-xs font-bold text-rose-900">
                 <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-                <span>पाई गई गलतियां (Detected Issues):</span>
+                <span>Detected Issues:</span>
               </div>
               <div className="space-y-1.5">
                 {auditResult.issues.map((issue, idx) => (
@@ -2057,7 +2104,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 className="w-full py-2.5 px-4 bg-[#0172F4] hover:bg-[#005cd3] text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 shadow-xs cursor-pointer"
               >
                 <UploadCloud className="w-4 h-4" />
-                <span>सही ग्राफ़िक्स अपलोड करें (Upload Right Graphic)</span>
+                <span>Upload Correct Graphic</span>
               </button>
 
               <div className="flex items-center gap-2">
@@ -2066,7 +2113,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   onClick={() => setShowAuditBlockModal(false)}
                   className="flex-1 py-2 px-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs rounded-xl transition cursor-pointer"
                 >
-                  क्लाइंट या इमेज बदलें
+                  Change Client or Media
                 </button>
                 <button
                   type="button"
@@ -2076,7 +2123,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   }}
                   className="flex-1 py-2 px-3 border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold text-xs rounded-xl transition cursor-pointer"
                 >
-                  Admin Override (फोर्स शेड्यूल करें)
+                  Admin Override (Force Schedule)
                 </button>
               </div>
             </div>

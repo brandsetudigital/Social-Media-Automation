@@ -10,7 +10,7 @@ export class PublishingService {
   /**
    * Core publishing execution with strict client isolation & idempotency safeguards
    */
-  static async executePublish(scheduledPostId: string): Promise<{ success: boolean; message: string; logId?: string }> {
+  static async executePublish(scheduledPostId: string): Promise<{ success: boolean; message: string; logId?: string; commentResult?: any }> {
     const post = await prisma.scheduledPost.findUnique({
       where: { id: scheduledPostId },
       include: {
@@ -152,25 +152,36 @@ export class PublishingService {
     }
     captionTags = captionTags.slice(0, 5);
 
-    // Ensure strictly 5 first-comment boost hashtags
+    // Ensure strictly 5 first-comment boost hashtags - NEVER MATCHING CAPTION HASHTAGS
+    const captionRoots = new Set(captionTags.map((t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, '')));
+    commentTags = commentTags.filter((t: string) => !captionRoots.has(t.toLowerCase().replace(/[^a-z0-9]/g, '')));
+
     if (commentTags.length < 5) {
       const extraTags = tailored.commentHashtags.split(/\s+/).filter(Boolean);
       for (const t of extraTags) {
-        if (!commentTags.includes(t) && !captionTags.includes(t)) {
+        const root = t.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (!captionRoots.has(root) && !commentTags.some((c: string) => c.toLowerCase().replace(/[^a-z0-9]/g, '') === root)) {
           commentTags.push(t);
         }
         if (commentTags.length >= 5) break;
       }
     }
+    const genericFallbacks = ['#ExplorePage', '#TrendingNow', '#CommunityVibes', '#DailyHighlight', '#MustVisit'];
+    for (const fb of genericFallbacks) {
+      if (commentTags.length >= 5) break;
+      const root = fb.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (!captionRoots.has(root) && !commentTags.some((c: string) => c.toLowerCase().replace(/[^a-z0-9]/g, '') === root)) {
+        commentTags.push(fb);
+      }
+    }
     commentTags = commentTags.slice(0, 5);
 
-    // Append only the 4-5 caption hashtags to the caption if not already present
-    let fullCaption = baseCaption;
-    const sampleTags = captionTags.slice(0, 2);
-    const alreadyInCaption = sampleTags.length > 0 && sampleTags.every((t) => baseCaption.includes(t));
+    // Clean baseCaption from any trailing hashtag clutter so strictly the top 5 SEO tags are appended
+    const cleanBaseCaption = baseCaption.replace(/(?:[\s\r\n]*#[A-Za-z0-9_]+)+$/g, '').trim();
+    let fullCaption = cleanBaseCaption;
 
-    if (!alreadyInCaption && captionTags.length > 0) {
-      const joinedTags = captionTags.join(' ');
+    if (captionTags.length > 0) {
+      const joinedTags = captionTags.slice(0, 5).join(' ');
       fullCaption = fullCaption ? `${fullCaption}\n\n${joinedTags}` : joinedTags;
     }
 
@@ -333,11 +344,21 @@ export class PublishingService {
         },
       });
 
+      let successMessage = 'Post published live successfully!';
+      if (commentResult?.success) {
+        successMessage = 'Post published live with 5 client-tailored first-comment hashtags!';
+      } else if (commentResult?.errorMessage) {
+        if (commentResult.errorMessage.includes('permission')) {
+          successMessage = `Post live ho gaya! Note: Meta Developer App token me 'instagram_manage_comments' permission add karni hogi taaki comments automatically chale jayein.`;
+        } else {
+          successMessage = `Post live ho gaya! (Comment note: ${commentResult.errorMessage})`;
+        }
+      }
+
       return {
         success: true,
-        message: commentResult?.success
-          ? 'Post published live with 5 client-tailored first-comment hashtags!'
-          : 'Post published successfully!',
+        message: successMessage,
+        commentResult,
         logId: log.id,
       };
     } else {

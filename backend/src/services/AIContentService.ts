@@ -187,25 +187,11 @@ export class AIContentService {
           }
 
           if (parsedCaption) {
-            // If captionHashtags and commentHashtags were not provided separately, split parsedHashtags
-            const allTags = (parsedHashtags || '')
-              .split(/\s+/)
-              .map((t) => t.trim())
-              .filter((t) => t.startsWith('#'));
-
-            if (!parsedCaptionHashtags && allTags.length > 0) {
-              parsedCaptionHashtags = allTags.slice(0, 5).join(' ');
-            }
-            if (!parsedCommentHashtags && allTags.length > 5) {
-              parsedCommentHashtags = allTags.slice(5, 10).join(' ');
-            }
-
-            return {
-              caption: parsedCaption,
-              captionHashtags: parsedCaptionHashtags || parsedHashtags,
-              commentHashtags: parsedCommentHashtags,
-              hashtags: parsedCaptionHashtags || parsedHashtags,
-            };
+            return AIContentService.cleanCaptionAndSanitizeTags(
+              parsedCaption,
+              parsedCaptionHashtags || parsedHashtags,
+              parsedCommentHashtags
+            );
           }
         } catch {
           continue;
@@ -269,29 +255,119 @@ export class AIContentService {
       try {
         const parsed = JSON.parse(cleaned);
         const caption = parsed.caption || rawText;
-        let captionHashtags = parsed.captionHashtags || '';
-        let commentHashtags = parsed.commentHashtags || '';
-        let hashtags = parsed.hashtags || '';
+        const captionHashtags = parsed.captionHashtags || parsed.hashtags || '';
+        const commentHashtags = parsed.commentHashtags || '';
 
-        if (!captionHashtags && hashtags) {
-          const tags = hashtags.split(/\s+/).filter((t: string) => t.startsWith('#'));
-          captionHashtags = tags.slice(0, 5).join(' ');
-          commentHashtags = tags.slice(5, 10).join(' ');
-        }
-
-        return {
-          caption,
-          captionHashtags: captionHashtags || hashtags,
-          commentHashtags,
-          hashtags: captionHashtags || hashtags,
-        };
+        return AIContentService.cleanCaptionAndSanitizeTags(caption, captionHashtags, commentHashtags);
       } catch {
-        return { caption: rawText, hashtags: '' };
+        return AIContentService.cleanCaptionAndSanitizeTags(rawText);
       }
     } catch (err: any) {
       console.warn(`[OpenAI API Exception]: ${err.message}`);
       return null;
     }
+  }
+
+  /**
+   * Cleans caption body by stripping any trailing hashtag blocks and ensures strictly 5 SEO hashtags
+   */
+  public static cleanCaptionAndSanitizeTags(
+    rawCaption: string,
+    rawCaptionHashtags?: string,
+    rawCommentHashtags?: string,
+    fallbackTags?: { captionHashtags: string; commentHashtags: string }
+  ): { caption: string; captionHashtags: string; commentHashtags: string; hashtags: string } {
+    // 1. Extract any embedded hashtags from the raw caption
+    const embeddedTags = ((rawCaption || '').match(/#[A-Za-z0-9_]+/g) || []).map((t) => t.trim());
+
+    // 2. Strip hashtags from rawCaption (strip trailing blocks of hashtags or standalone tag lines)
+    const lines = (rawCaption || '').split('\n');
+    while (lines.length > 0) {
+      const lastLine = lines[lines.length - 1].trim();
+      if (!lastLine) {
+        lines.pop();
+        continue;
+      }
+      const lineTags = lastLine.match(/#[A-Za-z0-9_]+/g) || [];
+      const lineWords = lastLine.split(/\s+/).filter(Boolean);
+      // If line is predominantly or purely hashtags, remove it from caption
+      if (lineTags.length > 0 && lineTags.length >= lineWords.length * 0.6) {
+        lines.pop();
+      } else {
+        break;
+      }
+    }
+    let cleanedCaption = lines.join('\n').trim();
+    // Also remove any remaining trailing hashtags at the end of the text
+    cleanedCaption = cleanedCaption.replace(/(?:[\s\r\n]*#[A-Za-z0-9_]+)+$/g, '').trim();
+
+    // 3. Pool caption hashtags (from rawCaptionHashtags, embeddedTags, fallbackTags)
+    const captionPool: string[] = [];
+    const addCaptionTag = (tag: string) => {
+      const t = tag.trim();
+      if (!t) return;
+      const formatted = t.startsWith('#') ? t : `#${t}`;
+      if (!captionPool.map((x) => x.toLowerCase()).includes(formatted.toLowerCase())) {
+        captionPool.push(formatted);
+      }
+    };
+
+    (rawCaptionHashtags || '').split(/\s+/).forEach(addCaptionTag);
+    embeddedTags.forEach(addCaptionTag);
+    (fallbackTags?.captionHashtags || '').split(/\s+/).forEach(addCaptionTag);
+
+    // Strictly limit to top 5 SEO reach hashtags
+    const strictly5CaptionTags = captionPool.slice(0, 5).join(' ');
+
+    // 4. Pool comment hashtags - STRICTLY ENFORCE ZERO OVERLAP WITH CAPTION HASHTAGS
+    const captionRoots = new Set(
+      captionPool.slice(0, 5).map((x) => x.toLowerCase().replace(/[^a-z0-9]/g, ''))
+    );
+    const commentPool: string[] = [];
+    const addCommentTag = (tag: string) => {
+      const t = tag.trim();
+      if (!t) return;
+      const formatted = t.startsWith('#') ? t : `#${t}`;
+      const root = formatted.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+      // Check if this tag shares root with any caption tag or is already in comment pool
+      const isAlreadyInCaption = captionRoots.has(root);
+      const isAlreadyInComment = commentPool.some(
+        (c) => c.toLowerCase().replace(/[^a-z0-9]/g, '') === root
+      );
+
+      if (!isAlreadyInCaption && !isAlreadyInComment) {
+        commentPool.push(formatted);
+      }
+    };
+
+    (rawCommentHashtags || '').split(/\s+/).forEach(addCommentTag);
+    (fallbackTags?.commentHashtags || '').split(/\s+/).forEach(addCommentTag);
+
+    // If commentPool has fewer than 5 tags due to duplicate filtering, add unique exploration tags
+    const fallbackExploreTags = [
+      '#ExplorePage',
+      '#TrendingNow',
+      '#CommunityVibes',
+      '#DailyHighlight',
+      '#MustVisit',
+      '#DiscoverMore',
+      '#TopPick',
+    ];
+    for (const fb of fallbackExploreTags) {
+      if (commentPool.length >= 5) break;
+      addCommentTag(fb);
+    }
+
+    // Strictly limit to 5 comment boost hashtags
+    const strictly5CommentTags = commentPool.slice(0, 5).join(' ');
+
+    return {
+      caption: cleanedCaption,
+      captionHashtags: strictly5CaptionTags,
+      commentHashtags: strictly5CommentTags,
+      hashtags: strictly5CaptionTags,
+    };
   }
 
   /**
@@ -316,31 +392,31 @@ export class AIContentService {
       captionTags = [
         `#${cleanName}`,
         `#${cleanLoc}Foodie`,
-        `#${cleanLoc}Food`,
         `#MithaiLovers`,
-        `#FoodLovers`,
+        `#DesiFlavors`,
+        `#AuthenticTaste`,
       ];
       commentTags = [
-        `#${cleanLoc}City`,
-        `#ExploreFood`,
-        `#StreetFood${cleanLoc}`,
         `#WeekendVibes`,
-        `#FoodieGram`,
+        `#${cleanLoc}CityLife`,
+        `#ExploreEats`,
+        `#TrendingBites`,
+        `#FoodCulture`,
       ];
     } else if (/real\s*estate|property|plot|flat|builder|construction|babu|broker|infra/i.test(categoryLower)) {
       captionTags = [
         `#${cleanName}`,
         `#${cleanLoc}RealEstate`,
         `#PlotsIn${cleanLoc}`,
-        `#${cleanLoc}Property`,
         `#RealEstateIndia`,
+        `#PropertyAdvisory`,
       ];
       commentTags = [
-        `#${cleanLoc}Properties`,
-        `#PropertyInvestment`,
-        `#InvestIn${cleanLoc}`,
         `#DreamHome`,
-        `#CommercialProperty`,
+        `#NewHomeVibes`,
+        `#ArchitectureLovers`,
+        `#InvestSmart`,
+        `#CityLiving`,
       ];
     } else if (/fashion|saree|ethnic|boutique|cloth|apparel|dress|kurti|garment|airawati/i.test(categoryLower)) {
       captionTags = [
@@ -348,74 +424,74 @@ export class AIContentService {
         `#${cleanLoc}Fashion`,
         `#EthnicWear`,
         `#SareeLove`,
-        `#IndianFashion`,
+        `#IndianCouture`,
       ];
       commentTags = [
-        `#SareesOfInstagram`,
-        `#TraditionalWear`,
-        `#FestiveOutfit`,
-        `#ExploreFashion`,
-        `#${cleanLoc}Boutique`,
+        `#OOTDIndia`,
+        `#FestiveLook`,
+        `#TraditionalVibes`,
+        `#StyleInspiration`,
+        `#WardrobeGoals`,
       ];
     } else if (/marketing|digital|agency|brandsetu|social\s*media|seo|software|it\s*services|creative/i.test(categoryLower)) {
       captionTags = [
         `#${cleanName}`,
         `#SocialMediaMarketing`,
-        `#DigitalMarketing${cleanLoc}`,
-        `#BusinessGrowth`,
-        `#BrandBuilding`,
+        `#DigitalGrowth`,
+        `#BrandStrategy`,
+        `#AgencyLife`,
       ];
       commentTags = [
-        `#MarketingStrategy`,
-        `#OnlineMarketing`,
         `#StartupIndia`,
-        `#ExplorePage`,
         `#BusinessTips`,
+        `#OnlineSuccess`,
+        `#CreatorEconomy`,
+        `#EntrepreneurVibes`,
       ];
     } else if (/health|clinic|doctor|dental|hospital|wellness|fitness|gym|yoga/i.test(categoryLower)) {
       captionTags = [
         `#${cleanName}`,
         `#${cleanLoc}Health`,
+        `#MedicalCare`,
         `#WellnessJourney`,
-        `#HealthyLiving`,
-        `#ExpertCare`,
+        `#HealthyLife`,
       ];
       commentTags = [
-        `#FitnessMotivation`,
-        `#SelfCare`,
-        `#HealthyLifestyle`,
-        `#ExploreHealth`,
-        `#${cleanLoc}Life`,
+        `#SelfCareRoutine`,
+        `#DailyMotivation`,
+        `#MindAndBody`,
+        `#LiveBetter`,
+        `#HealthAwareness`,
       ];
     } else if (/education|coach|class|school|institute|academy|learn|college/i.test(categoryLower)) {
       captionTags = [
         `#${cleanName}`,
         `#${cleanLoc}Education`,
-        `#SkillBuilding`,
-        `#CareerSuccess`,
-        `#LearnAndGrow`,
+        `#TopRankers`,
+        `#ExamPreparation`,
+        `#AcademicExcellence`,
       ];
       commentTags = [
         `#StudentLife`,
         `#FutureLeaders`,
-        `#EducationFirst`,
-        `#ExploreLearning`,
-        `#${cleanLoc}Students`,
+        `#KnowledgeIsPower`,
+        `#StudyGoals`,
+        `#DreamBig`,
       ];
     } else if (/jewel|gold|diamond|silver|bridal|ornament/i.test(categoryLower)) {
       captionTags = [
         `#${cleanName}`,
         `#${cleanLoc}Jewellery`,
-        `#GoldJewellery`,
-        `#DiamondJewellery`,
-        `#BridalJewellery`,
+        `#GoldCollection`,
+        `#BridalJewels`,
+        `#FineCraftsmanship`,
       ];
       commentTags = [
-        `#JewelleryDesign`,
         `#LuxuryLifestyle`,
-        `#IndianBride`,
-        `#ExploreLuxury`,
-        `#${cleanLoc}Fashion`,
+        `#WeddingSeason`,
+        `#RoyalHeritage`,
+        `#GlowUp`,
+        `#TimelessBeauty`,
       ];
     } else {
       // Dynamic synthesis for any other client category
@@ -428,10 +504,10 @@ export class AIContentService {
         `#TrustedBrand`,
       ];
       commentTags = [
-        `#${cleanLoc}City`,
-        `#Explore${cleanLoc}`,
-        `#BusinessGrowth`,
-        `#LocalLove`,
+        `#ExplorePage`,
+        `#CustomerFirst`,
+        `#DailyInspiration`,
+        `#LocalPride`,
         `#TrendingNow`,
       ];
     }
@@ -446,7 +522,11 @@ export class AIContentService {
       if (customList.length > 0) {
         captionTags = [customList[0], ...captionTags.filter((t) => t !== customList[0])].slice(0, 5);
         if (customList.length > 1) {
-          commentTags = [customList[1], ...commentTags.filter((t) => t !== customList[1])].slice(0, 5);
+          const cRoots = new Set(captionTags.map((x) => x.toLowerCase().replace(/[^a-z0-9]/g, '')));
+          const nonOverlappingCustom = customList.slice(1).filter((x) => !cRoots.has(x.toLowerCase().replace(/[^a-z0-9]/g, '')));
+          if (nonOverlappingCustom.length > 0) {
+            commentTags = [nonOverlappingCustom[0], ...commentTags.filter((t) => t !== nonOverlappingCustom[0])].slice(0, 5);
+          }
         }
       }
     }
@@ -511,19 +591,19 @@ CRITICAL RULES:
 5. For TWITTER: Concise, punchy alert with key details and link to website (if available).
 6. For YOUTUBE: Video description format with timestamps, project highlights, contact (if available), and subscribe CTA.
 7. For GOOGLE_BUSINESS: Professional local update, rich SEO keywords${ctx.location ? ` for ${ctx.location}` : ''}, clear directions/call CTA.
-8. HASHTAG STRATEGY (CRITICAL ALGORITHM BEST PRACTICE):
-   Generate TWO distinct, high-impact hashtag sets tailored strictly to this specific client's business, category, city/location, and topic:
-   - "captionHashtags": Exactly 4 to 5 high-reach, viral/niche hashtags for the post caption (optimized for search discovery without clutter).
-   - "commentHashtags": Exactly 5 targeted engagement & search boost hashtags to be posted as the author's first comment (high-interest niche & community exploration tags like #explore #fyp #viral #<city> + category tags).
-   CRITICAL: Do NOT generate the same generic hashtags for all clients. The hashtags MUST be unique and directly relevant to ${ctx.businessName} (${ctx.category} in ${ctx.location})!
+8. HASHTAG STRATEGY (CRITICAL - STRICT 5 SEO REACH HASHTAGS):
+   - In "caption": DO NOT INCLUDE ANY HASHTAGS WHATSOEVER. The caption text must be pure, clean copy (hook, body, value points, CTA). Do NOT append any hashtags at the end of "caption".
+   - In "captionHashtags": Return STRICTLY 5 high-impact, SEO-optimized keywords/hashtags for search discovery, maximum reach, and views (EXACTLY 5 TAGS, NEVER MORE THAN 5).
+     Must be targeted keywords strictly relevant to ${ctx.businessName} (${ctx.category} in ${ctx.location}).
+   - In "commentHashtags": Return STRICTLY 5 targeted exploration and community boost hashtags for the first comment. CRITICAL: "commentHashtags" MUST BE 100% DIFFERENT from "captionHashtags" (ZERO duplicate or overlapping words/tags).
 
 OUTPUT FORMAT:
 Return strictly a valid JSON object without any other text or explanation:
 {
-  "caption": "<generated caption with emojis and spacing>",
-  "captionHashtags": "<4-5 high-reach hashtags space-separated>",
-  "commentHashtags": "<5 first-comment boost hashtags space-separated>",
-  "hashtags": "<4-5 caption hashtags space-separated>"
+  "caption": "<generated caption with emojis and spacing, WITHOUT any hashtags>",
+  "captionHashtags": "#Tag1 #Tag2 #Tag3 #Tag4 #Tag5",
+  "commentHashtags": "#TagA #TagB #TagC #TagD #TagE",
+  "hashtags": "#Tag1 #Tag2 #Tag3 #Tag4 #Tag5"
 }`;
 
     // 2. Try Gemini first, then OpenAI ChatGPT with fallback
@@ -549,20 +629,19 @@ Return strictly a valid JSON object without any other text or explanation:
     }
 
     if (aiResult && aiResult.caption) {
-      let finalCaptionHashtags = aiResult.captionHashtags?.trim() || '';
-      let finalCommentHashtags = aiResult.commentHashtags?.trim() || '';
-
-      if (!finalCaptionHashtags || !finalCommentHashtags) {
-        const tailored = this.generateClientTailoredHashtags(ctx, topic);
-        if (!finalCaptionHashtags) finalCaptionHashtags = tailored.captionHashtags;
-        if (!finalCommentHashtags) finalCommentHashtags = tailored.commentHashtags;
-      }
+      const tailored = this.generateClientTailoredHashtags(ctx, topic);
+      const sanitized = AIContentService.cleanCaptionAndSanitizeTags(
+        aiResult.caption,
+        aiResult.captionHashtags,
+        aiResult.commentHashtags,
+        tailored
+      );
 
       return {
-        caption: aiResult.caption,
-        captionHashtags: finalCaptionHashtags,
-        commentHashtags: finalCommentHashtags,
-        hashtags: finalCaptionHashtags,
+        caption: sanitized.caption,
+        captionHashtags: sanitized.captionHashtags,
+        commentHashtags: sanitized.commentHashtags,
+        hashtags: sanitized.captionHashtags,
         cta: ctx.preferredCta,
         aiModelUsed: modelUsed,
         brandContextUsed: {
@@ -724,14 +803,18 @@ Return strictly a valid JSON object without any other text or explanation:
     }
 
     const tailored = this.generateClientTailoredHashtags(ctx, topic);
-    const finalCaptionHashtags = tailored.captionHashtags;
-    const finalCommentHashtags = tailored.commentHashtags;
+    const sanitized = AIContentService.cleanCaptionAndSanitizeTags(
+      caption,
+      hashtags,
+      undefined,
+      tailored
+    );
 
     return {
-      caption,
-      captionHashtags: finalCaptionHashtags,
-      commentHashtags: finalCommentHashtags,
-      hashtags: finalCaptionHashtags,
+      caption: sanitized.caption,
+      captionHashtags: sanitized.captionHashtags,
+      commentHashtags: sanitized.commentHashtags,
+      hashtags: sanitized.captionHashtags,
       cta: ctx.preferredCta,
       aiModelUsed: 'BrandSetu Brand Knowledge Engine',
       brandContextUsed: {
@@ -767,7 +850,7 @@ Return strictly a valid JSON object without any other text or explanation:
     const ctx = await this.getClientContext(clientId);
 
     const prompt = `You are a social media hashtag strategist at BrandSetu Digital.
-Generate client-specific, high-reach hashtags tailored strictly to:
+Generate client-specific, high-reach SEO hashtags tailored strictly to:
 - Client: ${ctx.businessName}
 - Industry: ${ctx.category}
 - City / Location: ${ctx.location}
@@ -775,8 +858,8 @@ ${topic ? `- Post Topic: ${topic}` : ''}
 ${ctx.hashtags ? `- Custom brand tags: ${ctx.hashtags}` : ''}
 
 CRITICAL RULES:
-1. Provide "captionHashtags": Exactly 4 to 5 high-reach, viral/niche hashtags for the post caption.
-2. Provide "commentHashtags": Exactly 5 targeted community & explore boost hashtags for the first comment.
+1. Provide "captionHashtags": STRICTLY 5 high-impact SEO hashtags for maximum search reach and views (EXACTLY 5 TAGS, NEVER MORE THAN 5).
+2. Provide "commentHashtags": STRICTLY 5 targeted community & explore boost hashtags for the first comment.
 3. Every client MUST have unique hashtags matching their specific niche (e.g. Food/Sweets, Real Estate, Fashion, Digital Marketing, etc.).
 
 Format instructions:
@@ -791,12 +874,17 @@ Return strictly a valid JSON object:
     try {
       const aiResult = await this.callGemini(prompt);
       if (aiResult?.captionHashtags || aiResult?.hashtags) {
-        const cTags = aiResult.captionHashtags || aiResult.hashtags;
-        const comTags = aiResult.commentHashtags || '';
+        const tailored = this.generateClientTailoredHashtags(ctx, topic);
+        const sanitized = AIContentService.cleanCaptionAndSanitizeTags(
+          '',
+          aiResult.captionHashtags || aiResult.hashtags,
+          aiResult.commentHashtags,
+          tailored
+        );
         return {
-          captionHashtags: cTags,
-          commentHashtags: comTags || this.generateClientTailoredHashtags(ctx, topic).commentHashtags,
-          hashtags: cTags,
+          captionHashtags: sanitized.captionHashtags,
+          commentHashtags: sanitized.commentHashtags,
+          hashtags: sanitized.captionHashtags,
         };
       }
     } catch {
