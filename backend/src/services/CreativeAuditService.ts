@@ -211,7 +211,7 @@ ${otherClients.map((c) => `- ${c.businessName} (Phone: ${c.phone || 'N/A'}, Loca
 
 3. DECIDE:
    - "isValid": MUST be false if (isBrandMatch === false OR isPhoneMatch === false OR isAddressMatch === false). true ONLY if all details match or there is no conflicting branding/contact info.
-   - "blockReason": If isValid is false, give a clear, direct explanation in simple Hinglish (Hindi + English) why this post cannot be scheduled. Mention the exact discrepancy (e.g. "Is graphic me Property Babu ka logo hai jabki client BrandSetu Digital hai" OR "Graphic par number 8357977322 likha hai jabki client ka official number +91 7389824231 hai").
+   - "blockReason": If isValid is false, give a clear, direct, and professional explanation in English why this post cannot be scheduled. Mention the exact discrepancy (e.g. "This graphic displays branding for Property Babu while client BrandSetu Digital is selected" OR "Graphic displays phone number 8357977322, but client's official phone number is +91 7389824231").
    - "issues": Array of clear bullet points detailing each issue found.
    - "extractedTextSummary": Short summary of all text visible on the image.
 
@@ -295,7 +295,7 @@ Return ONLY a valid JSON object matching:
             isPhoneMatch = false;
             parsed.isValid = false;
             if (!parsed.issues.some((i: string) => i.toLowerCase().includes('phone') || i.toLowerCase().includes('number'))) {
-              parsed.issues.push(`फ़ोन नंबर मिसमैच: ग्राफ़िक्स में '${parsed.detectedPhone}' लिखा है, जबकि क्लाइंट का असली नंबर '${targetClient.phone}' है।`);
+              parsed.issues.push(`Phone number mismatch: Graphic displays '${parsed.detectedPhone}', but client's official phone number is '${targetClient.phone}'.`);
             }
           }
         }
@@ -312,7 +312,7 @@ Return ONLY a valid JSON object matching:
               conflictingClientName = oc.businessName;
               parsed.isValid = false;
               if (!parsed.issues.some((i: string) => i.toLowerCase().includes(ocNameLower))) {
-                parsed.issues.push(`ग़लत ब्रांड: ग्राफ़िक्स में '${oc.businessName}' का नाम/लोगो पाया गया है, जबकि आपने '${targetClient.businessName}' सेलेक्ट किया है।`);
+                parsed.issues.push(`Brand mismatch: Graphic displays branding for '${oc.businessName}', but target client selected is '${targetClient.businessName}'.`);
               }
             }
           }
@@ -323,11 +323,11 @@ Return ONLY a valid JSON object matching:
         let blockReason = parsed.blockReason;
         if (!isValid && !blockReason) {
           if (!isBrandMatch) {
-            blockReason = `इस ग्राफ़िक्स पर '${conflictingClientName || 'अन्य क्लाइंट'}' की ब्रांडिंग है, जबकि आपने '${targetClient.businessName}' चुना है।`;
+            blockReason = `This graphic contains branding for '${conflictingClientName || 'another client'}', while '${targetClient.businessName}' is selected.`;
           } else if (!isPhoneMatch) {
-            blockReason = `ग्राफ़िक्स पर फ़ोन नंबर '${parsed.detectedPhone}' लिखा है, जबकि क्लाइंट का आधिकारिक नंबर '${targetClient.phone}' है।`;
+            blockReason = `Phone number mismatch: Graphic displays '${parsed.detectedPhone}', but client's official phone number is '${targetClient.phone}'.`;
           } else {
-            blockReason = `ग्राफ़िक्स की जानकारी क्लाइंट '${targetClient.businessName}' की आधिकारिक डिटेल्स से मेल नहीं खाती।`;
+            blockReason = `Graphic details do not match the official profile for client '${targetClient.businessName}'.`;
           }
         }
 

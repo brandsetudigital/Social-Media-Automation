@@ -86,9 +86,50 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   const [brandId, setBrandId] = useState<string>(
     defaultClientId || (selectedClientId !== 'ALL' ? selectedClientId : (clients[0]?.id || ''))
   );
+
+  const getInitialClientTags = (cid: string) => {
+    const cl = clients.find((c) => c.id === cid);
+    const rawName = cl?.businessName || 'Brand';
+    const cleanName = rawName.replace(/[^a-zA-Z0-9]/g, '');
+    const cleanLoc = (cl?.location || 'Indore').replace(/[^a-zA-Z0-9]/g, '');
+    const cat = ((cl?.category || '') + ' ' + rawName).toLowerCase();
+
+    if (/sweet|food|restaurant|cafe|bakery|namkeen|chaat|mithai|panna/i.test(cat)) {
+      return {
+        caption: `#${cleanName} #${cleanLoc}Foodie #MithaiLovers #DesiFlavors #AuthenticTaste`,
+        comment: `#WeekendVibes #${cleanLoc}CityLife #ExploreEats #TrendingBites #FoodCulture`,
+      };
+    } else if (/real\s*estate|property|plot|flat|builder|construction|babu|broker/i.test(cat)) {
+      return {
+        caption: `#${cleanName} #${cleanLoc}RealEstate #PlotsIn${cleanLoc} #RealEstateIndia #PropertyAdvisory`,
+        comment: `#DreamHome #NewHomeVibes #ArchitectureLovers #InvestSmart #CityLiving`,
+      };
+    } else if (/fashion|saree|ethnic|boutique|cloth|apparel|dress|airawati/i.test(cat)) {
+      return {
+        caption: `#${cleanName} #${cleanLoc}Fashion #EthnicWear #SareeLove #IndianCouture`,
+        comment: `#OOTDIndia #FestiveLook #TraditionalVibes #StyleInspiration #WardrobeGoals`,
+      };
+    } else if (/marketing|digital|agency|brandsetu|social/i.test(cat)) {
+      return {
+        caption: `#${cleanName} #SocialMediaMarketing #DigitalGrowth #BrandStrategy #AgencyLife`,
+        comment: `#StartupIndia #BusinessTips #OnlineSuccess #CreatorEconomy #EntrepreneurVibes`,
+      };
+    }
+    return {
+      caption: `#${cleanName} #${cleanLoc}Business #TopQuality #TrustedService #ProfessionalCare`,
+      comment: `#ExplorePage #CustomerFirst #DailyInspiration #LocalPride #TrendingNow`,
+    };
+  };
+
+  const initialTags = getInitialClientTags(brandId);
+  const [captionHashtags, setCaptionHashtags] = useState<string>(initialTags.caption);
+  const [commentHashtags, setCommentHashtags] = useState<string>(initialTags.comment);
+
   const [title, setTitle] = useState(initialTemplate?.title || '');
   const [caption, setCaption] = useState(defaultCaption || initialTemplate?.caption || '');
-  const [hashtags, setHashtags] = useState(initialTemplate?.hashtags || '#BrandSetu #SocialMedia #Growth');
+  const [hashtags, setHashtags] = useState(
+    initialTemplate?.hashtags || `${initialTags.caption} \n---FIRST_COMMENT---\n ${initialTags.comment}`
+  );
   const [mediaUrl, setMediaUrl] = useState(
     initialTemplate?.mediaUrl ||
     'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80'
@@ -102,12 +143,34 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      const effId = defaultClientId || brandId;
       if (defaultClientId) setBrandId(defaultClientId);
       if (defaultCaption) setCaption(defaultCaption);
       if (defaultContentType) setContentType(defaultContentType);
       if (initialTemplate?.caption) setCaption(initialTemplate.caption);
       if (initialTemplate?.title) setTitle(initialTemplate.title);
-      if (initialTemplate?.hashtags) setHashtags(initialTemplate.hashtags);
+
+      const clientTags = getInitialClientTags(effId);
+      if (initialTemplate?.hashtags) {
+        if (initialTemplate.hashtags.includes('---FIRST_COMMENT---')) {
+          const parts = initialTemplate.hashtags.split('---FIRST_COMMENT---');
+          setCaptionHashtags(parts[0].trim());
+          setCommentHashtags(parts[1].trim());
+          setHashtags(initialTemplate.hashtags);
+        } else {
+          const splitted = initialTemplate.hashtags.split(/\s+/).filter(Boolean);
+          const cTags = splitted.slice(0, 5).join(' ');
+          const cmTags = splitted.slice(5, 10).join(' ') || clientTags.comment;
+          setCaptionHashtags(cTags);
+          setCommentHashtags(cmTags);
+          setHashtags(`${cTags} \n---FIRST_COMMENT---\n ${cmTags}`);
+        }
+      } else {
+        setCaptionHashtags(clientTags.caption);
+        setCommentHashtags(clientTags.comment);
+        setHashtags(`${clientTags.caption} \n---FIRST_COMMENT---\n ${clientTags.comment}`);
+      }
+
       if (initialTemplate?.mediaUrl) {
         setMediaUrl(initialTemplate.mediaUrl);
         setLocalPreviewUrl('');
@@ -118,6 +181,23 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       setLocalPreviewUrl('');
     }
   }, [isOpen, defaultClientId, defaultCaption, defaultContentType, initialTemplate]);
+
+  // Sync client-specific tags when user switches brand in dropdown
+  useEffect(() => {
+    if (brandId) {
+      const tags = getInitialClientTags(brandId);
+      setCaptionHashtags(tags.caption);
+      setCommentHashtags(tags.comment);
+      const combined = `${tags.caption} \n---FIRST_COMMENT---\n ${tags.comment}`;
+      setHashtags(combined);
+      setPlatformHashtags((prev) => ({
+        ...prev,
+        INSTAGRAM: combined,
+        FACEBOOK: combined,
+      }));
+    }
+  }, [brandId]);
+
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([
     'INSTAGRAM',
     'FACEBOOK',
@@ -132,12 +212,12 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     GOOGLE_BUSINESS: '',
   });
   const [platformHashtags, setPlatformHashtags] = useState<Record<string, string>>({
-    INSTAGRAM: '#BrandSetu #SocialMedia #Growth',
-    FACEBOOK: '#BrandSetu #DigitalMarketing',
-    LINKEDIN: '#Leadership #Innovation #Business',
-    TWITTER: '#BrandSetu #Trending',
-    YOUTUBE: '#BrandSetu #Showcase',
-    GOOGLE_BUSINESS: '#BrandSetu #LocalBusiness',
+    INSTAGRAM: `${initialTags.caption} \n---FIRST_COMMENT---\n ${initialTags.comment}`,
+    FACEBOOK: `${initialTags.caption} \n---FIRST_COMMENT---\n ${initialTags.comment}`,
+    LINKEDIN: `${initialTags.caption}`,
+    TWITTER: `${initialTags.caption}`,
+    YOUTUBE: `${initialTags.caption}`,
+    GOOGLE_BUSINESS: `${initialTags.caption}`,
   });
   const [isAiGenerating, setIsAiGenerating] = useState(false);
   const [isGeneratingHashtags, setIsGeneratingHashtags] = useState(false);
@@ -464,36 +544,63 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       });
 
       if (res?.caption) {
+        // Strip any trailing hashtags from caption body so it stays 100% clean copy
+        const cleanCaption = res.caption.replace(/(?:[\s\r\n]*#[A-Za-z0-9_]+)+$/g, '').trim();
         setPlatformCaptions((prev) => ({
           ...prev,
-          [platformToUse]: res.caption,
+          [platformToUse]: cleanCaption,
         }));
-        setCaption(res.caption);
+        setCaption(cleanCaption);
       }
 
-      let resolvedHashtags = res?.hashtags?.trim();
-      if (!resolvedHashtags) {
-        try {
-          const tagRes = await api.generateAIHashtags(activeClientId, defaultTopic);
-          resolvedHashtags = tagRes?.hashtags?.trim() || '';
-        } catch {}
-      }
+      let capTags = res?.captionHashtags?.trim() || res?.hashtags?.trim();
+      let comTags = res?.commentHashtags?.trim();
 
-      if (!resolvedHashtags) {
-        const brandNameClean = (clientObj?.businessName || 'BrandSetu').replace(/\s+/g, '');
-        const locClean = (clientObj?.location || 'Indore').replace(/[^a-zA-Z]/g, '');
-        resolvedHashtags = `#${brandNameClean} #${locClean} #${brandNameClean}${locClean} #Trending`;
+      const clientDefaults = getInitialClientTags(activeClientId);
+      if (!capTags) capTags = clientDefaults.caption;
+      if (!comTags) comTags = clientDefaults.comment;
+
+      // Strictly limit to 5 SEO hashtags (no more, no less)
+      const strictly5CaptionTags = capTags
+        .split(/\s+/)
+        .map((t: string) => t.trim())
+        .filter((t: string) => t.startsWith('#'))
+        .slice(0, 5)
+        .join(' ');
+
+      const rawCommentTags = comTags
+        .split(/\s+/)
+        .map((t: string) => t.trim())
+        .filter((t: string) => t.startsWith('#'));
+
+      // Strictly enforce that comment tags have ZERO overlap with caption tags
+      const captionRoots = new Set(
+        strictly5CaptionTags.split(/\s+/).map((t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, ''))
+      );
+      const filteredComment = rawCommentTags.filter((t: string) => !captionRoots.has(t.toLowerCase().replace(/[^a-z0-9]/g, '')));
+      const genericExplore = ['#ExplorePage', '#TrendingNow', '#CommunityVibes', '#DailyHighlight', '#MustVisit'];
+      for (const ge of genericExplore) {
+        if (filteredComment.length >= 5) break;
+        const root = ge.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (!captionRoots.has(root) && !filteredComment.some((c: string) => c.toLowerCase().replace(/[^a-z0-9]/g, '') === root)) {
+          filteredComment.push(ge);
+        }
       }
+      const strictly5CommentTags = filteredComment.slice(0, 5).join(' ');
+
+      setCaptionHashtags(strictly5CaptionTags);
+      setCommentHashtags(strictly5CommentTags);
+      const combined = `${strictly5CaptionTags} \n---FIRST_COMMENT---\n ${strictly5CommentTags}`;
 
       setPlatformHashtags((prev) => ({
         ...prev,
-        [platformToUse]: resolvedHashtags,
+        [platformToUse]: combined,
       }));
-      setHashtags(resolvedHashtags);
+      setHashtags(combined);
 
       setStatusMessage({
         type: 'success',
-        text: `✨ Caption & Hashtags generated for ${platformIcons[platformToUse]?.name || platformToUse} (${res?.aiModelUsed || 'AI Engine'})`,
+        text: `✨ Caption + strictly 5 SEO Reach Hashtags + 5 Unique Auto-Comment tags generated for ${platformIcons[platformToUse]?.name || platformToUse} (${res?.aiModelUsed || 'AI Engine'})`,
       });
     } catch (err: any) {
       console.warn('[CreatePostModal] AI caption error:', err);
@@ -510,14 +617,16 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
       const fallbackCaption = `✨ ${title || `${brandName} Showcase`}\n\nWe are committed to delivering the highest quality and value to our community. Connect with us to learn more! 🚀${contactSection}`;
       const plat = (typeof targetPlatform === 'string' && targetPlatform) ? targetPlatform : (activePreviewPlatform || 'INSTAGRAM');
-      const brandClean = brandName.replace(/\s+/g, '');
-      const locClean = (clientObj?.location || 'Indore').replace(/[^a-zA-Z]/g, '');
-      const fallbackTags = `#${brandClean} #${locClean} #${brandClean}${locClean} #Trending #QualityService`;
+
+      const clientDefaults = getInitialClientTags(activeClientId);
+      setCaptionHashtags(clientDefaults.caption);
+      setCommentHashtags(clientDefaults.comment);
+      const combined = `${clientDefaults.caption} \n---FIRST_COMMENT---\n ${clientDefaults.comment}`;
 
       setPlatformCaptions((prev) => ({ ...prev, [plat]: fallbackCaption }));
       setCaption(fallbackCaption);
-      setPlatformHashtags((prev) => ({ ...prev, [plat]: fallbackTags }));
-      setHashtags(fallbackTags);
+      setPlatformHashtags((prev) => ({ ...prev, [plat]: combined }));
+      setHashtags(combined);
     } finally {
       setIsAiGenerating(false);
     }
@@ -535,27 +644,59 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         : `${clientObj?.businessName || 'Brand'} spotlight`);
 
       const res = await api.generateAIHashtags(activeClientId, defaultTopic);
-      const generated = res?.hashtags?.trim();
-      if (generated) {
-        setHashtags(generated);
-        setPlatformHashtags((prev) => ({ ...prev, [plat]: generated }));
-        setStatusMessage({
-          type: 'success',
-          text: `✨ Generated ${generated.split(' ').filter(Boolean).length} trending hashtags for ${platformIcons[plat]?.name || plat}!`,
-        });
-      } else {
-        throw new Error('No hashtags returned');
+      let capTags = res?.captionHashtags?.trim() || res?.hashtags?.trim();
+      let comTags = res?.commentHashtags?.trim();
+
+      const defaults = getInitialClientTags(activeClientId);
+      if (!capTags) capTags = defaults.caption;
+      if (!comTags) comTags = defaults.comment;
+
+      // Strictly limit to 5 SEO hashtags
+      const strictly5CaptionTags = capTags
+        .split(/\s+/)
+        .map((t: string) => t.trim())
+        .filter((t: string) => t.startsWith('#'))
+        .slice(0, 5)
+        .join(' ');
+
+      const rawCommentTags = comTags
+        .split(/\s+/)
+        .map((t: string) => t.trim())
+        .filter((t: string) => t.startsWith('#'));
+
+      const captionRoots = new Set(
+        strictly5CaptionTags.split(/\s+/).map((t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, ''))
+      );
+      const filteredComment = rawCommentTags.filter((t: string) => !captionRoots.has(t.toLowerCase().replace(/[^a-z0-9]/g, '')));
+      const genericExplore = ['#ExplorePage', '#TrendingNow', '#CommunityVibes', '#DailyHighlight', '#MustVisit'];
+      for (const ge of genericExplore) {
+        if (filteredComment.length >= 5) break;
+        const root = ge.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (!captionRoots.has(root) && !filteredComment.some((c: string) => c.toLowerCase().replace(/[^a-z0-9]/g, '') === root)) {
+          filteredComment.push(ge);
+        }
       }
+      const strictly5CommentTags = filteredComment.slice(0, 5).join(' ');
+
+      setCaptionHashtags(strictly5CaptionTags);
+      setCommentHashtags(strictly5CommentTags);
+      const combined = `${strictly5CaptionTags} \n---FIRST_COMMENT---\n ${strictly5CommentTags}`;
+      setHashtags(combined);
+      setPlatformHashtags((prev) => ({ ...prev, [plat]: combined }));
+      setStatusMessage({
+        type: 'success',
+        text: `✨ Generated strictly 5 SEO caption reach tags + 5 distinct auto-comment tags for ${platformIcons[plat]?.name || plat}!`,
+      });
     } catch (err: any) {
       console.warn('[CreatePostModal] AI hashtags fallback:', err);
       const activeClientId = brandId || getEffectiveClientId();
-      const clientObj = clients.find((c) => c.id === activeClientId);
       const plat = targetPlatform || activePreviewPlatform || 'INSTAGRAM';
-      const brandClean = (clientObj?.businessName || 'BrandSetu').replace(/\s+/g, '');
-      const locClean = (clientObj?.location || 'Indore').replace(/[^a-zA-Z]/g, '');
-      const fallback = `#${brandClean} #${locClean} #${brandClean}${locClean} #Trending #${locClean}Deals #TopQuality`;
-      setHashtags(fallback);
-      setPlatformHashtags((prev) => ({ ...prev, [plat]: fallback }));
+      const defaults = getInitialClientTags(activeClientId);
+      setCaptionHashtags(defaults.caption);
+      setCommentHashtags(defaults.comment);
+      const combined = `${defaults.caption} \n---FIRST_COMMENT---\n ${defaults.comment}`;
+      setHashtags(combined);
+      setPlatformHashtags((prev) => ({ ...prev, [plat]: combined }));
       setStatusMessage({
         type: 'success',
         text: `✨ Generated smart hashtags for ${platformIcons[plat]?.name || plat}`,
@@ -635,7 +776,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     }
 
     if (isAuditing) {
-      setStatusMessage({ type: 'error', text: 'AI Vision से ग्राफ़िक्स वेरिफाई हो रहा है, कृपया 2 सेकंड प्रतीक्षा करें...' });
+      setStatusMessage({ type: 'error', text: 'AI Vision is verifying graphics, please wait a moment...' });
       return;
     }
 
@@ -649,7 +790,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       let currentAudit = auditResult;
       if (!currentAudit && mediaUrl && !mediaUrl.startsWith('blob:')) {
         setIsSubmitting(true);
-        setStatusMessage({ type: 'info', text: 'ग्राफ़िक्स में ब्रांड नाम और फ़ोन नंबर जांचा जा रहा है...' });
+        setStatusMessage({ type: 'info', text: 'Verifying brand name and contact details in graphic...' });
         try {
           currentAudit = await api.auditGraphic({ clientId: activeClientId, mediaUrl });
           setAuditResult(currentAudit);
@@ -662,7 +803,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       if (currentAudit && !currentAudit.isValid) {
         setStatusMessage({
           type: 'error',
-          text: `🚫 पोस्ट शेड्यूल नहीं हो सकती: ${currentAudit.blockReason || 'ग्राफ़िक्स में ग़लत जानकारी पाई गई'}`,
+          text: `🚫 Cannot schedule post: ${currentAudit.blockReason || 'Discrepancy detected in graphic details'}`,
         });
         setShowAuditBlockModal(true);
         return;
@@ -679,9 +820,17 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         : (isVideo ? '' : effectiveMediaUrl);
 
       const activeCaption = platformCaptions[activePreviewPlatform] || caption;
-      const activeHashtags = platformHashtags[activePreviewPlatform] || hashtags;
+      const currentCombined = `${captionHashtags.trim()} \n---FIRST_COMMENT---\n ${commentHashtags.trim()}`;
+      const activeHashtags = platformHashtags[activePreviewPlatform] || currentCombined;
 
       const effectiveTitle = title.trim() || (activeCaption ? activeCaption.slice(0, 35).trim() : `${clientObj?.businessName || 'Brand'} Post`);
+
+      const updatedPlatformHashtags = { ...platformHashtags };
+      for (const p of selectedPlatforms) {
+        if (!updatedPlatformHashtags[p] || !updatedPlatformHashtags[p].includes('---FIRST_COMMENT---')) {
+          updatedPlatformHashtags[p] = currentCombined;
+        }
+      }
 
       await api.createManualContent({
         clientId: activeClientId,
@@ -690,7 +839,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         caption: activeCaption,
         hashtags: activeHashtags,
         platformCaptions,
-        platformHashtags,
+        platformHashtags: updatedPlatformHashtags,
         mediaUrl: effectiveMediaUrl,
         thumbnailUrl: effectiveThumbnail,
         platforms: selectedPlatforms,
@@ -1197,11 +1346,11 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                       <div className="flex items-center gap-2 flex-wrap">
                         <h4 className="text-xs font-bold text-gray-900">
                           {isAuditing
-                            ? 'AI Vision Graphic Inspection (जांच जारी है...)'
+                            ? 'AI Vision Graphic Inspection (Verifying...)'
                             : auditResult?.isValid
-                            ? '✅ Graphic Verified (ग्राफ़िक्स सत्यापित)'
+                            ? '✅ Graphic Verified (Client Details Match)'
                             : auditResult && !auditResult.isValid
-                            ? '🚫 ग़लत जानकारी डिटेक्ट हुई (Wrong Graphic Detected!)'
+                            ? '🚫 Verification Alert: Graphic Discrepancy Detected'
                             : 'AI Graphic Safety Check'}
                         </h4>
                         {auditResult?.isValid && (
@@ -1218,19 +1367,19 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
                       <p className="text-[11px] text-gray-600 mt-0.5">
                         {isAuditing
-                          ? 'इमेज में लिखा ब्रांड नाम, फ़ोन नंबर और पता क्लाइंट डेटा से मैच किया जा रहा है...'
+                          ? 'Verifying brand name, phone number, and address against client profile...'
                           : auditResult?.isValid
-                          ? `इमेज में ब्रांड नाम और संपर्क जानकारी क्लाइंट (${clients.find(c => c.id === getEffectiveClientId())?.businessName}) से सही मैच है।`
+                          ? `Brand name and contact details in graphic match client (${clients.find(c => c.id === getEffectiveClientId())?.businessName}).`
                           : auditResult && !auditResult.isValid
                           ? auditResult.blockReason
-                          : 'इमेज अपलोड होने पर AI स्वचालित रूप से जांच करेगा।'}
+                          : 'AI will automatically verify graphic details upon upload.'}
                       </p>
 
                       {/* Details / Issues */}
                       {auditResult && !auditResult.isValid && auditResult.issues && auditResult.issues.length > 0 && (
                         <div className="mt-2.5 p-2 bg-rose-100/70 border border-rose-200 rounded-lg space-y-1">
                           <span className="text-[10px] font-bold uppercase tracking-wider text-rose-900 block">
-                            पाई गई गलतियां (Found Discrepancies):
+                            Detected Discrepancies:
                           </span>
                           {auditResult.issues.map((issue, idx) => (
                             <div key={idx} className="flex items-start gap-1.5 text-xs text-rose-800 font-medium">
@@ -1273,7 +1422,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                       title="Re-run AI graphic verification"
                     >
                       <RefreshCw className={`w-3 h-3 ${isAuditing ? 'animate-spin' : ''}`} />
-                      <span>पुनः जांचें</span>
+                      <span>Re-verify</span>
                     </button>
 
                     {auditResult && !auditResult.isValid && (
@@ -1283,7 +1432,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                         className="text-[11px] font-bold text-white bg-rose-600 hover:bg-rose-700 px-2.5 py-1 rounded-lg transition flex items-center gap-1 cursor-pointer shadow-xs"
                       >
                         <UploadCloud className="w-3 h-3" />
-                        <span>सही इमेज लगाएं</span>
+                        <span>Replace Graphic</span>
                       </button>
                     )}
                   </div>
@@ -1299,7 +1448,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                         onChange={(e) => setAdminOverride(e.target.checked)}
                         className="w-4 h-4 text-[#0172F4] rounded border-gray-300 focus:ring-blue-500"
                       />
-                      <span>Admin Override: मुझे पता है, फिर भी इस इमेज को शेड्यूल करें</span>
+                      <span>Admin Override: I understand the risks, schedule this graphic anyway</span>
                     </label>
                     {adminOverride && (
                       <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md">
@@ -1398,36 +1547,98 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
               </div>
             </div>
 
-            {/* Hashtags */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
-                <label className="text-xs font-bold text-gray-700">
-                  Hashtags ({platformIcons[activePreviewPlatform]?.name || activePreviewPlatform})
-                </label>
+            {/* Dual Hashtag Strategy: 4-5 Caption Tags + 5 First-Comment Tags */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                    <Hash className="w-3.5 h-3.5 text-[#0172F4]" />
+                    <span>Hashtags Strategy ({platformIcons[activePreviewPlatform]?.name || activePreviewPlatform})</span>
+                  </label>
+                  <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200">
+                    High Reach & Auto-Comment
+                  </span>
+                </div>
                 <button
                   type="button"
                   onClick={() => handleGenerateHashtags(activePreviewPlatform)}
                   disabled={isGeneratingHashtags}
                   className="text-[11px] font-semibold text-[#0172F4] hover:text-[#005cd3] flex items-center gap-1 bg-blue-50 px-2.5 py-1 rounded-lg hover:bg-blue-100 transition border border-blue-200 cursor-pointer"
-                  title="Generate 15-20 trending hashtags using AI"
+                  title="Generate niche 4-5 caption tags and 5 first-comment tags for this client"
                 >
                   <Sparkles className={`w-3.5 h-3.5 ${isGeneratingHashtags ? 'animate-spin' : ''}`} />
-                  <span>{isGeneratingHashtags ? 'Generating Tags...' : '✨ AI Generate Hashtags'}</span>
+                  <span>{isGeneratingHashtags ? 'Generating Tags...' : '✨ AI Generate Client Hashtags'}</span>
                 </button>
               </div>
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="#PropertyBabu #RealEstateIndore #IndoreProperties"
-                  value={hashtags}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setHashtags(val);
-                    setPlatformHashtags((prev) => ({ ...prev, [activePreviewPlatform]: val }));
-                  }}
-                  className="w-full pl-8 pr-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0172F4]"
-                />
-                <Hash className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+
+              {/* 1. Caption Hashtags (4 to 5 best tags) */}
+              <div className="p-3 bg-white rounded-xl border border-gray-200 shadow-2xs space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                    <span className="text-xs font-bold text-gray-800">1. Post Caption Hashtags</span>
+                    <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                      Strictly 5 SEO Keywords (Maximum Reach & Views)
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-semibold text-gray-500">
+                    {captionHashtags.split(/\s+/).filter(Boolean).length} / 5 tags
+                  </span>
+                </div>
+                <p className="text-[11px] text-gray-500">
+                  Algorithm-optimized. Curated high-intent SEO keywords embedded in the post caption for maximum search discovery and organic reach.
+                </p>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="#BrandName #CityNiche #TopKeyword"
+                    value={captionHashtags}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCaptionHashtags(val);
+                      const combined = `${val.trim()} \n---FIRST_COMMENT---\n ${commentHashtags.trim()}`;
+                      setHashtags(combined);
+                      setPlatformHashtags((prev) => ({ ...prev, [activePreviewPlatform]: combined }));
+                    }}
+                    className="w-full pl-8 pr-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0172F4] font-medium text-gray-800"
+                  />
+                  <Hash className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                </div>
+              </div>
+
+              {/* 2. First-Comment Hashtags (5 Boost Tags - Auto-Comment) */}
+              <div className="p-3 bg-gradient-to-br from-indigo-50/50 to-blue-50/40 rounded-xl border border-indigo-100 shadow-2xs space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <MessageCircle className="w-3.5 h-3.5 text-indigo-600" />
+                    <span className="text-xs font-bold text-gray-800">2. First-Comment Hashtags</span>
+                    <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200">
+                      5 Community Boost Tags (Zero Overlap with Caption)
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-semibold text-indigo-600">
+                    {commentHashtags.split(/\s+/).filter(Boolean).length} / 5 tags
+                  </span>
+                </div>
+                <p className="text-[11px] text-gray-600">
+                  5 unique community discovery tags tailored for {clients.find((c) => c.id === brandId)?.businessName || 'the client'} with zero caption overlap. Automatically published as the author's first comment.
+                </p>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="#ExploreNiche #CityCity #WeekendVibes #NicheGram #Trending"
+                    value={commentHashtags}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCommentHashtags(val);
+                      const combined = `${captionHashtags.trim()} \n---FIRST_COMMENT---\n ${val.trim()}`;
+                      setHashtags(combined);
+                      setPlatformHashtags((prev) => ({ ...prev, [activePreviewPlatform]: combined }));
+                    }}
+                    className="w-full pl-8 pr-3 py-2 text-xs bg-white border border-indigo-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium text-gray-800"
+                  />
+                  <MessageCircle className="w-3.5 h-3.5 text-indigo-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                </div>
               </div>
             </div>
 
@@ -1638,9 +1849,9 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                         {caption || 'Exciting things coming up! Watch full reel and follow for more insights.'}
                       </p>
 
-                      {hashtags && (
+                      {captionHashtags && (
                         <p className="text-[10px] text-blue-300 font-medium truncate drop-shadow-xs">
-                          {hashtags}
+                          {captionHashtags}
                         </p>
                       )}
 
@@ -1718,15 +1929,46 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                       </div>
                     </div>
 
-                    {/* Caption & Hashtags text */}
-                    <div className="px-3 pb-3 space-y-1 text-[11px] text-gray-800 leading-snug overflow-y-auto max-h-32 bg-white">
+                    {/* Caption & Hashtags text with First Comment Bubble */}
+                    <div className="px-3 pb-3 space-y-2 text-[11px] text-gray-800 leading-snug overflow-y-auto max-h-48 bg-white">
                       <p>
                         <span className="font-bold text-gray-900 mr-1.5">
                           {brandHandle}
                         </span>
                         {caption || 'Add your caption to preview how it looks on social media feeds.'}
                       </p>
-                      {hashtags && <p className="text-[#0172F4] text-[10px] font-medium">{hashtags}</p>}
+                      {captionHashtags && (
+                        <p className="text-[#0172F4] text-[10px] font-medium leading-relaxed">
+                          {captionHashtags}
+                        </p>
+                      )}
+
+                      {/* First Comment Live Preview Bubble (Matching author comment like in the user's screenshot) */}
+                      {commentHashtags && (
+                        <div className="mt-2.5 pt-2 border-t border-gray-100">
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <MessageCircle className="w-3 h-3 text-indigo-500" />
+                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                              First Comment (Auto-Posted by Author)
+                            </span>
+                          </div>
+                          <div className="p-2 bg-indigo-50/60 rounded-lg border border-indigo-100/80 text-[10.5px]">
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <div className="w-4 h-4 rounded-full bg-[#0172F4] text-white flex items-center justify-center font-bold text-[8px]">
+                                {brandAvatarInitial}
+                              </div>
+                              <span className="font-bold text-gray-900 text-[10px]">{brandHandle}</span>
+                              <span className="text-[9px] font-semibold text-gray-500 bg-white px-1 py-0.2 rounded border border-gray-200">
+                                Author
+                              </span>
+                              <span className="text-[9px] text-gray-400">• 1s</span>
+                            </div>
+                            <p className="text-[#0172F4] font-medium leading-relaxed pl-5">
+                              {commentHashtags}
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1804,28 +2046,28 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
             </div>
 
             <h3 className="text-lg font-extrabold text-gray-900 text-center">
-              🚫 पोस्ट शेड्यूल नहीं हो सकती!
+              🚫 Post Cannot Be Scheduled
             </h3>
             <p className="text-xs text-rose-600 font-bold text-center mt-1">
-              (Graphic Verification Failed - जानकारी मिसमैच)
+              (Graphic Verification Failed - Profile Discrepancy)
             </p>
 
             <p className="text-xs text-gray-600 text-center mt-2.5 leading-relaxed">
-              इस ग्राफ़िक्स में जो जानकारी (ब्रांड नाम, फ़ोन नंबर या पता) है वह चुने गए क्लाइंट की आधिकारिक डिटेल्स से मेल नहीं खाती।
+              The branding, phone number, or address detected on this graphic does not match the official details of the selected client.
             </p>
 
             {/* Target Client vs Graphic Mismatch Card */}
             <div className="mt-4 p-3.5 bg-gray-50 rounded-xl border border-gray-200 text-xs space-y-2">
               <div className="flex items-center justify-between pb-2 border-b border-gray-200">
-                <span className="font-semibold text-gray-500">चुना गया क्लाइंट (Target Client):</span>
+                <span className="font-semibold text-gray-500">Selected Client:</span>
                 <span className="font-bold text-gray-900">{clients.find(c => c.id === getEffectiveClientId())?.businessName}</span>
               </div>
               <div className="flex items-center justify-between pb-2 border-b border-gray-200">
-                <span className="font-semibold text-gray-500">क्लाइंट का असली फ़ोन नंबर:</span>
+                <span className="font-semibold text-gray-500">Official Client Phone:</span>
                 <span className="font-bold text-gray-900">{clients.find(c => c.id === getEffectiveClientId())?.phone || 'N/A'}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="font-semibold text-gray-500">क्लाइंट का स्थान (Location):</span>
+                <span className="font-semibold text-gray-500">Official Location:</span>
                 <span className="font-bold text-gray-900">{clients.find(c => c.id === getEffectiveClientId())?.location || 'N/A'}</span>
               </div>
             </div>
@@ -1834,7 +2076,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
             <div className="mt-4 p-3.5 bg-rose-50 rounded-xl border border-rose-200 space-y-2">
               <div className="flex items-center gap-1.5 text-xs font-bold text-rose-900">
                 <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-                <span>पाई गई गलतियां (Detected Issues):</span>
+                <span>Detected Issues:</span>
               </div>
               <div className="space-y-1.5">
                 {auditResult.issues.map((issue, idx) => (
@@ -1862,7 +2104,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 className="w-full py-2.5 px-4 bg-[#0172F4] hover:bg-[#005cd3] text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 shadow-xs cursor-pointer"
               >
                 <UploadCloud className="w-4 h-4" />
-                <span>सही ग्राफ़िक्स अपलोड करें (Upload Right Graphic)</span>
+                <span>Upload Correct Graphic</span>
               </button>
 
               <div className="flex items-center gap-2">
@@ -1871,7 +2113,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   onClick={() => setShowAuditBlockModal(false)}
                   className="flex-1 py-2 px-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs rounded-xl transition cursor-pointer"
                 >
-                  क्लाइंट या इमेज बदलें
+                  Change Client or Media
                 </button>
                 <button
                   type="button"
@@ -1881,7 +2123,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   }}
                   className="flex-1 py-2 px-3 border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold text-xs rounded-xl transition cursor-pointer"
                 >
-                  Admin Override (फोर्स शेड्यूल करें)
+                  Admin Override (Force Schedule)
                 </button>
               </div>
             </div>
