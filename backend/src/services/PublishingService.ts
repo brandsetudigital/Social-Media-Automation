@@ -3,6 +3,8 @@ import { MetaService } from './MetaService';
 import { GoogleBusinessService } from './GoogleBusinessService';
 import { AuditService } from './AuditService';
 import { NotificationService } from './NotificationService';
+import { AIContentService } from './AIContentService';
+
 
 export class PublishingService {
   /**
@@ -101,25 +103,75 @@ export class PublishingService {
     const baseCaption = (variant?.caption || post.contentItem.title || '').trim();
     const variantHashtags = (variant?.hashtags || '').trim();
     const brandProfileHashtags = (post.client as any)?.brandProfile?.hashtags?.trim() || '';
-    const rawHashtags = variantHashtags || brandProfileHashtags;
 
-    let fullCaption = baseCaption;
-    if (rawHashtags) {
-      // Clean and normalize tags: split by whitespace, ensure each starts with #
-      const tags = rawHashtags
+    // Generate client-tailored fallback hashtags based on this specific client
+    const tailored = AIContentService.generateClientTailoredHashtags(
+      {
+        businessName: post.client.businessName,
+        category: post.client.category,
+        location: post.client.location,
+        brandProfile: (post.client as any)?.brandProfile,
+      },
+      post.contentItem.title || baseCaption
+    );
+
+    let captionTags: string[] = [];
+    let commentTags: string[] = [];
+
+    // Check if variant has structured separator (e.g. ---FIRST_COMMENT--- or || COMMENT:)
+    if (variantHashtags.includes('---FIRST_COMMENT---')) {
+      const parts = variantHashtags.split('---FIRST_COMMENT---');
+      captionTags = parts[0].split(/\s+/).map((t: string) => t.trim()).filter(Boolean).map((t: string) => (t.startsWith('#') ? t : `#${t}`));
+      commentTags = parts[1].split(/\s+/).map((t: string) => t.trim()).filter(Boolean).map((t: string) => (t.startsWith('#') ? t : `#${t}`));
+    } else if (variantHashtags.includes('|| COMMENT:')) {
+      const parts = variantHashtags.split('|| COMMENT:');
+      captionTags = parts[0].split(/\s+/).map((t: string) => t.trim()).filter(Boolean).map((t: string) => (t.startsWith('#') ? t : `#${t}`));
+      commentTags = parts[1].split(/\s+/).map((t: string) => t.trim()).filter(Boolean).map((t: string) => (t.startsWith('#') ? t : `#${t}`));
+    } else {
+      const rawTags = (variantHashtags || brandProfileHashtags)
         .split(/\s+/)
         .map((t: string) => t.trim())
         .filter(Boolean)
         .map((t: string) => (t.startsWith('#') ? t : `#${t}`));
 
-      // Check if caption already contains these hashtags (check first 2 tags)
-      const sampleTags = tags.slice(0, 2);
-      const alreadyInCaption = sampleTags.length > 0 && sampleTags.every((t: string) => baseCaption.includes(t));
-
-      if (!alreadyInCaption && tags.length > 0) {
-        const joinedTags = tags.join(' ');
-        fullCaption = fullCaption ? `${fullCaption}\n\n${joinedTags}` : joinedTags;
+      if (rawTags.length >= 8) {
+        captionTags = rawTags.slice(0, 5);
+        commentTags = rawTags.slice(5, 10);
+      } else if (rawTags.length > 0) {
+        captionTags = rawTags.slice(0, 5);
+        commentTags = tailored.commentHashtags.split(/\s+/).filter(Boolean);
+      } else {
+        captionTags = tailored.captionHashtags.split(/\s+/).filter(Boolean);
+        commentTags = tailored.commentHashtags.split(/\s+/).filter(Boolean);
       }
+    }
+
+    // Ensure strictly 4 to 5 caption hashtags for maximum reach & clean aesthetics
+    if (captionTags.length === 0) {
+      captionTags = tailored.captionHashtags.split(/\s+/).filter(Boolean);
+    }
+    captionTags = captionTags.slice(0, 5);
+
+    // Ensure strictly 5 first-comment boost hashtags
+    if (commentTags.length < 5) {
+      const extraTags = tailored.commentHashtags.split(/\s+/).filter(Boolean);
+      for (const t of extraTags) {
+        if (!commentTags.includes(t) && !captionTags.includes(t)) {
+          commentTags.push(t);
+        }
+        if (commentTags.length >= 5) break;
+      }
+    }
+    commentTags = commentTags.slice(0, 5);
+
+    // Append only the 4-5 caption hashtags to the caption if not already present
+    let fullCaption = baseCaption;
+    const sampleTags = captionTags.slice(0, 2);
+    const alreadyInCaption = sampleTags.length > 0 && sampleTags.every((t) => baseCaption.includes(t));
+
+    if (!alreadyInCaption && captionTags.length > 0) {
+      const joinedTags = captionTags.join(' ');
+      fullCaption = fullCaption ? `${fullCaption}\n\n${joinedTags}` : joinedTags;
     }
 
     const caption = fullCaption;
@@ -218,14 +270,49 @@ export class PublishingService {
         data: { status: 'PUBLISHED' },
       });
 
+      // Automated First-Comment Strategy: Post 5 client-tailored hashtags as author's first comment
+      let commentResult: { success: boolean; commentId?: string; errorMessage?: string } | null = null;
+      const commentMessage = commentTags.slice(0, 5).join(' ');
+
+      if (result.externalPostId && commentMessage && (post.platform === 'INSTAGRAM' || post.platform === 'FACEBOOK')) {
+        try {
+          if (post.platform === 'INSTAGRAM') {
+            commentResult = await MetaService.postInstagramComment({
+              mediaId: result.externalPostId,
+              accessToken: effectiveMetaToken,
+              message: commentMessage,
+            });
+            console.log(`[PublishingService] Auto-comment posted to Instagram (${result.externalPostId}):`, commentResult);
+          } else if (post.platform === 'FACEBOOK') {
+            commentResult = await MetaService.postFacebookComment({
+              postId: result.externalPostId,
+              accessToken: effectiveMetaToken,
+              message: commentMessage,
+            });
+            console.log(`[PublishingService] Auto-comment posted to Facebook (${result.externalPostId}):`, commentResult);
+          }
+        } catch (commentErr: any) {
+          console.warn(`[PublishingService] Auto-comment error (non-fatal):`, commentErr.message);
+          commentResult = { success: false, errorMessage: commentErr.message };
+        }
+      }
+
       const log = await prisma.publishingLog.create({
         data: {
           scheduledPostId: post.id,
           clientId: post.clientId,
           platform: post.platform,
           status: 'SUCCESS',
-          requestPayload: JSON.stringify({ mediaUrl, captionSnippet: caption.substring(0, 100) }),
-          responseSummary: JSON.stringify(result.rawResponse || { externalId: result.externalPostId }),
+          requestPayload: JSON.stringify({
+            mediaUrl,
+            captionSnippet: caption.substring(0, 100),
+            captionHashtags: captionTags.join(' '),
+            commentHashtags: commentMessage,
+          }),
+          responseSummary: JSON.stringify({
+            ...(result.rawResponse || { externalId: result.externalPostId }),
+            autoComment: commentResult || undefined,
+          }),
           latencyMs,
         },
       });
@@ -237,10 +324,22 @@ export class PublishingService {
         entityType: 'SCHEDULE',
         entityId: post.id,
         clientId: post.clientId,
-        details: { platform: post.platform, externalPostId: result.externalPostId },
+        details: {
+          platform: post.platform,
+          externalPostId: result.externalPostId,
+          captionHashtags: captionTags.join(' '),
+          firstCommentHashtags: commentMessage,
+          commentSuccess: commentResult?.success,
+        },
       });
 
-      return { success: true, message: 'Published successfully!', logId: log.id };
+      return {
+        success: true,
+        message: commentResult?.success
+          ? 'Post published live with 5 client-tailored first-comment hashtags!'
+          : 'Post published successfully!',
+        logId: log.id,
+      };
     } else {
       await prisma.scheduledPost.update({
         where: { id: post.id },

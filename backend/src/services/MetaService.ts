@@ -554,4 +554,129 @@ export class MetaService {
       },
     };
   }
+
+  /**
+   * Posts an automated first comment to an Instagram Media item (Post / Reel)
+   * Meta Graph API v20.0: POST /{ig-media-id}/comments?message={comment_text}
+   */
+  static async postInstagramComment(params: {
+    mediaId: string;
+    accessToken: string;
+    message: string;
+  }): Promise<{ success: boolean; commentId?: string; errorMessage?: string; rawResponse?: any }> {
+    const token = params.accessToken || process.env.META_DEFAULT_ACCESS_TOKEN || '';
+    if (!token || token === 'EXPIRED') {
+      return { success: false, errorMessage: 'Instagram comment failed: Missing access token.' };
+    }
+
+    if (!params.mediaId || !params.message) {
+      return { success: false, errorMessage: 'Missing mediaId or comment message.' };
+    }
+
+    if (token.startsWith('EAA')) {
+      try {
+        const commentUrl = `https://graph.facebook.com/v20.0/${params.mediaId}/comments`;
+        const res = await fetch(commentUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: params.message,
+            access_token: token,
+          }),
+        });
+
+        const data: any = await res.json();
+        if (!res.ok || data.error) {
+          console.warn('[MetaService] Instagram comment warning:', data.error);
+          return {
+            success: false,
+            errorMessage: `Instagram Comment Error: ${data.error?.message || 'Failed to post comment.'}`,
+            rawResponse: data,
+          };
+        }
+
+        return {
+          success: true,
+          commentId: data.id,
+          rawResponse: data,
+        };
+      } catch (err: any) {
+        return {
+          success: false,
+          errorMessage: `Instagram comment network failure: ${err.message}`,
+        };
+      }
+    }
+
+    // Sandbox simulation fallback for testing
+    const commentId = `ig_cmt_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    return {
+      success: true,
+      commentId,
+      rawResponse: { id: commentId, text: params.message },
+    };
+  }
+
+  /**
+   * Posts an automated first comment to a Facebook Page Post
+   * Meta Graph API v20.0: POST /{page-post-id}/comments?message={comment_text}
+   */
+  static async postFacebookComment(params: {
+    postId: string;
+    accessToken: string;
+    message: string;
+  }): Promise<{ success: boolean; commentId?: string; errorMessage?: string; rawResponse?: any }> {
+    const token = params.accessToken || process.env.META_DEFAULT_ACCESS_TOKEN || '';
+    if (!token || token === 'EXPIRED') {
+      return { success: false, errorMessage: 'Facebook comment failed: Missing access token.' };
+    }
+
+    if (!params.postId || !params.message) {
+      return { success: false, errorMessage: 'Missing postId or comment message.' };
+    }
+
+    if (token.startsWith('EAA')) {
+      try {
+        const commentUrl = `https://graph.facebook.com/v20.0/${params.postId}/comments`;
+        const res = await fetch(commentUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: params.message,
+            access_token: token,
+          }),
+        });
+
+        const data: any = await res.json();
+        if (!res.ok || data.error) {
+          console.warn('[MetaService] Facebook comment warning:', data.error);
+          return {
+            success: false,
+            errorMessage: `Facebook Comment Error: ${data.error?.message || 'Failed to post comment.'}`,
+            rawResponse: data,
+          };
+        }
+
+        return {
+          success: true,
+          commentId: data.id,
+          rawResponse: data,
+        };
+      } catch (err: any) {
+        return {
+          success: false,
+          errorMessage: `Facebook comment network failure: ${err.message}`,
+        };
+      }
+    }
+
+    // Sandbox simulation fallback
+    const commentId = `fb_cmt_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    return {
+      success: true,
+      commentId,
+      rawResponse: { id: commentId, text: params.message },
+    };
+  }
 }
+

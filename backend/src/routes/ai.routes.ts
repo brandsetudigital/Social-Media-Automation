@@ -58,8 +58,11 @@ router.post('/hashtags', authenticateToken, async (req: AuthRequest, res: Respon
     const { clientId, topic } = req.body;
     if (!clientId) return res.status(400).json({ error: 'clientId is required' });
 
-    const hashtags = await AIContentService.generateHashtags(clientId, topic);
-    return res.json({ hashtags });
+    const result = await AIContentService.generateHashtags(clientId, topic);
+    if (typeof result === 'string') {
+      return res.json({ hashtags: result });
+    }
+    return res.json(result);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

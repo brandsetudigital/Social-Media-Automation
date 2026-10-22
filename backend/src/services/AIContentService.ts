@@ -90,7 +90,7 @@ export class AIContentService {
   /**
    * Calls Google Gemini API (gemini-flash-latest / gemini-2.5-flash-lite / gemini-3.5-flash)
    */
-  private static async callGemini(prompt: string, mediaUrl?: string): Promise<{ caption: string; hashtags: string } | null> {
+  private static async callGemini(prompt: string, mediaUrl?: string): Promise<{ caption: string; captionHashtags?: string; commentHashtags?: string; hashtags: string } | null> {
     const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
     if (!apiKey) return null;
 
@@ -142,6 +142,8 @@ export class AIContentService {
           const cleaned = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
           let parsedCaption = '';
           let parsedHashtags = '';
+          let parsedCaptionHashtags = '';
+          let parsedCommentHashtags = '';
 
           try {
             const parsed = JSON.parse(cleaned);
@@ -151,14 +153,27 @@ export class AIContentService {
             } else if (typeof parsed.hashtags === 'string') {
               parsedHashtags = parsed.hashtags;
             }
+
+            if (parsed.captionHashtags) {
+              parsedCaptionHashtags = Array.isArray(parsed.captionHashtags) ? parsed.captionHashtags.join(' ') : parsed.captionHashtags;
+            }
+            if (parsed.commentHashtags) {
+              parsedCommentHashtags = Array.isArray(parsed.commentHashtags) ? parsed.commentHashtags.join(' ') : parsed.commentHashtags;
+            }
           } catch {
             // Regex fallback if JSON had unescaped quotes or newlines
-            const capMatch = cleaned.match(/"caption"\s*:\s*"([\s\S]*?)(?="\s*,\s*"hashtags"|"\s*\})/);
+            const capMatch = cleaned.match(/"caption"\s*:\s*"([\s\S]*?)(?="\s*,\s*"[a-zA-Z]+"\s*:|"\s*\})/);
             if (capMatch) {
               parsedCaption = capMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
             } else {
               parsedCaption = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
             }
+
+            const capTagMatch = cleaned.match(/"captionHashtags"\s*:\s*"([^"]+)"/);
+            if (capTagMatch) parsedCaptionHashtags = capTagMatch[1];
+
+            const comTagMatch = cleaned.match(/"commentHashtags"\s*:\s*"([^"]+)"/);
+            if (comTagMatch) parsedCommentHashtags = comTagMatch[1];
 
             const tagMatch = cleaned.match(/"hashtags"\s*:\s*"([^"]+)"/);
             if (tagMatch) {
@@ -172,9 +187,24 @@ export class AIContentService {
           }
 
           if (parsedCaption) {
+            // If captionHashtags and commentHashtags were not provided separately, split parsedHashtags
+            const allTags = (parsedHashtags || '')
+              .split(/\s+/)
+              .map((t) => t.trim())
+              .filter((t) => t.startsWith('#'));
+
+            if (!parsedCaptionHashtags && allTags.length > 0) {
+              parsedCaptionHashtags = allTags.slice(0, 5).join(' ');
+            }
+            if (!parsedCommentHashtags && allTags.length > 5) {
+              parsedCommentHashtags = allTags.slice(5, 10).join(' ');
+            }
+
             return {
               caption: parsedCaption,
-              hashtags: parsedHashtags,
+              captionHashtags: parsedCaptionHashtags || parsedHashtags,
+              commentHashtags: parsedCommentHashtags,
+              hashtags: parsedCaptionHashtags || parsedHashtags,
             };
           }
         } catch {
@@ -192,7 +222,7 @@ export class AIContentService {
   /**
    * Calls OpenAI ChatGPT API (gpt-4o-mini)
    */
-  private static async callOpenAI(prompt: string, mediaUrl?: string): Promise<{ caption: string; hashtags: string } | null> {
+  private static async callOpenAI(prompt: string, mediaUrl?: string): Promise<{ caption: string; captionHashtags?: string; commentHashtags?: string; hashtags: string } | null> {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) return null;
 
@@ -218,7 +248,7 @@ export class AIContentService {
           messages: [
             {
               role: 'system',
-              content: 'You are the Senior Social Media Strategist for BrandSetu Digital marketing agency. Respond ONLY in valid JSON with keys "caption" and "hashtags".',
+              content: 'You are the Senior Social Media Strategist for BrandSetu Digital marketing agency. Respond ONLY in valid JSON with keys "caption", "captionHashtags", "commentHashtags", and "hashtags".',
             },
             { role: 'user', content: userContent },
           ],
@@ -238,9 +268,22 @@ export class AIContentService {
       const cleaned = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       try {
         const parsed = JSON.parse(cleaned);
+        const caption = parsed.caption || rawText;
+        let captionHashtags = parsed.captionHashtags || '';
+        let commentHashtags = parsed.commentHashtags || '';
+        let hashtags = parsed.hashtags || '';
+
+        if (!captionHashtags && hashtags) {
+          const tags = hashtags.split(/\s+/).filter((t: string) => t.startsWith('#'));
+          captionHashtags = tags.slice(0, 5).join(' ');
+          commentHashtags = tags.slice(5, 10).join(' ');
+        }
+
         return {
-          caption: parsed.caption || rawText,
-          hashtags: parsed.hashtags || '',
+          caption,
+          captionHashtags: captionHashtags || hashtags,
+          commentHashtags,
+          hashtags: captionHashtags || hashtags,
         };
       } catch {
         return { caption: rawText, hashtags: '' };
@@ -249,6 +292,172 @@ export class AIContentService {
       console.warn(`[OpenAI API Exception]: ${err.message}`);
       return null;
     }
+  }
+
+  /**
+   * Generates client-tailored, industry-specific 4-5 caption hashtags + 5 first-comment hashtags
+   * strictly adapted to client's industry, brand, and city.
+   */
+  static generateClientTailoredHashtags(client: {
+    businessName: string;
+    category?: string;
+    location?: string;
+    brandProfile?: { hashtags?: string; keywords?: string; services?: string } | null;
+  }, topic?: string): { captionHashtags: string; commentHashtags: string; allHashtags: string } {
+    const rawName = client.businessName || 'Brand';
+    const cleanName = rawName.replace(/[^a-zA-Z0-9]/g, '');
+    const cleanLoc = (client.location || 'Indore').replace(/[^a-zA-Z0-9]/g, '');
+    const categoryLower = ((client.category || '') + ' ' + (rawName || '') + ' ' + (topic || '')).toLowerCase();
+
+    let captionTags: string[] = [];
+    let commentTags: string[] = [];
+
+    if (/sweet|food|restaurant|cafe|bakery|namkeen|chaat|mithai|dining|kitchen|panna/i.test(categoryLower)) {
+      captionTags = [
+        `#${cleanName}`,
+        `#${cleanLoc}Foodie`,
+        `#${cleanLoc}Food`,
+        `#MithaiLovers`,
+        `#FoodLovers`,
+      ];
+      commentTags = [
+        `#${cleanLoc}City`,
+        `#ExploreFood`,
+        `#StreetFood${cleanLoc}`,
+        `#WeekendVibes`,
+        `#FoodieGram`,
+      ];
+    } else if (/real\s*estate|property|plot|flat|builder|construction|babu|broker|infra/i.test(categoryLower)) {
+      captionTags = [
+        `#${cleanName}`,
+        `#${cleanLoc}RealEstate`,
+        `#PlotsIn${cleanLoc}`,
+        `#${cleanLoc}Property`,
+        `#RealEstateIndia`,
+      ];
+      commentTags = [
+        `#${cleanLoc}Properties`,
+        `#PropertyInvestment`,
+        `#InvestIn${cleanLoc}`,
+        `#DreamHome`,
+        `#CommercialProperty`,
+      ];
+    } else if (/fashion|saree|ethnic|boutique|cloth|apparel|dress|kurti|garment|airawati/i.test(categoryLower)) {
+      captionTags = [
+        `#${cleanName}`,
+        `#${cleanLoc}Fashion`,
+        `#EthnicWear`,
+        `#SareeLove`,
+        `#IndianFashion`,
+      ];
+      commentTags = [
+        `#SareesOfInstagram`,
+        `#TraditionalWear`,
+        `#FestiveOutfit`,
+        `#ExploreFashion`,
+        `#${cleanLoc}Boutique`,
+      ];
+    } else if (/marketing|digital|agency|brandsetu|social\s*media|seo|software|it\s*services|creative/i.test(categoryLower)) {
+      captionTags = [
+        `#${cleanName}`,
+        `#SocialMediaMarketing`,
+        `#DigitalMarketing${cleanLoc}`,
+        `#BusinessGrowth`,
+        `#BrandBuilding`,
+      ];
+      commentTags = [
+        `#MarketingStrategy`,
+        `#OnlineMarketing`,
+        `#StartupIndia`,
+        `#ExplorePage`,
+        `#BusinessTips`,
+      ];
+    } else if (/health|clinic|doctor|dental|hospital|wellness|fitness|gym|yoga/i.test(categoryLower)) {
+      captionTags = [
+        `#${cleanName}`,
+        `#${cleanLoc}Health`,
+        `#WellnessJourney`,
+        `#HealthyLiving`,
+        `#ExpertCare`,
+      ];
+      commentTags = [
+        `#FitnessMotivation`,
+        `#SelfCare`,
+        `#HealthyLifestyle`,
+        `#ExploreHealth`,
+        `#${cleanLoc}Life`,
+      ];
+    } else if (/education|coach|class|school|institute|academy|learn|college/i.test(categoryLower)) {
+      captionTags = [
+        `#${cleanName}`,
+        `#${cleanLoc}Education`,
+        `#SkillBuilding`,
+        `#CareerSuccess`,
+        `#LearnAndGrow`,
+      ];
+      commentTags = [
+        `#StudentLife`,
+        `#FutureLeaders`,
+        `#EducationFirst`,
+        `#ExploreLearning`,
+        `#${cleanLoc}Students`,
+      ];
+    } else if (/jewel|gold|diamond|silver|bridal|ornament/i.test(categoryLower)) {
+      captionTags = [
+        `#${cleanName}`,
+        `#${cleanLoc}Jewellery`,
+        `#GoldJewellery`,
+        `#DiamondJewellery`,
+        `#BridalJewellery`,
+      ];
+      commentTags = [
+        `#JewelleryDesign`,
+        `#LuxuryLifestyle`,
+        `#IndianBride`,
+        `#ExploreLuxury`,
+        `#${cleanLoc}Fashion`,
+      ];
+    } else {
+      // Dynamic synthesis for any other client category
+      const cleanCat = (client.category || 'Business').replace(/[^a-zA-Z0-9]/g, '');
+      captionTags = [
+        `#${cleanName}`,
+        `#${cleanCat}${cleanLoc}`,
+        `#BestIn${cleanLoc}`,
+        `#${cleanCat}India`,
+        `#TrustedBrand`,
+      ];
+      commentTags = [
+        `#${cleanLoc}City`,
+        `#Explore${cleanLoc}`,
+        `#BusinessGrowth`,
+        `#LocalLove`,
+        `#TrendingNow`,
+      ];
+    }
+
+    // Merge custom brand tags if client configured them
+    if (client.brandProfile?.hashtags) {
+      const customList = client.brandProfile.hashtags
+        .split(/\s+/)
+        .map((t) => t.trim())
+        .filter(Boolean)
+        .map((t) => (t.startsWith('#') ? t : `#${t}`));
+      if (customList.length > 0) {
+        captionTags = [customList[0], ...captionTags.filter((t) => t !== customList[0])].slice(0, 5);
+        if (customList.length > 1) {
+          commentTags = [customList[1], ...commentTags.filter((t) => t !== customList[1])].slice(0, 5);
+        }
+      }
+    }
+
+    const cTags = captionTags.slice(0, 5).join(' ');
+    const cmTags = commentTags.slice(0, 5).join(' ');
+    return {
+      captionHashtags: cTags,
+      commentHashtags: cmTags,
+      allHashtags: `${cTags} ${cmTags}`,
+    };
   }
 
   /**
@@ -302,17 +511,23 @@ CRITICAL RULES:
 5. For TWITTER: Concise, punchy alert with key details and link to website (if available).
 6. For YOUTUBE: Video description format with timestamps, project highlights, contact (if available), and subscribe CTA.
 7. For GOOGLE_BUSINESS: Professional local update, rich SEO keywords${ctx.location ? ` for ${ctx.location}` : ''}, clear directions/call CTA.
-8. HASHTAGS: Always provide 10-15 high-reach, localized hashtags (e.g. #${ctx.businessName.replace(/\s+/g, '')} ${ctx.location ? `#${ctx.location.replace(/[^a-zA-Z]/g, '')}` : ''}) relevant to the post and business.
+8. HASHTAG STRATEGY (CRITICAL ALGORITHM BEST PRACTICE):
+   Generate TWO distinct, high-impact hashtag sets tailored strictly to this specific client's business, category, city/location, and topic:
+   - "captionHashtags": Exactly 4 to 5 high-reach, viral/niche hashtags for the post caption (optimized for search discovery without clutter).
+   - "commentHashtags": Exactly 5 targeted engagement & search boost hashtags to be posted as the author's first comment (high-interest niche & community exploration tags like #explore #fyp #viral #<city> + category tags).
+   CRITICAL: Do NOT generate the same generic hashtags for all clients. The hashtags MUST be unique and directly relevant to ${ctx.businessName} (${ctx.category} in ${ctx.location})!
 
 OUTPUT FORMAT:
 Return strictly a valid JSON object without any other text or explanation:
 {
   "caption": "<generated caption with emojis and spacing>",
-  "hashtags": "<generated hashtags space-separated>"
+  "captionHashtags": "<4-5 high-reach hashtags space-separated>",
+  "commentHashtags": "<5 first-comment boost hashtags space-separated>",
+  "hashtags": "<4-5 caption hashtags space-separated>"
 }`;
 
     // 2. Try Gemini first, then OpenAI ChatGPT with fallback
-    let aiResult: { caption: string; hashtags: string } | null = null;
+    let aiResult: { caption: string; captionHashtags?: string; commentHashtags?: string; hashtags: string } | null = null;
     let modelUsed = 'BrandSetu Smart Engine';
 
     const preferred = process.env.AI_PROVIDER || 'gemini';
@@ -334,18 +549,20 @@ Return strictly a valid JSON object without any other text or explanation:
     }
 
     if (aiResult && aiResult.caption) {
-      let finalHashtags = aiResult.hashtags?.trim() || '';
-      if (!finalHashtags) {
-        try {
-          finalHashtags = await this.generateHashtags(params.clientId, topic);
-        } catch {
-          finalHashtags = ctx.hashtags || `#${ctx.businessName.replace(/\s+/g, '')} #SocialMedia`;
-        }
+      let finalCaptionHashtags = aiResult.captionHashtags?.trim() || '';
+      let finalCommentHashtags = aiResult.commentHashtags?.trim() || '';
+
+      if (!finalCaptionHashtags || !finalCommentHashtags) {
+        const tailored = this.generateClientTailoredHashtags(ctx, topic);
+        if (!finalCaptionHashtags) finalCaptionHashtags = tailored.captionHashtags;
+        if (!finalCommentHashtags) finalCommentHashtags = tailored.commentHashtags;
       }
 
       return {
         caption: aiResult.caption,
-        hashtags: finalHashtags,
+        captionHashtags: finalCaptionHashtags,
+        commentHashtags: finalCommentHashtags,
+        hashtags: finalCaptionHashtags,
         cta: ctx.preferredCta,
         aiModelUsed: modelUsed,
         brandContextUsed: {
@@ -506,9 +723,15 @@ Return strictly a valid JSON object without any other text or explanation:
       }
     }
 
+    const tailored = this.generateClientTailoredHashtags(ctx, topic);
+    const finalCaptionHashtags = tailored.captionHashtags;
+    const finalCommentHashtags = tailored.commentHashtags;
+
     return {
       caption,
-      hashtags,
+      captionHashtags: finalCaptionHashtags,
+      commentHashtags: finalCommentHashtags,
+      hashtags: finalCaptionHashtags,
       cta: ctx.preferredCta,
       aiModelUsed: 'BrandSetu Brand Knowledge Engine',
       brandContextUsed: {
@@ -544,54 +767,48 @@ Return strictly a valid JSON object without any other text or explanation:
     const ctx = await this.getClientContext(clientId);
 
     const prompt = `You are a social media hashtag strategist at BrandSetu Digital.
-Generate 15 to 20 trending, niche-specific, and local community hashtags for:
+Generate client-specific, high-reach hashtags tailored strictly to:
 - Client: ${ctx.businessName}
 - Industry: ${ctx.category}
 - City / Location: ${ctx.location}
 ${topic ? `- Post Topic: ${topic}` : ''}
 ${ctx.hashtags ? `- Custom brand tags: ${ctx.hashtags}` : ''}
 
+CRITICAL RULES:
+1. Provide "captionHashtags": Exactly 4 to 5 high-reach, viral/niche hashtags for the post caption.
+2. Provide "commentHashtags": Exactly 5 targeted community & explore boost hashtags for the first comment.
+3. Every client MUST have unique hashtags matching their specific niche (e.g. Food/Sweets, Real Estate, Fashion, Digital Marketing, etc.).
+
 Format instructions:
 Return strictly a valid JSON object:
 {
   "caption": "",
-  "hashtags": "#Tag1 #Tag2 #Tag3 #Tag4..."
+  "captionHashtags": "#Tag1 #Tag2 #Tag3 #Tag4 #Tag5",
+  "commentHashtags": "#TagA #TagB #TagC #TagD #TagE",
+  "hashtags": "#Tag1 #Tag2 #Tag3 #Tag4 #Tag5"
 }`;
 
     try {
       const aiResult = await this.callGemini(prompt);
-      if (aiResult?.hashtags && aiResult.hashtags.trim().length > 0) {
-        return aiResult.hashtags.trim();
+      if (aiResult?.captionHashtags || aiResult?.hashtags) {
+        const cTags = aiResult.captionHashtags || aiResult.hashtags;
+        const comTags = aiResult.commentHashtags || '';
+        return {
+          captionHashtags: cTags,
+          commentHashtags: comTags || this.generateClientTailoredHashtags(ctx, topic).commentHashtags,
+          hashtags: cTags,
+        };
       }
     } catch {
       // Fallback below
     }
 
-    const cleanName = ctx.businessName.replace(/[^a-zA-Z0-9]/g, '');
-    const cleanLoc = ctx.location.replace(/[^a-zA-Z0-9]/g, '');
-    const cleanCat = ctx.category.replace(/[^a-zA-Z0-9]/g, '');
-
-    const tags = [
-      `#${cleanName}`,
-      `#${cleanLoc}`,
-      `#${cleanCat}`,
-      `#${cleanCat}${cleanLoc}`,
-      `#Best${cleanCat}In${cleanLoc}`,
-      `#Explore${cleanLoc}`,
-      `#${cleanLoc}Diaries`,
-      `#LocalLove`,
-      `#SupportLocal${cleanLoc}`,
-      `#TopRecommended`,
-      `#MustTry`,
-      `#TrendingNow`,
-    ];
-
-    if (ctx.hashtags) {
-      const custom = ctx.hashtags.split(' ').filter(Boolean);
-      return Array.from(new Set([...custom, ...tags])).join(' ');
-    }
-
-    return tags.join(' ');
+    const tailored = this.generateClientTailoredHashtags(ctx, topic);
+    return {
+      captionHashtags: tailored.captionHashtags,
+      commentHashtags: tailored.commentHashtags,
+      hashtags: tailored.captionHashtags,
+    };
   }
 
   /**

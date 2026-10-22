@@ -86,9 +86,50 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   const [brandId, setBrandId] = useState<string>(
     defaultClientId || (selectedClientId !== 'ALL' ? selectedClientId : (clients[0]?.id || ''))
   );
+
+  const getInitialClientTags = (cid: string) => {
+    const cl = clients.find((c) => c.id === cid);
+    const rawName = cl?.businessName || 'Brand';
+    const cleanName = rawName.replace(/[^a-zA-Z0-9]/g, '');
+    const cleanLoc = (cl?.location || 'Indore').replace(/[^a-zA-Z0-9]/g, '');
+    const cat = ((cl?.category || '') + ' ' + rawName).toLowerCase();
+
+    if (/sweet|food|restaurant|cafe|bakery|namkeen|chaat|mithai|panna/i.test(cat)) {
+      return {
+        caption: `#${cleanName} #${cleanLoc}Foodie #${cleanLoc}Food #MithaiLovers #FoodLovers`,
+        comment: `#${cleanLoc}City #ExploreFood #StreetFood${cleanLoc} #WeekendVibes #FoodieGram`,
+      };
+    } else if (/real\s*estate|property|plot|flat|builder|construction|babu|broker/i.test(cat)) {
+      return {
+        caption: `#${cleanName} #${cleanLoc}RealEstate #PlotsIn${cleanLoc} #${cleanLoc}Property #RealEstateIndia`,
+        comment: `#${cleanLoc}Properties #PropertyInvestment #InvestIn${cleanLoc} #DreamHome #CommercialProperty`,
+      };
+    } else if (/fashion|saree|ethnic|boutique|cloth|apparel|dress|airawati/i.test(cat)) {
+      return {
+        caption: `#${cleanName} #${cleanLoc}Fashion #EthnicWear #SareeLove #IndianFashion`,
+        comment: `#SareesOfInstagram #TraditionalWear #FestiveOutfit #ExploreFashion #${cleanLoc}Boutique`,
+      };
+    } else if (/marketing|digital|agency|brandsetu|social/i.test(cat)) {
+      return {
+        caption: `#${cleanName} #SocialMediaMarketing #DigitalMarketing${cleanLoc} #BusinessGrowth #BrandBuilding`,
+        comment: `#MarketingStrategy #OnlineMarketing #StartupIndia #ExplorePage #BusinessTips`,
+      };
+    }
+    return {
+      caption: `#${cleanName} #${cleanLoc} #TopQuality #TrustedBrand #BestService`,
+      comment: `#${cleanLoc}City #Explore${cleanLoc} #TrendingNow #LocalLove #ViralFeed`,
+    };
+  };
+
+  const initialTags = getInitialClientTags(brandId);
+  const [captionHashtags, setCaptionHashtags] = useState<string>(initialTags.caption);
+  const [commentHashtags, setCommentHashtags] = useState<string>(initialTags.comment);
+
   const [title, setTitle] = useState(initialTemplate?.title || '');
   const [caption, setCaption] = useState(defaultCaption || initialTemplate?.caption || '');
-  const [hashtags, setHashtags] = useState(initialTemplate?.hashtags || '#BrandSetu #SocialMedia #Growth');
+  const [hashtags, setHashtags] = useState(
+    initialTemplate?.hashtags || `${initialTags.caption} \n---FIRST_COMMENT---\n ${initialTags.comment}`
+  );
   const [mediaUrl, setMediaUrl] = useState(
     initialTemplate?.mediaUrl ||
     'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80'
@@ -102,12 +143,34 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      const effId = defaultClientId || brandId;
       if (defaultClientId) setBrandId(defaultClientId);
       if (defaultCaption) setCaption(defaultCaption);
       if (defaultContentType) setContentType(defaultContentType);
       if (initialTemplate?.caption) setCaption(initialTemplate.caption);
       if (initialTemplate?.title) setTitle(initialTemplate.title);
-      if (initialTemplate?.hashtags) setHashtags(initialTemplate.hashtags);
+
+      const clientTags = getInitialClientTags(effId);
+      if (initialTemplate?.hashtags) {
+        if (initialTemplate.hashtags.includes('---FIRST_COMMENT---')) {
+          const parts = initialTemplate.hashtags.split('---FIRST_COMMENT---');
+          setCaptionHashtags(parts[0].trim());
+          setCommentHashtags(parts[1].trim());
+          setHashtags(initialTemplate.hashtags);
+        } else {
+          const splitted = initialTemplate.hashtags.split(/\s+/).filter(Boolean);
+          const cTags = splitted.slice(0, 5).join(' ');
+          const cmTags = splitted.slice(5, 10).join(' ') || clientTags.comment;
+          setCaptionHashtags(cTags);
+          setCommentHashtags(cmTags);
+          setHashtags(`${cTags} \n---FIRST_COMMENT---\n ${cmTags}`);
+        }
+      } else {
+        setCaptionHashtags(clientTags.caption);
+        setCommentHashtags(clientTags.comment);
+        setHashtags(`${clientTags.caption} \n---FIRST_COMMENT---\n ${clientTags.comment}`);
+      }
+
       if (initialTemplate?.mediaUrl) {
         setMediaUrl(initialTemplate.mediaUrl);
         setLocalPreviewUrl('');
@@ -118,6 +181,23 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       setLocalPreviewUrl('');
     }
   }, [isOpen, defaultClientId, defaultCaption, defaultContentType, initialTemplate]);
+
+  // Sync client-specific tags when user switches brand in dropdown
+  useEffect(() => {
+    if (brandId) {
+      const tags = getInitialClientTags(brandId);
+      setCaptionHashtags(tags.caption);
+      setCommentHashtags(tags.comment);
+      const combined = `${tags.caption} \n---FIRST_COMMENT---\n ${tags.comment}`;
+      setHashtags(combined);
+      setPlatformHashtags((prev) => ({
+        ...prev,
+        INSTAGRAM: combined,
+        FACEBOOK: combined,
+      }));
+    }
+  }, [brandId]);
+
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([
     'INSTAGRAM',
     'FACEBOOK',
@@ -132,12 +212,12 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     GOOGLE_BUSINESS: '',
   });
   const [platformHashtags, setPlatformHashtags] = useState<Record<string, string>>({
-    INSTAGRAM: '#BrandSetu #SocialMedia #Growth',
-    FACEBOOK: '#BrandSetu #DigitalMarketing',
-    LINKEDIN: '#Leadership #Innovation #Business',
-    TWITTER: '#BrandSetu #Trending',
-    YOUTUBE: '#BrandSetu #Showcase',
-    GOOGLE_BUSINESS: '#BrandSetu #LocalBusiness',
+    INSTAGRAM: `${initialTags.caption} \n---FIRST_COMMENT---\n ${initialTags.comment}`,
+    FACEBOOK: `${initialTags.caption} \n---FIRST_COMMENT---\n ${initialTags.comment}`,
+    LINKEDIN: `${initialTags.caption}`,
+    TWITTER: `${initialTags.caption}`,
+    YOUTUBE: `${initialTags.caption}`,
+    GOOGLE_BUSINESS: `${initialTags.caption}`,
   });
   const [isAiGenerating, setIsAiGenerating] = useState(false);
   const [isGeneratingHashtags, setIsGeneratingHashtags] = useState(false);
@@ -471,29 +551,28 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         setCaption(res.caption);
       }
 
-      let resolvedHashtags = res?.hashtags?.trim();
-      if (!resolvedHashtags) {
-        try {
-          const tagRes = await api.generateAIHashtags(activeClientId, defaultTopic);
-          resolvedHashtags = tagRes?.hashtags?.trim() || '';
-        } catch {}
+      let capTags = res?.captionHashtags?.trim();
+      let comTags = res?.commentHashtags?.trim();
+
+      if (!capTags || !comTags) {
+        const clientDefaults = getInitialClientTags(activeClientId);
+        if (!capTags) capTags = res?.hashtags?.trim() || clientDefaults.caption;
+        if (!comTags) comTags = clientDefaults.comment;
       }
 
-      if (!resolvedHashtags) {
-        const brandNameClean = (clientObj?.businessName || 'BrandSetu').replace(/\s+/g, '');
-        const locClean = (clientObj?.location || 'Indore').replace(/[^a-zA-Z]/g, '');
-        resolvedHashtags = `#${brandNameClean} #${locClean} #${brandNameClean}${locClean} #Trending`;
-      }
+      setCaptionHashtags(capTags);
+      setCommentHashtags(comTags);
+      const combined = `${capTags} \n---FIRST_COMMENT---\n ${comTags}`;
 
       setPlatformHashtags((prev) => ({
         ...prev,
-        [platformToUse]: resolvedHashtags,
+        [platformToUse]: combined,
       }));
-      setHashtags(resolvedHashtags);
+      setHashtags(combined);
 
       setStatusMessage({
         type: 'success',
-        text: `✨ Caption & Hashtags generated for ${platformIcons[platformToUse]?.name || platformToUse} (${res?.aiModelUsed || 'AI Engine'})`,
+        text: `✨ Caption + 4-5 Reach Hashtags + 5 Auto-Comment tags generated for ${platformIcons[platformToUse]?.name || platformToUse} (${res?.aiModelUsed || 'AI Engine'})`,
       });
     } catch (err: any) {
       console.warn('[CreatePostModal] AI caption error:', err);
@@ -510,14 +589,16 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
       const fallbackCaption = `✨ ${title || `${brandName} Showcase`}\n\nWe are committed to delivering the highest quality and value to our community. Connect with us to learn more! 🚀${contactSection}`;
       const plat = (typeof targetPlatform === 'string' && targetPlatform) ? targetPlatform : (activePreviewPlatform || 'INSTAGRAM');
-      const brandClean = brandName.replace(/\s+/g, '');
-      const locClean = (clientObj?.location || 'Indore').replace(/[^a-zA-Z]/g, '');
-      const fallbackTags = `#${brandClean} #${locClean} #${brandClean}${locClean} #Trending #QualityService`;
+
+      const clientDefaults = getInitialClientTags(activeClientId);
+      setCaptionHashtags(clientDefaults.caption);
+      setCommentHashtags(clientDefaults.comment);
+      const combined = `${clientDefaults.caption} \n---FIRST_COMMENT---\n ${clientDefaults.comment}`;
 
       setPlatformCaptions((prev) => ({ ...prev, [plat]: fallbackCaption }));
       setCaption(fallbackCaption);
-      setPlatformHashtags((prev) => ({ ...prev, [plat]: fallbackTags }));
-      setHashtags(fallbackTags);
+      setPlatformHashtags((prev) => ({ ...prev, [plat]: combined }));
+      setHashtags(combined);
     } finally {
       setIsAiGenerating(false);
     }
@@ -535,27 +616,40 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         : `${clientObj?.businessName || 'Brand'} spotlight`);
 
       const res = await api.generateAIHashtags(activeClientId, defaultTopic);
-      const generated = res?.hashtags?.trim();
-      if (generated) {
-        setHashtags(generated);
-        setPlatformHashtags((prev) => ({ ...prev, [plat]: generated }));
-        setStatusMessage({
-          type: 'success',
-          text: `✨ Generated ${generated.split(' ').filter(Boolean).length} trending hashtags for ${platformIcons[plat]?.name || plat}!`,
-        });
-      } else {
-        throw new Error('No hashtags returned');
+      let capTags = res?.captionHashtags?.trim();
+      let comTags = res?.commentHashtags?.trim();
+
+      if (!capTags && res?.hashtags) {
+        const splitted = res.hashtags.split(/\s+/).filter((t: string) => t.startsWith('#'));
+        capTags = splitted.slice(0, 5).join(' ');
+        comTags = splitted.slice(5, 10).join(' ');
       }
+
+      if (!capTags || !comTags) {
+        const defaults = getInitialClientTags(activeClientId);
+        if (!capTags) capTags = defaults.caption;
+        if (!comTags) comTags = defaults.comment;
+      }
+
+      setCaptionHashtags(capTags);
+      setCommentHashtags(comTags);
+      const combined = `${capTags} \n---FIRST_COMMENT---\n ${comTags}`;
+      setHashtags(combined);
+      setPlatformHashtags((prev) => ({ ...prev, [plat]: combined }));
+      setStatusMessage({
+        type: 'success',
+        text: `✨ Generated 4-5 caption reach tags + 5 auto-comment tags for ${platformIcons[plat]?.name || plat}!`,
+      });
     } catch (err: any) {
       console.warn('[CreatePostModal] AI hashtags fallback:', err);
       const activeClientId = brandId || getEffectiveClientId();
-      const clientObj = clients.find((c) => c.id === activeClientId);
       const plat = targetPlatform || activePreviewPlatform || 'INSTAGRAM';
-      const brandClean = (clientObj?.businessName || 'BrandSetu').replace(/\s+/g, '');
-      const locClean = (clientObj?.location || 'Indore').replace(/[^a-zA-Z]/g, '');
-      const fallback = `#${brandClean} #${locClean} #${brandClean}${locClean} #Trending #${locClean}Deals #TopQuality`;
-      setHashtags(fallback);
-      setPlatformHashtags((prev) => ({ ...prev, [plat]: fallback }));
+      const defaults = getInitialClientTags(activeClientId);
+      setCaptionHashtags(defaults.caption);
+      setCommentHashtags(defaults.comment);
+      const combined = `${defaults.caption} \n---FIRST_COMMENT---\n ${defaults.comment}`;
+      setHashtags(combined);
+      setPlatformHashtags((prev) => ({ ...prev, [plat]: combined }));
       setStatusMessage({
         type: 'success',
         text: `✨ Generated smart hashtags for ${platformIcons[plat]?.name || plat}`,
@@ -679,9 +773,17 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         : (isVideo ? '' : effectiveMediaUrl);
 
       const activeCaption = platformCaptions[activePreviewPlatform] || caption;
-      const activeHashtags = platformHashtags[activePreviewPlatform] || hashtags;
+      const currentCombined = `${captionHashtags.trim()} \n---FIRST_COMMENT---\n ${commentHashtags.trim()}`;
+      const activeHashtags = platformHashtags[activePreviewPlatform] || currentCombined;
 
       const effectiveTitle = title.trim() || (activeCaption ? activeCaption.slice(0, 35).trim() : `${clientObj?.businessName || 'Brand'} Post`);
+
+      const updatedPlatformHashtags = { ...platformHashtags };
+      for (const p of selectedPlatforms) {
+        if (!updatedPlatformHashtags[p] || !updatedPlatformHashtags[p].includes('---FIRST_COMMENT---')) {
+          updatedPlatformHashtags[p] = currentCombined;
+        }
+      }
 
       await api.createManualContent({
         clientId: activeClientId,
@@ -690,7 +792,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         caption: activeCaption,
         hashtags: activeHashtags,
         platformCaptions,
-        platformHashtags,
+        platformHashtags: updatedPlatformHashtags,
         mediaUrl: effectiveMediaUrl,
         thumbnailUrl: effectiveThumbnail,
         platforms: selectedPlatforms,
@@ -1398,36 +1500,98 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
               </div>
             </div>
 
-            {/* Hashtags */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
-                <label className="text-xs font-bold text-gray-700">
-                  Hashtags ({platformIcons[activePreviewPlatform]?.name || activePreviewPlatform})
-                </label>
+            {/* Dual Hashtag Strategy: 4-5 Caption Tags + 5 First-Comment Tags */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                    <Hash className="w-3.5 h-3.5 text-[#0172F4]" />
+                    <span>Hashtags Strategy ({platformIcons[activePreviewPlatform]?.name || activePreviewPlatform})</span>
+                  </label>
+                  <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200">
+                    High Reach & Auto-Comment
+                  </span>
+                </div>
                 <button
                   type="button"
                   onClick={() => handleGenerateHashtags(activePreviewPlatform)}
                   disabled={isGeneratingHashtags}
                   className="text-[11px] font-semibold text-[#0172F4] hover:text-[#005cd3] flex items-center gap-1 bg-blue-50 px-2.5 py-1 rounded-lg hover:bg-blue-100 transition border border-blue-200 cursor-pointer"
-                  title="Generate 15-20 trending hashtags using AI"
+                  title="Generate niche 4-5 caption tags and 5 first-comment tags for this client"
                 >
                   <Sparkles className={`w-3.5 h-3.5 ${isGeneratingHashtags ? 'animate-spin' : ''}`} />
-                  <span>{isGeneratingHashtags ? 'Generating Tags...' : '✨ AI Generate Hashtags'}</span>
+                  <span>{isGeneratingHashtags ? 'Generating Tags...' : '✨ AI Generate Client Hashtags'}</span>
                 </button>
               </div>
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="#PropertyBabu #RealEstateIndore #IndoreProperties"
-                  value={hashtags}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setHashtags(val);
-                    setPlatformHashtags((prev) => ({ ...prev, [activePreviewPlatform]: val }));
-                  }}
-                  className="w-full pl-8 pr-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0172F4]"
-                />
-                <Hash className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+
+              {/* 1. Caption Hashtags (4 to 5 best tags) */}
+              <div className="p-3 bg-white rounded-xl border border-gray-200 shadow-2xs space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                    <span className="text-xs font-bold text-gray-800">1. Post Caption Hashtags</span>
+                    <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                      Top 4-5 Tags (Maximum Reach & Views)
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-semibold text-gray-500">
+                    {captionHashtags.split(/\s+/).filter(Boolean).length} / 5 tags
+                  </span>
+                </div>
+                <p className="text-[11px] text-gray-500">
+                  Instagram & Meta algorithm ke mutabik 4-5 best niche keywords caption ke end me lagte hain reach aur views maximise karne ke liye.
+                </p>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="#BrandName #CityNiche #TopKeyword"
+                    value={captionHashtags}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCaptionHashtags(val);
+                      const combined = `${val.trim()} \n---FIRST_COMMENT---\n ${commentHashtags.trim()}`;
+                      setHashtags(combined);
+                      setPlatformHashtags((prev) => ({ ...prev, [activePreviewPlatform]: combined }));
+                    }}
+                    className="w-full pl-8 pr-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0172F4] font-medium text-gray-800"
+                  />
+                  <Hash className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                </div>
+              </div>
+
+              {/* 2. First-Comment Hashtags (5 Boost Tags - Auto-Comment) */}
+              <div className="p-3 bg-gradient-to-br from-indigo-50/50 to-blue-50/40 rounded-xl border border-indigo-100 shadow-2xs space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <MessageCircle className="w-3.5 h-3.5 text-indigo-600" />
+                    <span className="text-xs font-bold text-gray-800">2. First-Comment Hashtags</span>
+                    <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200">
+                      5 Tags (Auto-Comment on Publish)
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-semibold text-indigo-600">
+                    {commentHashtags.split(/\s+/).filter(Boolean).length} / 5 tags
+                  </span>
+                </div>
+                <p className="text-[11px] text-gray-600">
+                  Post live hote hi client ke official account se pehla comment ye 5 hashtags automatically post karega ({clients.find((c) => c.id === brandId)?.businessName || 'Client'} ke hisab se).
+                </p>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="#ExploreNiche #CityCity #WeekendVibes #NicheGram #Trending"
+                    value={commentHashtags}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCommentHashtags(val);
+                      const combined = `${captionHashtags.trim()} \n---FIRST_COMMENT---\n ${val.trim()}`;
+                      setHashtags(combined);
+                      setPlatformHashtags((prev) => ({ ...prev, [activePreviewPlatform]: combined }));
+                    }}
+                    className="w-full pl-8 pr-3 py-2 text-xs bg-white border border-indigo-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium text-gray-800"
+                  />
+                  <MessageCircle className="w-3.5 h-3.5 text-indigo-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                </div>
               </div>
             </div>
 
@@ -1638,9 +1802,9 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                         {caption || 'Exciting things coming up! Watch full reel and follow for more insights.'}
                       </p>
 
-                      {hashtags && (
+                      {captionHashtags && (
                         <p className="text-[10px] text-blue-300 font-medium truncate drop-shadow-xs">
-                          {hashtags}
+                          {captionHashtags}
                         </p>
                       )}
 
@@ -1718,15 +1882,46 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                       </div>
                     </div>
 
-                    {/* Caption & Hashtags text */}
-                    <div className="px-3 pb-3 space-y-1 text-[11px] text-gray-800 leading-snug overflow-y-auto max-h-32 bg-white">
+                    {/* Caption & Hashtags text with First Comment Bubble */}
+                    <div className="px-3 pb-3 space-y-2 text-[11px] text-gray-800 leading-snug overflow-y-auto max-h-48 bg-white">
                       <p>
                         <span className="font-bold text-gray-900 mr-1.5">
                           {brandHandle}
                         </span>
                         {caption || 'Add your caption to preview how it looks on social media feeds.'}
                       </p>
-                      {hashtags && <p className="text-[#0172F4] text-[10px] font-medium">{hashtags}</p>}
+                      {captionHashtags && (
+                        <p className="text-[#0172F4] text-[10px] font-medium leading-relaxed">
+                          {captionHashtags}
+                        </p>
+                      )}
+
+                      {/* First Comment Live Preview Bubble (Matching author comment like in the user's screenshot) */}
+                      {commentHashtags && (
+                        <div className="mt-2.5 pt-2 border-t border-gray-100">
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <MessageCircle className="w-3 h-3 text-indigo-500" />
+                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                              First Comment (Auto-Posted by Author)
+                            </span>
+                          </div>
+                          <div className="p-2 bg-indigo-50/60 rounded-lg border border-indigo-100/80 text-[10.5px]">
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <div className="w-4 h-4 rounded-full bg-[#0172F4] text-white flex items-center justify-center font-bold text-[8px]">
+                                {brandAvatarInitial}
+                              </div>
+                              <span className="font-bold text-gray-900 text-[10px]">{brandHandle}</span>
+                              <span className="text-[9px] font-semibold text-gray-500 bg-white px-1 py-0.2 rounded border border-gray-200">
+                                Author
+                              </span>
+                              <span className="text-[9px] text-gray-400">• 1s</span>
+                            </div>
+                            <p className="text-[#0172F4] font-medium leading-relaxed pl-5">
+                              {commentHashtags}
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
