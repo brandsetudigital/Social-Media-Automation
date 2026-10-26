@@ -16,6 +16,7 @@ import userRoutes from './routes/user.routes';
 import systemRoutes from './routes/system.routes';
 import { PublishingService } from './services/PublishingService';
 import { InstagramInsightsService } from './services/InstagramInsightsService';
+import { ensureAnalyticsTablesExist } from './dbAutoMigrate';
 
 import path from 'path';
 import fs from 'fs';
@@ -205,10 +206,14 @@ setInterval(async () => {
   }
 }, IG_INSIGHTS_INTERVAL_MS);
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`====================================================`);
   console.log(` BRANDSETU DIGITAL - SMM OPERATING SYSTEM BACKEND `);
   console.log(` Server running on http://localhost:${PORT}          `);
   console.log(` Health check at http://localhost:${PORT}/api/health `);
   console.log(`====================================================`);
+  
+  // Auto-verify and create Instagram Analytics tables on server boot
+  await ensureAnalyticsTablesExist();
+  syncPersistentBackup();
 });
