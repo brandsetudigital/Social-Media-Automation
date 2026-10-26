@@ -55,6 +55,10 @@ model Client {
   analytics           AnalyticsMetric[]
   reports             ClientReport[]
   documents           ClientDocument[]
+  igAccountSnapshots  InstagramAccountInsightSnapshot[]
+  igMediaSnapshots    InstagramMediaInsightSnapshot[]
+  postingTimeRecommendations PostingTimeRecommendation[]
+  analyticsSyncRuns   AnalyticsSyncRun[]
 }
 
 model ClientBrandProfile {
@@ -106,6 +110,10 @@ model SocialAccount {
   updatedAt       DateTime  @updatedAt
 
   scheduledPosts  ScheduledPost[]
+  igAccountSnapshots  InstagramAccountInsightSnapshot[]
+  igMediaSnapshots    InstagramMediaInsightSnapshot[]
+  postingTimeRecommendations PostingTimeRecommendation[]
+  analyticsSyncRuns   AnalyticsSyncRun[]
 }
 
 model DriveFolder {
@@ -322,4 +330,103 @@ model ClientReport {
   topPostsJson       String?
   metricsSummaryJson String?
   generatedAt        DateTime @default(now())
+}
+
+model InstagramAccountInsightSnapshot {
+  id                    String        @id @default(uuid())
+  clientId              String
+  client                Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  socialAccountId       String
+  socialAccount         SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  capturedAt            DateTime      @default(now())
+  date                  String        // "YYYY-MM-DD"
+  views                 Int?          // Total views/impressions
+  reach                 Int?          // Accounts reached
+  totalInteractions     Int?          // Likes + comments + shares + saves
+  accountsEngaged       Int?
+  likes                 Int?
+  comments              Int?
+  shares                Int?
+  saves                 Int?
+  followersCount        Int?
+  followerGrowth        Int?
+  onlineFollowersByHour String?       // JSON string: {"0": 10, "1": 5, ..., "19": 140}
+  status                String        @default("SUCCESS") // SUCCESS, REAUTH_REQUIRED, ERROR
+  errorDetails          String?
+
+  @@index([clientId, capturedAt])
+  @@index([socialAccountId, date])
+}
+
+model InstagramMediaInsightSnapshot {
+  id                 String        @id @default(uuid())
+  clientId           String
+  client             Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  socialAccountId    String
+  socialAccount      SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  mediaId            String        // External Instagram media ID
+  mediaType          String        // REEL, STORY, IMAGE_POST, CAROUSEL
+  caption            String?
+  permalink          String?
+  mediaUrl           String?
+  thumbnailUrl       String?
+  publishedAt        DateTime
+  capturedAt         DateTime      @default(now())
+  ageBenchmark       String?       // "24H", "72H", "7D", "LATEST"
+  views              Int?          // For reels: plays, for posts: impressions
+  reach              Int?          // Unique accounts reached
+  likes              Int           @default(0)
+  comments           Int           @default(0)
+  shares             Int           @default(0)
+  saves              Int           @default(0)
+  totalInteractions  Int           @default(0)
+  avgWatchTimeSec    Float?
+  totalWatchTimeSec  Float?
+  syncStatus         String        @default("SUCCESS") // SUCCESS, REAUTH_REQUIRED, UNAVAILABLE, ERROR
+  rawMetricsJson     String?
+
+  @@unique([mediaId, ageBenchmark])
+  @@index([clientId, publishedAt])
+  @@index([socialAccountId, capturedAt])
+  @@index([mediaType])
+}
+
+model PostingTimeRecommendation {
+  id                      String         @id @default(uuid())
+  clientId                String
+  client                  Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  socialAccountId         String?
+  socialAccount           SocialAccount? @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  dayOfWeek               Int            // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  dayName                 String         // "Sunday", "Monday", ...
+  targetHour              Int            // 0 - 23 (e.g. 19 for 7 PM)
+  targetTime              String         // "19:00"
+  mediaType               String         // "REEL", "IMAGE_POST", "CAROUSEL", "ALL"
+  expectedReachMultiplier Float          @default(1.0)
+  confidenceLevel         String         // "HIGH", "MEDIUM", "LOW"
+  sampleSize              Int            @default(0)
+  avgViews                Int            @default(0)
+  avgEngagement           Float          @default(0.0)
+  rationale               String
+  isAudiencePeak          Boolean        @default(false)
+  generatedAt             DateTime       @default(now())
+  validUntil              DateTime?
+
+  @@index([clientId, dayOfWeek, mediaType])
+}
+
+model AnalyticsSyncRun {
+  id               String         @id @default(uuid())
+  clientId         String?
+  client           Client?        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  socialAccountId  String?
+  socialAccount    SocialAccount? @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  runType          String         // "SCHEDULED_CRON", "MANUAL_TRIGGER", "POST_PUBLISH_24H"
+  status           String         // "RUNNING", "SUCCESS", "PARTIAL", "FAILED", "REAUTH_REQUIRED"
+  accountsSynced   Int            @default(0)
+  mediaSynced      Int            @default(0)
+  snapshotsCreated Int            @default(0)
+  errorsJson       String?
+  startedAt        DateTime       @default(now())
+  completedAt      DateTime?
 }

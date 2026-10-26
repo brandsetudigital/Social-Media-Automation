@@ -20,7 +20,7 @@ export class AnalyticsService {
     });
     const accountsCount = await prisma.socialAccount.count({
       where: {
-        status: 'CONNECTED',
+        status: { in: ['CONNECTED', 'REAUTH_REQUIRED'] },
         ...(clientId ? { clientId } : {}),
         ...(filterPlatform ? { platform: filterPlatform } : {}),
       },
@@ -108,6 +108,9 @@ export class AnalyticsService {
         totalEngagement: realData.totalEngagement,
         avgEngagementRate: `${realData.avgEngagementRate}%`,
         followersCount: realData.totalFollowers,
+        followerGrowth: realData.followerGrowth,
+        followerGrowthRate: realData.followerGrowthRate,
+        startingFollowers: realData.startingFollowers,
         channelBreakdown: realData.channelBreakdown,
       },
       topPosts: realData.topPosts.slice(0, 5).map((p) => ({

@@ -346,6 +346,34 @@ export const api = {
   getClientReport: (clientId: string, month = 'September', year = 2026) =>
     apiFetch<any>(`/analytics/report/${clientId}?month=${month}&year=${year}`),
 
+  // Instagram Insights Analytics & Smart Scheduling
+  getInstagramOverview: (clientId?: string, range = '30D') => {
+    const query = api.buildQuery({ clientId, range });
+    return apiFetch<any>(`/analytics/instagram/overview${query}`);
+  },
+  getInstagramMedia: (params?: { clientId?: string; mediaType?: string; sortBy?: string; limit?: number; offset?: number }) => {
+    const query = api.buildQuery(params);
+    return apiFetch<any>(`/analytics/instagram/media${query}`);
+  },
+  getInstagramRecommendations: (clientId: string) => {
+    return apiFetch<any[]>(`/analytics/instagram/recommendations?clientId=${clientId}`);
+  },
+  syncInstagramInsights: (clientId?: string) => {
+    return apiFetch<any>('/analytics/instagram/sync', {
+      method: 'POST',
+      body: JSON.stringify({ clientId }),
+    });
+  },
+  getInstagramReport: (clientId: string, period = '30D') => {
+    return apiFetch<any>(`/analytics/instagram/report?clientId=${clientId}&period=${period}`);
+  },
+  updateInstagramMediaMetrics: (mediaId: string, data: { views?: number; likes?: number; comments?: number; shares?: number; saves?: number }) => {
+    return apiFetch<any>(`/analytics/instagram/media/${mediaId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
   // System (Notifications, Audits, Logs)
   getNotifications: (clientId?: string) => {
     const query = api.buildQuery({ clientId });
