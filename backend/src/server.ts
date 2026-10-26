@@ -15,6 +15,7 @@ import analyticsRoutes from './routes/analytics.routes';
 import userRoutes from './routes/user.routes';
 import systemRoutes from './routes/system.routes';
 import { PublishingService } from './services/PublishingService';
+import { InstagramInsightsService } from './services/InstagramInsightsService';
 
 import path from 'path';
 import fs from 'fs';
@@ -191,6 +192,18 @@ setInterval(async () => {
     console.error('[Scheduler Worker Error]', err);
   }
 }, SCHEDULER_INTERVAL_MS);
+
+// Periodic Instagram Insights snapshot sync (every 1 hour)
+const IG_INSIGHTS_INTERVAL_MS = 60 * 60 * 1000;
+setInterval(async () => {
+  try {
+    console.log('[Instagram Insights Worker] Running scheduled insights sync...');
+    const res = await InstagramInsightsService.syncInstagramInsights(undefined, 'SCHEDULED_CRON');
+    console.log(`[Instagram Insights Worker] Synced ${res.accountsSynced} accounts, ${res.snapshotsCreated} snapshots.`);
+  } catch (err: any) {
+    console.warn('[Instagram Insights Worker Warning]', err.message);
+  }
+}, IG_INSIGHTS_INTERVAL_MS);
 
 app.listen(PORT, () => {
   console.log(`====================================================`);
