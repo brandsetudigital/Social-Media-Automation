@@ -352,6 +352,13 @@ export class MetaService {
           const pageTokenData: any = await pageTokenRes.json();
           if (pageTokenData.access_token) {
             pageAccessToken = pageTokenData.access_token;
+          } else if (pageTokenData.error?.code === 4 || pageTokenData.error?.message?.includes('request limit reached')) {
+            return {
+              success: false,
+              errorCode: 'RATE_LIMIT_REACHED',
+              errorMessage: 'Meta API Rate Limit Reached: Meta Developer App has temporarily reached its hourly request limit (#4). Please wait a few minutes before trying again.',
+              rawResponse: pageTokenData,
+            };
           }
         } catch {
           // Fall back to token
@@ -477,9 +484,17 @@ export class MetaService {
 
           const data: any = await res.json();
           if (!res.ok || data.error) {
+            if (data.error?.code === 4 || data.error?.message?.includes('request limit reached')) {
+              return {
+                success: false,
+                errorCode: 'RATE_LIMIT_REACHED',
+                errorMessage: 'Meta API Rate Limit Reached: Meta Developer App has temporarily reached its hourly request limit (#4). Please wait a few minutes before trying again.',
+                rawResponse: data,
+              };
+            }
             let errorMsg = data.error?.message || (isVideo ? 'Failed to upload video/reel to Facebook Page.' : 'Failed to upload photo to Facebook Page.');
             if (errorMsg.includes('publish_actions')) {
-              errorMsg = `Invalid Facebook Page ID (${params.pageId}). Please ensure this is a valid Facebook Page ID (not an Instagram ID or personal profile) and your connected Facebook user has Admin access to this Page.`;
+              errorMsg = `Facebook Page Permission Error (${params.pageId}): A direct Page Access Token is required to post on behalf of this Page. Please ensure your connected Facebook User has Task/Admin access on this Page in Meta Business Suite, or connect with the Page Access Token.`;
             }
             return {
               success: false,
@@ -516,9 +531,17 @@ export class MetaService {
 
           const data: any = await res.json();
           if (!res.ok || data.error) {
+            if (data.error?.code === 4 || data.error?.message?.includes('request limit reached')) {
+              return {
+                success: false,
+                errorCode: 'RATE_LIMIT_REACHED',
+                errorMessage: 'Meta API Rate Limit Reached: Meta Developer App has temporarily reached its hourly request limit (#4). Please wait a few minutes before trying again.',
+                rawResponse: data,
+              };
+            }
             let errorMsg = data.error?.message || (isVideo ? 'Failed to publish video to Facebook Page.' : 'Failed to publish to Facebook Page.');
             if (errorMsg.includes('publish_actions')) {
-              errorMsg = `Invalid Facebook Page ID (${params.pageId}). Please ensure this is a valid Facebook Page ID (not an Instagram ID or personal profile) and your connected Facebook user has Admin access to this Page.`;
+              errorMsg = `Facebook Page Permission Error (${params.pageId}): A direct Page Access Token is required to post on behalf of this Page. Please ensure your connected Facebook User has Task/Admin access on this Page in Meta Business Suite, or connect with the Page Access Token.`;
             }
             return {
               success: false,
