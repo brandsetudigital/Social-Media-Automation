@@ -32,7 +32,9 @@ interface CachedAccountMedia {
 
 // In-memory cache for Meta API responses (90 seconds TTL)
 const mediaCache = new Map<string, CachedAccountMedia>();
-const CACHE_TTL_MS = 90 * 1000;
+// Cache TTL increased to 15 minutes to preserve Meta Developer hourly rate limits
+const CACHE_TTL_MS = 15 * 60 * 1000;
+let metaRateLimitCooldownUntil = 0;
 
 // Verified real live views from Instagram mobile app for published posts
 export const VERIFIED_IG_VIEWS: Record<string, number> = {
@@ -90,6 +92,12 @@ export class LiveMetricsService {
     });
 
     const token = soc?.accessToken && soc.accessToken.startsWith('EAA') ? soc.accessToken : defaultToken;
+    // If Meta rate limit (#4) is active, serve directly from DB/cache to avoid burning quota
+    if (Date.now() < metaRateLimitCooldownUntil) {
+      console.warn('[LiveMetrics] Meta Rate limit cooldown active until ' + new Date(metaRateLimitCooldownUntil).toLocaleTimeString() + '. Serving from DB snapshot.');
+      return null;
+    }
+
     if (!token || !token.startsWith('EAA')) {
       return null;
     }
@@ -112,6 +120,10 @@ export class LiveMetricsService {
             `https://graph.facebook.com/v20.0/${accountId}?fields=id,username,name,followers_count,media_count&access_token=${token}`
           );
           const accData: any = await accRes.json();
+          if (accData?.error?.code === 4 || accData?.error?.message?.includes('request limit')) {
+            metaRateLimitCooldownUntil = Date.now() + 15 * 60 * 1000;
+            console.warn('[LiveMetrics] Meta Rate limit (#4) hit on account check. Cooling down for 15 mins.');
+          }
           if (accData && !accData.error) {
             followersCount = accData.followers_count || followersCount;
             mediaCount = accData.media_count || mediaCount;
@@ -135,6 +147,10 @@ export class LiveMetricsService {
             `https://graph.facebook.com/v20.0/${accountId}/media?fields=id,caption,like_count,comments_count,timestamp,media_type,permalink,media_url,thumbnail_url&limit=50&access_token=${token}`
           );
           const mediaData: any = await mediaRes.json();
+          if (mediaData?.error?.code === 4 || mediaData?.error?.message?.includes('request limit')) {
+            metaRateLimitCooldownUntil = Date.now() + 15 * 60 * 1000;
+            console.warn('[LiveMetrics] Meta Rate limit (#4) hit on media check. Cooling down for 15 mins.');
+          }
           if (Array.isArray(mediaData?.data) && mediaData.data.length > 0) {
             mediaList.push(...mediaData.data);
           }
