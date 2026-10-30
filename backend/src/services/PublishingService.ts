@@ -437,7 +437,13 @@ export class PublishingService {
             attemptCount: { lt: 3 },
             lastAttemptAt: { lte: new Date(Date.now() - 2 * 60 * 1000) },
             NOT: {
-              lastError: { contains: 'CRITICAL SECURITY VIOLATION' },
+              OR: [
+                { lastError: { contains: 'CRITICAL SECURITY VIOLATION' } },
+                { lastError: { contains: 'Rate Limit Reached' } },
+                { lastError: { contains: 'ACCOUNT_NOT_CONNECTED' } },
+                { lastError: { contains: 'Unsupported post request' } },
+                { lastError: { contains: 'does not exist' } },
+              ],
             },
           },
         ],
