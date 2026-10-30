@@ -566,10 +566,20 @@ export const ChannelsView: React.FC = () => {
                   type="text"
                   value={pageId}
                   onChange={(e) => setPageId(e.target.value)}
-                  placeholder="e.g. 109283746582"
+                  placeholder={selectedPlatform.id === 'INSTAGRAM' ? 'e.g. 17841461043662339' : 'e.g. 561414760858271'}
                   className="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-gray-900 font-mono focus:outline-none focus:ring-1 focus:ring-[#0172F4]"
                   required
                 />
+                {selectedPlatform.id === 'INSTAGRAM' && (
+                  <p className="text-[11px] text-amber-600 mt-1.5 font-medium leading-relaxed">
+                    ⚠️ <strong>Important:</strong> Instagram ke liye 17-digit Instagram Business ID enter karein (jo <code>178414...</code> se start hoti hai), Facebook Page ID nahi.
+                  </p>
+                )}
+                {selectedPlatform.id === 'FACEBOOK' && (
+                  <p className="text-[11px] text-gray-500 mt-1.5">
+                    ℹ️ Yahan client ka Facebook Page ID enter karein (e.g. 561414760858271).
+                  </p>
+                )}
               </div>
 
               {/* Connection Mode Toggle */}
