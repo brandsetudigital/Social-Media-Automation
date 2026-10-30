@@ -92,7 +92,21 @@ export class MetaService {
         const isVideo = params.contentType === 'REEL' || /\.(mp4|mov|webm|mkv|ogg)$/i.test(params.mediaUrl);
         const isStory = params.contentType === 'STORY';
         const isHttpUrl = params.mediaUrl.startsWith('http');
-        const containerUrl = `https://graph.facebook.com/v20.0/${params.accountId}/media`;
+        let effectiveAccountId = params.accountId;
+        // Auto-resolve Instagram Business ID if user entered Facebook Page ID
+        if (!effectiveAccountId.startsWith('178414')) {
+          try {
+            const pageRes = await fetch(`https://graph.facebook.com/v20.0/${effectiveAccountId}?fields=instagram_business_account&access_token=${token}`);
+            const pageData: any = await pageRes.json();
+            if (pageData?.instagram_business_account?.id) {
+              console.log(`[MetaService] Auto-resolved Instagram ID for Page ${effectiveAccountId} -> ${pageData.instagram_business_account.id}`);
+              effectiveAccountId = pageData.instagram_business_account.id;
+            }
+          } catch (autoErr: any) {
+            console.warn('[MetaService] Could not auto-resolve Instagram ID from Facebook Page:', autoErr.message);
+          }
+        }
+        const containerUrl = `https://graph.facebook.com/v20.0/${effectiveAccountId}/media`;
 
         let creationId = '';
         let targetImageUrl = params.mediaUrl;
@@ -193,7 +207,13 @@ export class MetaService {
             return {
               success: false,
               errorCode: containerData.error?.code?.toString() || 'META_API_ERROR',
-              errorMessage: `Instagram Container Error: ${containerData.error?.message || 'Failed to create Instagram container.'}`,
+              errorMessage: `Instagram Container Error: ${
+      containerData.error?.message?.includes('Unsupported post request') || containerData.error?.message?.includes('does not exist')
+        ? (!effectiveAccountId.startsWith('178414')
+            ? "ID '" + params.accountId + "' ek Facebook Page ID hai, Instagram Business Account ID nahi. Instagram ID hamesha '178414...' se start hoti hai. Kripya Channels me client ka sahi Instagram ID dalein."
+            : "Instagram Account ID '" + params.accountId + "' Meta App se authorized nahi hai ya access permission missing hai.")
+        : (containerData.error?.message || 'Failed to create Instagram container.')
+    }`,
               rawResponse: containerData,
             };
           }
