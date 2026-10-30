@@ -78,6 +78,14 @@ export class MetaService {
       };
     }
 
+    if (!params.accountId || params.accountId.startsWith('acc_') || params.accountId.startsWith('page_')) {
+      return {
+        success: false,
+        errorCode: 'INVALID_ACCOUNT_ID',
+        errorMessage: `Instagram Account ID placeholder hai ('${params.accountId}'). Kripya Channels tab me client ka real 17-digit Instagram Business ID (178414...) connect karein.`,
+      };
+    }
+
     if (!params.mediaUrl) {
       return {
         success: false,
