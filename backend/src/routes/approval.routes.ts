@@ -11,22 +11,29 @@ function getKnownSocialAccountDetails(businessName: string, platform: string) {
   const name = (businessName || '').toLowerCase();
   const isAirawati = name.includes('airawati');
   const isPropBabu = name.includes('property babu');
+  const isPanna = name.includes('panna');
+  const isBrandSetu = name.includes('brandsetu');
 
   if (platform === 'INSTAGRAM') {
     if (isAirawati) return { accountId: '17841446137902662', accountName: '@airawatifashions (Airawati Fashions)' };
     if (isPropBabu) return { accountId: '17841449083241879', accountName: '@propertybabu (Property Babu)' };
-    return { accountId: '17841479535088692', accountName: '@brandsetudigital (BrandSetu Digital)' };
+    if (isPanna) return { accountId: '17841461043662339', accountName: '@pannasweetsindore (Panna Sweets & Restaurant)' };
+    if (isBrandSetu) return { accountId: '17841479535088692', accountName: '@brandsetudigital (BrandSetu Digital)' };
+    return { accountId: `acc_ig_${Date.now()}`, accountName: `${businessName} (Instagram)` };
   }
 
   if (platform === 'FACEBOOK') {
-    if (isAirawati) return { accountId: '801485533039311', accountName: 'Airawati fashions' };
-    if (isPropBabu) return { accountId: '1005980055935239', accountName: '@propertybabu (Property Babu)' };
-    return { accountId: '846536121883769', accountName: 'BrandSetu Digital' };
+    if (isAirawati) return { accountId: '122095747568993917', accountName: 'Airawati fashions' };
+    if (isPropBabu) return { accountId: '122101064349278583', accountName: '@propertybabu (Property Babu)' };
+    if (isPanna) return { accountId: '561414760858271', accountName: '@pannasweetsrestaurant (Panna Sweets & Restaurant)' };
+    if (isBrandSetu) return { accountId: '122146725447159763', accountName: 'BrandSetu Digital (Facebook Page)' };
+    return { accountId: `acc_fb_${Date.now()}`, accountName: `${businessName} (Facebook)` };
   }
 
   if (platform === 'GOOGLE_BUSINESS') {
     if (isPropBabu) return { accountId: '2359884925523845124', accountName: '@propertybabu (Property Babu - Google Maps)' };
-    return { accountId: '4475899898765251271', accountName: '@brandsetudigital (BrandSetu Digital)' };
+    if (isBrandSetu) return { accountId: '4475899898765251271', accountName: '@brandsetudigital (BrandSetu Digital)' };
+    return { accountId: `acc_gmb_${Date.now()}`, accountName: `${businessName} (Google Business)` };
   }
 
   return { accountId: `${platform.toLowerCase()}_${Date.now()}`, accountName: `@${name.replace(/[^a-z0-9]/g, '')}` };

@@ -414,6 +414,8 @@ router.post('/create', authenticateToken, async (req: AuthRequest, res: Response
           const name = (client.businessName || '').toLowerCase();
           const isAirawati = name.includes('airawati');
           const isPropBabu = name.includes('property babu');
+          const isPanna = name.includes('panna');
+          const isBrandSetu = name.includes('brandsetu');
 
           let defaultAccId = `acc_${p.toLowerCase()}_${Date.now()}`;
           let defaultAccName = `${client.businessName} (${p})`;
@@ -421,14 +423,16 @@ router.post('/create', authenticateToken, async (req: AuthRequest, res: Response
           if (p === 'INSTAGRAM') {
             if (isAirawati) { defaultAccId = '17841446137902662'; defaultAccName = '@airawatifashions (Airawati Fashions)'; }
             else if (isPropBabu) { defaultAccId = '17841449083241879'; defaultAccName = '@propertybabu (Property Babu)'; }
-            else { defaultAccId = '17841479535088692'; defaultAccName = '@brandsetudigital (BrandSetu Digital)'; }
+            else if (isPanna) { defaultAccId = '17841461043662339'; defaultAccName = '@pannasweetsindore (Panna Sweets & Restaurant)'; }
+            else if (isBrandSetu) { defaultAccId = '17841479535088692'; defaultAccName = '@brandsetudigital (BrandSetu Digital)'; }
           } else if (p === 'FACEBOOK') {
-            if (isAirawati) { defaultAccId = '801485533039311'; defaultAccName = 'Airawati fashions'; }
-            else if (isPropBabu) { defaultAccId = '1005980055935239'; defaultAccName = '@propertybabu (Property Babu)'; }
-            else { defaultAccId = '846536121883769'; defaultAccName = 'BrandSetu Digital'; }
+            if (isAirawati) { defaultAccId = '122095747568993917'; defaultAccName = 'Airawati fashions'; }
+            else if (isPropBabu) { defaultAccId = '122101064349278583'; defaultAccName = '@propertybabu (Property Babu)'; }
+            else if (isPanna) { defaultAccId = '561414760858271'; defaultAccName = '@pannasweetsrestaurant (Panna Sweets & Restaurant)'; }
+            else if (isBrandSetu) { defaultAccId = '122146725447159763'; defaultAccName = 'BrandSetu Digital (Facebook Page)'; }
           } else if (p === 'GOOGLE_BUSINESS') {
             if (isPropBabu) { defaultAccId = '2359884925523845124'; defaultAccName = '@propertybabu (Property Babu - Google Maps)'; }
-            else { defaultAccId = '4475899898765251271'; defaultAccName = '@brandsetudigital (BrandSetu Digital)'; }
+            else if (isBrandSetu) { defaultAccId = '4475899898765251271'; defaultAccName = '@brandsetudigital (BrandSetu Digital)'; }
           }
 
           const defaultToken = p === 'GOOGLE_BUSINESS'
