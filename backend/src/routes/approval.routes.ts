@@ -12,12 +12,14 @@ function getKnownSocialAccountDetails(businessName: string, platform: string) {
   const isAirawati = name.includes('airawati');
   const isPropBabu = name.includes('property babu');
   const isPanna = name.includes('panna');
+  const isCocodan = name.includes('cocodan');
   const isBrandSetu = name.includes('brandsetu');
 
   if (platform === 'INSTAGRAM') {
     if (isAirawati) return { accountId: '17841446137902662', accountName: '@airawatifashions (Airawati Fashions)' };
     if (isPropBabu) return { accountId: '17841449083241879', accountName: '@propertybabu (Property Babu)' };
     if (isPanna) return { accountId: '17841461043662339', accountName: '@pannasweetsindore (Panna Sweets & Restaurant)' };
+    if (isCocodan) return { accountId: '17841440788234966', accountName: '@hotel__cocodan (Hotel Cocodan)' };
     if (isBrandSetu) return { accountId: '17841479535088692', accountName: '@brandsetudigital (BrandSetu Digital)' };
     return { accountId: `acc_ig_${Date.now()}`, accountName: `${businessName} (Instagram)` };
   }
@@ -26,6 +28,7 @@ function getKnownSocialAccountDetails(businessName: string, platform: string) {
     if (isAirawati) return { accountId: '122095747568993917', accountName: 'Airawati fashions' };
     if (isPropBabu) return { accountId: '122101064349278583', accountName: '@propertybabu (Property Babu)' };
     if (isPanna) return { accountId: '561414760858271', accountName: '@pannasweetsrestaurant (Panna Sweets & Restaurant)' };
+    if (isCocodan) return { accountId: '1325402517319139', accountName: 'Hotel cocodan' };
     if (isBrandSetu) return { accountId: '122146725447159763', accountName: 'BrandSetu Digital (Facebook Page)' };
     return { accountId: `acc_fb_${Date.now()}`, accountName: `${businessName} (Facebook)` };
   }

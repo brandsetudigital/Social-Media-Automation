@@ -415,6 +415,7 @@ router.post('/create', authenticateToken, async (req: AuthRequest, res: Response
           const isAirawati = name.includes('airawati');
           const isPropBabu = name.includes('property babu');
           const isPanna = name.includes('panna');
+          const isCocodan = name.includes('cocodan');
           const isBrandSetu = name.includes('brandsetu');
 
           let defaultAccId = `acc_${p.toLowerCase()}_${Date.now()}`;
@@ -424,11 +425,13 @@ router.post('/create', authenticateToken, async (req: AuthRequest, res: Response
             if (isAirawati) { defaultAccId = '17841446137902662'; defaultAccName = '@airawatifashions (Airawati Fashions)'; }
             else if (isPropBabu) { defaultAccId = '17841449083241879'; defaultAccName = '@propertybabu (Property Babu)'; }
             else if (isPanna) { defaultAccId = '17841461043662339'; defaultAccName = '@pannasweetsindore (Panna Sweets & Restaurant)'; }
+            else if (isCocodan) { defaultAccId = '17841440788234966'; defaultAccName = '@hotel__cocodan (Hotel Cocodan)'; }
             else if (isBrandSetu) { defaultAccId = '17841479535088692'; defaultAccName = '@brandsetudigital (BrandSetu Digital)'; }
           } else if (p === 'FACEBOOK') {
             if (isAirawati) { defaultAccId = '122095747568993917'; defaultAccName = 'Airawati fashions'; }
             else if (isPropBabu) { defaultAccId = '122101064349278583'; defaultAccName = '@propertybabu (Property Babu)'; }
             else if (isPanna) { defaultAccId = '561414760858271'; defaultAccName = '@pannasweetsrestaurant (Panna Sweets & Restaurant)'; }
+            else if (isCocodan) { defaultAccId = '1325402517319139'; defaultAccName = 'Hotel cocodan'; }
             else if (isBrandSetu) { defaultAccId = '122146725447159763'; defaultAccName = 'BrandSetu Digital (Facebook Page)'; }
           } else if (p === 'GOOGLE_BUSINESS') {
             if (isPropBabu) { defaultAccId = '2359884925523845124'; defaultAccName = '@propertybabu (Property Babu - Google Maps)'; }
