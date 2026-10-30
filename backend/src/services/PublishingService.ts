@@ -194,6 +194,15 @@ export class PublishingService {
     let effectiveMetaToken = isInvalidOrOldMetaToken && defaultMetaToken ? defaultMetaToken : (rawAccountToken || defaultMetaToken);
 
     const doPublish = async (tokenToUse: string) => {
+      const targetAccId = post.socialAccount.accountId?.trim() || '';
+      if (!targetAccId || targetAccId.startsWith('acc_') || targetAccId.startsWith('page_')) {
+        return {
+          success: false,
+          errorCode: 'ACCOUNT_NOT_CONNECTED',
+          errorMessage: `Client '${post.client?.businessName || 'Selected'}' ke paas valid ${post.platform} account connected nahi hai (mil gaya: '${targetAccId || 'None'}'). Kripya Channels tab me jakar client ka real account connect karein.`,
+        };
+      }
+
       if (post.platform === 'INSTAGRAM') {
         const igContentType = (post.contentItem.contentType === 'REEL' || post.contentItem.contentType === 'STORY')
           ? post.contentItem.contentType
