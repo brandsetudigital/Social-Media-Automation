@@ -14,6 +14,8 @@ import aiRoutes from './routes/ai.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import userRoutes from './routes/user.routes';
 import systemRoutes from './routes/system.routes';
+import reviewRoutes from './routes/review.routes';
+import { GmbReviewService } from './services/GmbReviewService';
 import { PublishingService } from './services/PublishingService';
 import { InstagramInsightsService } from './services/InstagramInsightsService';
 import { ensureAnalyticsTablesExist } from './dbAutoMigrate';
@@ -172,6 +174,7 @@ app.use('/api/social', socialRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/system', systemRoutes);
+app.use('/api/reviews', reviewRoutes);
 
 // Global Error Handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -205,6 +208,20 @@ setInterval(async () => {
     console.warn('[Instagram Insights Worker Warning]', err.message);
   }
 }, IG_INSIGHTS_INTERVAL_MS);
+
+
+// Periodic Google My Business Reviews Sync & AI Auto-Reply Engine (every 10 minutes)
+const GMB_REVIEW_INTERVAL_MS = 10 * 60 * 1000;
+setInterval(async () => {
+  try {
+    const res = await GmbReviewService.runAutoReplyWorker();
+    if (res.checked > 0 || res.replied > 0) {
+      console.log(`[GMB Reviews Worker] Checked ${res.checked} reviews, sent ${res.replied} AI auto-replies at ${new Date().toLocaleTimeString()}`);
+    }
+  } catch (err: any) {
+    console.warn('[GMB Reviews Worker Warning]', err.message);
+  }
+}, GMB_REVIEW_INTERVAL_MS);
 
 app.listen(PORT, async () => {
   console.log(`====================================================`);

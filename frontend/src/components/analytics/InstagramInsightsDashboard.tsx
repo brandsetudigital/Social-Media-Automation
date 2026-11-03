@@ -558,21 +558,21 @@ export const InstagramInsightsDashboard: React.FC<Props> = ({
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-amber-500" />
               <h4 className="text-sm font-bold text-gray-900">
-                AI Smart Scheduling Recommendations
+                AI Weekly Smart Schedule (Custom Routine)
               </h4>
               <span className="text-[10px] font-bold bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200">
                 Algorithmic Prediction
               </span>
             </div>
             <p className="text-xs text-gray-500 mt-0.5">
-              Data-backed optimal publication windows based on historical performance benchmarks and audience activity.
+              AI-optimized posting schedule based on your custom weekly routine and historical reach/view peaks.
             </p>
           </div>
         </div>
 
         {recommendations && recommendations.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-            {recommendations.slice(0, 6).map((rec: any, idx: number) => {
+            {recommendations.map((rec: any, idx: number) => {
               const isHigh = rec.confidenceLevel === 'HIGH';
               const isMed = rec.confidenceLevel === 'MEDIUM';
 
@@ -584,7 +584,7 @@ export const InstagramInsightsDashboard: React.FC<Props> = ({
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-black text-gray-900 flex items-center gap-1.5">
                       <Calendar className="w-3.5 h-3.5 text-blue-600" />
-                      {rec.dayName} at {formatIndianTime(rec.targetTime)}
+                      {rec.targetTime === "00:00" ? `${rec.dayName} • Rest Day (Gap)` : `${rec.dayName} at ${formatIndianTime(rec.targetTime)}`}
                     </span>
                     <span
                       className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
@@ -601,7 +601,7 @@ export const InstagramInsightsDashboard: React.FC<Props> = ({
 
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
-                      {rec.mediaType}
+                      {rec.targetTime === "00:00" ? "GAP / REST" : rec.mediaType === "CAROUSEL" ? "CAROUSEL POST" : rec.mediaType === "REEL" ? "REEL VIDEO" : "GRAPHICS / REVIEW"}
                     </span>
                     <span className="text-xs font-extrabold text-emerald-600">
                       {rec.expectedReachMultiplier}x Projected Reach
@@ -614,15 +614,21 @@ export const InstagramInsightsDashboard: React.FC<Props> = ({
 
                   <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-[11px]">
                     <span className="text-gray-400 font-medium">Sample: {rec.sampleSize} posts</span>
-                    <button
-                      type="button"
-                      onClick={() => handleScheduleSlotClick(rec)}
-                      className="font-bold text-xs text-white bg-gradient-to-r from-pink-600 via-rose-600 to-amber-600 hover:from-pink-700 hover:to-amber-700 px-3 py-1.5 rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer transition transform active:scale-95"
-                      title="Open scheduler pre-filled with this optimal day, time and format"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>✨ Schedule This Slot</span>
-                    </button>
+                    {rec.targetTime === "00:00" ? (
+                      <span className="text-[11px] font-bold text-gray-500 bg-gray-100 px-2.5 py-1 rounded-md border border-gray-200">
+                        ☕ Rest Day (No Posting)
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleScheduleSlotClick(rec)}
+                        className="font-bold text-xs text-white bg-gradient-to-r from-pink-600 via-rose-600 to-amber-600 hover:from-pink-700 hover:to-amber-700 px-3 py-1.5 rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer transition transform active:scale-95"
+                        title="Open scheduler pre-filled with this optimal day, time and format"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>✨ Schedule This Slot</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               );

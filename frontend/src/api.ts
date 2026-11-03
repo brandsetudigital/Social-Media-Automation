@@ -374,6 +374,23 @@ export const api = {
     });
   },
 
+  // Google Business Reviews & AI Auto-Reply
+  getGmbReviews: (params?: { clientId?: string; starRating?: string | number; replyStatus?: string }) => {
+    const query = api.buildQuery(params);
+    return apiFetch<{ reviews: any[]; stats: { total: number; pending: number; replied: number } }>(`/reviews${query}`);
+  },
+  syncGmbReviews: (clientId: string) => {
+    return apiFetch<any>(`/reviews/sync/${clientId}`, { method: 'POST' });
+  },
+  syncAllGmbReviews: () => {
+    return apiFetch<any>('/reviews/sync-all', { method: 'POST' });
+  },
+  replyGmbReview: (reviewId: string, customReply?: string) => {
+    return apiFetch<any>(`/reviews/${reviewId}/reply`, {
+      method: 'POST',
+      body: JSON.stringify({ customReply }),
+    });
+  },
   // System (Notifications, Audits, Logs)
   getNotifications: (clientId?: string) => {
     const query = api.buildQuery({ clientId });

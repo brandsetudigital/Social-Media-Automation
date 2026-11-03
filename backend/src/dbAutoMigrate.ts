@@ -139,7 +139,40 @@ export async function ensureAnalyticsTablesExist(): Promise<void> {
       CREATE INDEX IF NOT EXISTS "PostingTimeRecommendation_clientId_dayOfWeek_mediaType_idx" ON "PostingTimeRecommendation"("clientId", "dayOfWeek", "mediaType");
     `);
 
-    console.log('✅ [Database Auto-Migration] Instagram analytics tables verified/created successfully.');
+    
+    // 7. Create GmbReview table for Google Reviews & AI Auto-Reply
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "GmbReview" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "clientId" TEXT NOT NULL,
+        "socialAccountId" TEXT,
+        "reviewId" TEXT NOT NULL,
+        "reviewerName" TEXT NOT NULL,
+        "reviewerPhotoUrl" TEXT,
+        "starRating" INTEGER NOT NULL,
+        "comment" TEXT,
+        "reviewCreatedAt" DATETIME NOT NULL,
+        "replyText" TEXT,
+        "repliedAt" DATETIME,
+        "replyStatus" TEXT NOT NULL DEFAULT 'PENDING',
+        "replyError" TEXT,
+        "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" DATETIME NOT NULL,
+        CONSTRAINT "GmbReview_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "Client" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+        CONSTRAINT "GmbReview_socialAccountId_fkey" FOREIGN KEY ("socialAccountId") REFERENCES "SocialAccount" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+      );
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE UNIQUE INDEX IF NOT EXISTS "GmbReview_reviewId_key" ON "GmbReview"("reviewId");
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "GmbReview_clientId_starRating_idx" ON "GmbReview"("clientId", "starRating");
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "GmbReview_replyStatus_idx" ON "GmbReview"("replyStatus");
+    `);
+
+    console.log('✅ [Database Auto-Migration] Instagram analytics & GMB review tables verified/created successfully.');
   } catch (err: any) {
     console.warn('[Database Auto-Migration Warning]:', err.message);
   }

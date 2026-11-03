@@ -13,6 +13,7 @@ import {
   Users,
   CheckSquare,
   HelpCircle,
+  Star,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
@@ -28,7 +29,8 @@ export type NavTab =
   | 'library'
   | 'feeds'
   | 'users'
-  | 'approvals';
+  | 'approvals'
+  | 'reviews';
 
 interface SidebarProps {
   activeTab: NavTab;
@@ -78,6 +80,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'channels',
       label: 'Channels',
       icon: Share2,
+    },
+    {
+      id: 'reviews',
+      label: 'Google Reviews & AI',
+      icon: Star,
     },
     {
       id: 'inbox',

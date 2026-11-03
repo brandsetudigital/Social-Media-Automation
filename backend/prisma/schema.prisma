@@ -59,6 +59,7 @@ model Client {
   igMediaSnapshots    InstagramMediaInsightSnapshot[]
   postingTimeRecommendations PostingTimeRecommendation[]
   analyticsSyncRuns   AnalyticsSyncRun[]
+  gmbReviews          GmbReview[]
 }
 
 model ClientBrandProfile {
@@ -114,6 +115,7 @@ model SocialAccount {
   igMediaSnapshots    InstagramMediaInsightSnapshot[]
   postingTimeRecommendations PostingTimeRecommendation[]
   analyticsSyncRuns   AnalyticsSyncRun[]
+  gmbReviews          GmbReview[]
 }
 
 model DriveFolder {
@@ -429,4 +431,27 @@ model AnalyticsSyncRun {
   errorsJson       String?
   startedAt        DateTime       @default(now())
   completedAt      DateTime?
+}
+
+model GmbReview {
+  id               String         @id @default(uuid())
+  clientId         String
+  client           Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  socialAccountId  String?
+  socialAccount    SocialAccount? @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  reviewId         String         @unique
+  reviewerName     String
+  reviewerPhotoUrl String?
+  starRating       Int            // 1 to 5
+  comment          String?
+  reviewCreatedAt  DateTime
+  replyText        String?
+  repliedAt        DateTime?
+  replyStatus      String         @default("PENDING") // PENDING, REPLIED, FAILED, IGNORED
+  replyError       String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([clientId, starRating])
+  @@index([replyStatus])
 }
