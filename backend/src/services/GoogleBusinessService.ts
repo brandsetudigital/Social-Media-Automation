@@ -183,6 +183,12 @@ export class GoogleBusinessService {
     preferredLocationId?: string,
     clientName?: string
   ): Promise<{ accountName: string; locationName: string; locationTitle?: string } | null> {
+    if (preferredLocationId && preferredLocationId.includes("accounts/") && preferredLocationId.includes("locations/")) {
+      const parts = preferredLocationId.split("/locations/");
+      const accountName = parts[0].startsWith("accounts/") ? parts[0] : ("accounts/" + parts[0]);
+      const locationName = parts[1].startsWith("locations/") ? parts[1] : ("locations/" + parts[1]);
+      return { accountName, locationName, locationTitle: clientName };
+    }
     try {
       const accRes = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
         headers: { Authorization: `Bearer ${token}` },

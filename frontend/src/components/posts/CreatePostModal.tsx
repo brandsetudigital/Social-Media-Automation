@@ -780,10 +780,12 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
       if (recs && recs.length > 0) {
         const isReel = isVideoMedia(mediaUrl, contentType, uploadedFileName);
-        const matchingRec = recs.find((r: any) => {
-          if (isReel) return r.mediaType === 'REEL' || r.mediaType === 'ALL';
+        const activeRecs = recs.filter((r: any) => r.mediaType !== 'GAP' && r.targetTime !== '00:00');
+        const matchingRec = (activeRecs.length > 0 ? activeRecs : recs).find((r: any) => {
+          if (isReel) return r.mediaType === 'REEL';
+          if (contentType === 'CAROUSEL') return r.mediaType === 'CAROUSEL';
           return r.mediaType !== 'REEL';
-        }) || recs[0];
+        }) || activeRecs[0] || recs[0];
 
         const targetDay = matchingRec.dayOfWeek;
         const now = new Date();

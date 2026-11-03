@@ -16,11 +16,14 @@ import { FeedsView } from './components/feeds/FeedsView';
 import { UsersManagementView } from './components/users/UsersManagementView';
 import { ApprovalsView } from './components/approvals/ApprovalsView';
 import { ClientsView } from './components/clients/ClientsView';
+import { GmbReviewsView } from './components/reviews/GmbReviewsView';
+import { useClients } from './context/ClientContext';
 import { api } from './api';
 import { RefreshCw } from 'lucide-react';
 
 const MainShell: React.FC = () => {
   const { role } = useAuth();
+  const { selectedClientId, clients } = useClients();
   const [activeTab, setActiveTab] = useState<NavTab>('agency-dashboard');
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const [newContentCount, setNewContentCount] = useState(0);
@@ -122,6 +125,7 @@ const MainShell: React.FC = () => {
             />
           )}
           {activeTab === 'channels' && <ChannelsView />}
+          {activeTab === 'reviews' && <GmbReviewsView selectedClientId={selectedClientId} clients={clients} />}
           {activeTab === 'inbox' && <UnifiedInboxView />}
           {activeTab === 'library' && (
             <LibraryView onUseTemplate={(tpl) => handleOpenCreatePost(tpl)} />
