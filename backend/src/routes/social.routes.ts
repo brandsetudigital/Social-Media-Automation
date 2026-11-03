@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { AuthRequest, authenticateToken } from '../middleware/auth.middleware';
 import prisma from '../prisma';
 import { AuditService } from '../services/AuditService';
+import { GmbReviewService } from '../services/GmbReviewService';
 
 const router = Router();
 
@@ -66,6 +67,12 @@ router.post('/connect', authenticateToken, async (req: AuthRequest, res: Respons
       details: { platform, accountName, accountId },
     });
 
+    if (platform === 'GOOGLE_BUSINESS') {
+      GmbReviewService.syncReviewsForClient(clientId).catch((e) =>
+        console.warn('[SocialRoutes] Auto-sync on connect warning:', e.message)
+      );
+    }
+
     return res.status(201).json(account);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
@@ -98,6 +105,12 @@ router.post('/reconnect/:id', authenticateToken, async (req: AuthRequest, res: R
       clientId: account.clientId,
       details: { platform: account.platform, accountName: account.accountName },
     });
+
+    if (account.platform === 'GOOGLE_BUSINESS') {
+      GmbReviewService.syncReviewsForClient(account.clientId).catch((e) =>
+        console.warn('[SocialRoutes] Auto-sync on reconnect warning:', e.message)
+      );
+    }
 
     return res.json({ message: 'Account reconnected successfully', account });
   } catch (err: any) {
