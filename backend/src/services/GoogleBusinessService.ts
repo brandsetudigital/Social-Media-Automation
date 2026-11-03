@@ -197,9 +197,17 @@ export class GoogleBusinessService {
       const accData: any = await accRes.json();
       const firstAccount = accData.accounts?.[0]?.name;
       if (!firstAccount) return null;
+      const cleanLocId = (preferredLocationId || '').replace(/^locations\//, '').trim();
+      if (cleanLocId && /^\d+$/.test(cleanLocId)) {
+        return {
+          accountName: firstAccount,
+          locationName: 'locations/' + cleanLocId,
+          locationTitle: clientName,
+        };
+      }
 
       const locRes = await fetch(
-        `https://mybusinessbusinessinformation.googleapis.com/v1/${firstAccount}/locations?readMask=name,title,storeCode`,
+        `https://mybusinessbusinessinformation.googleapis.com/v1/${firstAccount}/locations?readMask=name,title,storeCode&pageSize=100`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
