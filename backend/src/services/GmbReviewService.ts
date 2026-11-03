@@ -180,9 +180,18 @@ Guidelines:
           await this.replyToReview(created.id, token, discovered);
           replied++;
         }
-      } else if (!existing.replyText && !r.reviewReply && existing.replyStatus === 'PENDING') {
-        await this.replyToReview(existing.id, token, discovered);
-        replied++;
+      } else {
+        if (existing.clientId !== clientId) {
+          await prisma.gmbReview.update({
+            where: { id: existing.id },
+            data: { clientId, socialAccountId: gmbAccount?.id },
+          });
+          synced++;
+        }
+        if (!existing.replyText && !r.reviewReply && existing.replyStatus === 'PENDING') {
+          await this.replyToReview(existing.id, token, discovered);
+          replied++;
+        }
       }
     }
 
