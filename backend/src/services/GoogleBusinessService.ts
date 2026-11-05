@@ -142,10 +142,10 @@ export class GoogleBusinessService {
   /**
    * Exchanges Refresh Token for a fresh 1-hour Google Access Token automatically
    */
-  static async getFreshAccessToken(): Promise<string | null> {
-    const refreshToken = process.env.GOOGLE_BUSINESS_REFRESH_TOKEN?.trim();
-    const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
+  static async getFreshAccessToken(customRefreshToken?: string): Promise<string | null> {
+    const refreshToken = (customRefreshToken || process.env.GOOGLE_BUSINESS_REFRESH_TOKEN || '').trim();
+    const clientId = (process.env.GOOGLE_CLIENT_ID || '').trim();
+    const clientSecret = (process.env.GOOGLE_CLIENT_SECRET || '').trim();
 
     if (!refreshToken || !clientId || !clientSecret) {
       return null;

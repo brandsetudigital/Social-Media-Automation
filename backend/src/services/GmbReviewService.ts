@@ -189,7 +189,15 @@ Return ONLY the final reply text without quotes or preamble.`;
       : (process.env.GOOGLE_BUSINESS_ACCESS_TOKEN || '');
 
     const freshToken = await GoogleBusinessService.getFreshAccessToken();
-    if (freshToken) token = freshToken;
+    if (freshToken) {
+      token = freshToken;
+      if (gmbAccount && gmbAccount.accessToken !== freshToken) {
+        await prisma.socialAccount.update({
+          where: { id: gmbAccount.id },
+          data: { accessToken: freshToken, lastHealthCheck: new Date() },
+        }).catch(() => {});
+      }
+    }
 
     if (!token || token.startsWith('gmb_tok_') || token === 'EXPIRED') {
       throw new Error(`Google Business Profile real Access Token missing/expired for "${client.businessName}". Channels tab me Google account Reconnect karein.`);
@@ -322,9 +330,12 @@ Return ONLY the final reply text without quotes or preamble.`;
         let locationName = discoveredLocation?.locationName;
 
         if (!accountName || !locationName) {
+          const gmbAcc = await prisma.socialAccount.findFirst({
+            where: { clientId: review.clientId, platform: 'GOOGLE_BUSINESS', status: 'CONNECTED' },
+          });
           const disc = await GoogleBusinessService.discoverAccountAndLocation(
             token,
-            undefined,
+            gmbAcc?.accountId,
             review.client.businessName
           );
           if (disc) {
@@ -389,7 +400,9 @@ Return ONLY the final reply text without quotes or preamble.`;
         const res = await this.syncReviewsForClient(c.id);
         totalChecked += res.synced;
         totalReplied += res.replied;
-      } catch {}
+      } catch (err: any) {
+        console.warn(`[GMB AutoReply Worker] Error syncing client "${c.businessName}":`, err.message);
+      }
     }
 
     // Also reply to any PENDING reviews in DB
@@ -402,7 +415,9 @@ Return ONLY the final reply text without quotes or preamble.`;
       try {
         await this.replyToReview(rev.id);
         totalReplied++;
-      } catch {}
+      } catch (err: any) {
+        console.warn(`[GMB AutoReply Worker] Error replying to pending review ${rev.id}:`, err.message);
+      }
     }
 
     return { checked: totalChecked, replied: totalReplied };

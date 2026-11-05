@@ -3,6 +3,7 @@ import { AuthRequest, authenticateToken } from '../middleware/auth.middleware';
 import prisma from '../prisma';
 import { AuditService } from '../services/AuditService';
 import { GmbReviewService } from '../services/GmbReviewService';
+import { GoogleBusinessService } from '../services/GoogleBusinessService';
 
 const router = Router();
 
@@ -40,8 +41,17 @@ router.post('/connect', authenticateToken, async (req: AuthRequest, res: Respons
     const client = await prisma.client.findUnique({ where: { id: clientId } });
     if (!client) return res.status(404).json({ error: 'Client not found' });
 
-    const finalToken = accessToken?.trim() || 
-      (platform === 'GOOGLE_BUSINESS' ? (process.env.GOOGLE_BUSINESS_ACCESS_TOKEN || `gmb_tok_${Date.now()}`) : (process.env.META_DEFAULT_ACCESS_TOKEN || `oauth_tok_${platform.toLowerCase()}_${Date.now()}`));
+    let finalToken = accessToken?.trim();
+    if (platform === 'GOOGLE_BUSINESS') {
+      const freshToken = await GoogleBusinessService.getFreshAccessToken();
+      if (freshToken) {
+        finalToken = freshToken;
+      } else if (!finalToken || finalToken.startsWith('GOCSPX-') || finalToken.startsWith('1//')) {
+        finalToken = process.env.GOOGLE_BUSINESS_ACCESS_TOKEN || `gmb_tok_${Date.now()}`;
+      }
+    } else if (!finalToken) {
+      finalToken = process.env.META_DEFAULT_ACCESS_TOKEN || `oauth_tok_${platform.toLowerCase()}_${Date.now()}`;
+    }
 
     // Ensure connection is mapped exclusively to this client
     const account = await prisma.socialAccount.create({
@@ -84,11 +94,21 @@ router.post('/reconnect/:id', authenticateToken, async (req: AuthRequest, res: R
   try {
     const { id } = req.params;
 
+    let freshTok = req.body?.accessToken?.trim();
+    const existingAcc = await prisma.socialAccount.findUnique({ where: { id } });
+    if (existingAcc?.platform === 'GOOGLE_BUSINESS') {
+      const gTok = await GoogleBusinessService.getFreshAccessToken();
+      if (gTok) freshTok = gTok;
+    }
+    if (!freshTok || freshTok.startsWith('GOCSPX-') || freshTok.startsWith('1//')) {
+      freshTok = process.env.META_DEFAULT_ACCESS_TOKEN || `oauth_reconnected_${Date.now()}`;
+    }
+
     const account = await prisma.socialAccount.update({
       where: { id },
       data: {
         status: 'CONNECTED',
-        accessToken: req.body?.accessToken?.trim() || process.env.META_DEFAULT_ACCESS_TOKEN || `oauth_reconnected_${Date.now()}`,
+        accessToken: freshTok,
         tokenExpiresAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
         lastHealthCheck: new Date(),
         lastError: null,
