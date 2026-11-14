@@ -10,6 +10,9 @@ import {
   Send,
   Building2,
   Filter,
+  Key,
+  ExternalLink,
+  X,
 } from 'lucide-react';
 import { api } from '../../api';
 
@@ -28,6 +31,11 @@ export const GmbReviewsView: React.FC<GmbReviewsViewProps> = ({ selectedClientId
   const [replyingId, setReplyingId] = useState<string | null>(null);
   const [customReplyTexts, setCustomReplyTexts] = useState<Record<string, string>>({});
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Google OAuth Token Management Modal
+  const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
+  const [googleTokenInput, setGoogleTokenInput] = useState('');
+  const [isUpdatingToken, setIsUpdatingToken] = useState(false);
 
   const isAllClients = selectedClientId === 'ALL' || !selectedClientId;
   const currentClient = !isAllClients ? clients.find((c) => c.id === selectedClientId) : null;
@@ -93,6 +101,31 @@ export const GmbReviewsView: React.FC<GmbReviewsViewProps> = ({ selectedClientId
     }
   };
 
+  const handleUpdateGoogleToken = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!googleTokenInput.trim()) return;
+
+    try {
+      setIsUpdatingToken(true);
+      const res = await api.updateGmbToken(googleTokenInput.trim());
+      setFeedback({
+        type: 'success',
+        message: res.message || 'Google OAuth Token updated successfully! Connecting all profiles.',
+      });
+      setIsTokenModalOpen(false);
+      setGoogleTokenInput('');
+      await fetchReviews();
+    } catch (err: any) {
+      setFeedback({
+        type: 'error',
+        message: `Token update failed: ${err.message || 'Invalid Google credentials.'}`,
+      });
+    } finally {
+      setIsUpdatingToken(false);
+      setTimeout(() => setFeedback(null), 8000);
+    }
+  };
+
   return (
     <div className="space-y-6 pb-12">
       {/* Header Banner */}
@@ -111,7 +144,14 @@ export const GmbReviewsView: React.FC<GmbReviewsViewProps> = ({ selectedClientId
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => setIsTokenModalOpen(true)}
+              className="bg-emerald-800/60 hover:bg-emerald-800 border border-emerald-400/40 text-white px-3.5 py-2 rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <Key className="w-3.5 h-3.5 text-amber-300" />
+              <span>Update Google Token</span>
+            </button>
             <button
               onClick={handleManualSync}
               disabled={isSyncing}
@@ -148,18 +188,28 @@ export const GmbReviewsView: React.FC<GmbReviewsViewProps> = ({ selectedClientId
 
       {feedback && (
         <div
-          className={`p-4 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+          className={`p-4 rounded-xl text-xs font-semibold flex items-center justify-between gap-3 ${
             feedback.type === 'success'
               ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
               : 'bg-rose-50 text-rose-800 border border-rose-200'
           }`}
         >
-          {feedback.type === 'success' ? (
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-          ) : (
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+          <div className="flex items-center gap-2">
+            {feedback.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            )}
+            <span>{feedback.message}</span>
+          </div>
+          {feedback.type === 'error' && (feedback.message.includes('credential') || feedback.message.includes('Token') || feedback.message.includes('location')) && (
+            <button
+              onClick={() => setIsTokenModalOpen(true)}
+              className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-bold shrink-0 transition"
+            >
+              Update Token Now
+            </button>
           )}
-          <span>{feedback.message}</span>
         </div>
       )}
 
@@ -310,6 +360,98 @@ export const GmbReviewsView: React.FC<GmbReviewsViewProps> = ({ selectedClientId
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Google OAuth Token Update Modal */}
+      {isTokenModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-gray-100 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <span className="p-2 bg-emerald-50 rounded-xl text-emerald-600">
+                  <Key className="w-5 h-5" />
+                </span>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">Update Google OAuth Token</h3>
+                  <p className="text-[11px] text-gray-500">Connect all 11 client Google Business Profiles in 1-click</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsTokenModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateGoogleToken} className="space-y-4 text-xs">
+              <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl space-y-1.5 leading-relaxed">
+                <p className="font-bold flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  Google OAuth Token Refresh Instructions:
+                </p>
+                <ol className="list-decimal list-inside space-y-1 text-[11px] text-amber-900">
+                  <li>
+                    Open{' '}
+                    <a
+                      href="https://developers.google.com/oauthplayground"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline font-bold text-blue-600 inline-flex items-center gap-0.5"
+                    >
+                      Google OAuth Playground <ExternalLink className="w-2.5 h-2.5 inline" />
+                    </a>
+                  </li>
+                  <li>Click Gear icon ⚙️ &rarr; Check "Use your own OAuth credentials".</li>
+                  <li>Scope enter karein: <code className="bg-white px-1 py-0.5 rounded border border-amber-300">https://www.googleapis.com/auth/business.manage</code></li>
+                  <li>Authorize karke Step 2 me <strong>Exchange code for tokens</strong> click karein.</li>
+                  <li>Wahan mila hua <strong>Access token (ya29...)</strong> ya <strong>Refresh token (1//...)</strong> yahan paste karein.</li>
+                </ol>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Google OAuth Access Token / Refresh Token
+                </label>
+                <textarea
+                  rows={3}
+                  value={googleTokenInput}
+                  onChange={(e) => setGoogleTokenInput(e.target.value)}
+                  placeholder="Paste ya29... (Access Token) or 1//... (Refresh Token)"
+                  className="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl p-3 text-gray-900 font-mono focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  required
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setIsTokenModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpdatingToken || !googleTokenInput.trim()}
+                  className="px-5 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {isUpdatingToken ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Verifying with Google...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Save & Sync All Profiles</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

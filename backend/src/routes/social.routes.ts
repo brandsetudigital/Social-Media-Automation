@@ -89,6 +89,65 @@ router.post('/connect', authenticateToken, async (req: AuthRequest, res: Respons
   }
 });
 
+// POST /api/social/gmb/update-token - Updates Google OAuth Token across all GMB accounts in 1-click
+router.post('/gmb/update-token', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const rawToken = (req.body?.token || req.body?.accessToken || req.body?.refreshToken || '').trim();
+    if (!rawToken) {
+      return res.status(400).json({ error: 'Token is required. Provide fresh ya29... access token or 1//... refresh token.' });
+    }
+
+    let finalAccessToken: string | null = null;
+    if (rawToken.startsWith('1//')) {
+      finalAccessToken = await GoogleBusinessService.getFreshAccessToken(rawToken);
+      if (!finalAccessToken) {
+        return res.status(400).json({ error: 'Google Refresh Token exchange failed. Token may be expired or revoked by Google.' });
+      }
+      process.env.GOOGLE_BUSINESS_REFRESH_TOKEN = rawToken;
+      process.env.GOOGLE_BUSINESS_ACCESS_TOKEN = finalAccessToken;
+    } else if (rawToken.startsWith('ya29.')) {
+      finalAccessToken = rawToken;
+      process.env.GOOGLE_BUSINESS_ACCESS_TOKEN = rawToken;
+    } else {
+      return res.status(400).json({ error: 'Invalid Google token format. Must start with ya29. (Access Token) or 1// (Refresh Token).' });
+    }
+
+    // Verify token by calling Google API
+    const testRes = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
+      headers: { Authorization: `Bearer ${finalAccessToken}` },
+    });
+    if (!testRes.ok) {
+      const errTxt = await testRes.text();
+      return res.status(400).json({ error: `Google API rejected this token (${testRes.status}): ${errTxt}` });
+    }
+
+    // Update ALL Google Business accounts in the database
+    const updated = await prisma.socialAccount.updateMany({
+      where: { platform: 'GOOGLE_BUSINESS' },
+      data: {
+        status: 'CONNECTED',
+        accessToken: finalAccessToken,
+        tokenExpiresAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
+        lastHealthCheck: new Date(),
+        lastError: null,
+      },
+    });
+
+    // Auto-trigger review sync across all clients in the background
+    GmbReviewService.runAutoReplyWorker().catch((err) => {
+      console.warn('[GMB UpdateToken] Background sync note:', err.message);
+    });
+
+    return res.json({
+      success: true,
+      message: `Google OAuth Token verified & updated successfully! Connected ${updated.count} client GMB profiles and started review sync.`,
+      accountsUpdated: updated.count,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // POST reconnect an expired account
 router.post('/reconnect/:id', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
@@ -97,10 +156,36 @@ router.post('/reconnect/:id', authenticateToken, async (req: AuthRequest, res: R
     let freshTok = req.body?.accessToken?.trim();
     const existingAcc = await prisma.socialAccount.findUnique({ where: { id } });
     if (existingAcc?.platform === 'GOOGLE_BUSINESS') {
-      const gTok = await GoogleBusinessService.getFreshAccessToken();
-      if (gTok) freshTok = gTok;
+      let gTok: string | null = null;
+      if (freshTok && freshTok.startsWith('1//')) {
+        gTok = await GoogleBusinessService.getFreshAccessToken(freshTok);
+        if (gTok) {
+          process.env.GOOGLE_BUSINESS_REFRESH_TOKEN = freshTok;
+          process.env.GOOGLE_BUSINESS_ACCESS_TOKEN = gTok;
+          freshTok = gTok;
+        }
+      } else if (freshTok && freshTok.startsWith('ya29.')) {
+        process.env.GOOGLE_BUSINESS_ACCESS_TOKEN = freshTok;
+      } else {
+        gTok = await GoogleBusinessService.getFreshAccessToken();
+        if (gTok) freshTok = gTok;
+      }
+
+      // If a valid Google token was acquired, propagate to ALL Google Business accounts in DB
+      if (freshTok && freshTok.startsWith('ya29.')) {
+        await prisma.socialAccount.updateMany({
+          where: { platform: 'GOOGLE_BUSINESS' },
+          data: {
+            status: 'CONNECTED',
+            accessToken: freshTok,
+            tokenExpiresAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
+            lastHealthCheck: new Date(),
+            lastError: null,
+          },
+        });
+      }
     }
-    if (!freshTok || freshTok.startsWith('GOCSPX-') || freshTok.startsWith('1//')) {
+    if (!freshTok || freshTok.startsWith('GOCSPX-')) {
       freshTok = process.env.META_DEFAULT_ACCESS_TOKEN || `oauth_reconnected_${Date.now()}`;
     }
 
