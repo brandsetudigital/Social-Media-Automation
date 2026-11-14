@@ -130,33 +130,34 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     const cleanLoc = extractCity(cl?.location);
     const cat = ((cl?.category || '') + ' ' + rawName).toLowerCase();
 
-    // Viral reach & algorithm engagement hashtags requested for maximum reach
-    const viralReachCommentTags = '#fyp #reach #reels #growth #viral #trending #engagement #explore #like #share #grow';
+    // Viral reach & algorithm engagement hashtags split between caption and comment (zero duplicate roots)
+    const viralCaptionTags = '#viral #trending #explore #fyp #reels #reach';
+    const viralCommentTags = '#growth #engagement #explorepage #like #share #grow #trendingnow #viralreels #reelsindia #foryou';
 
     if (/sweet|food|restaurant|cafe|bakery|namkeen|chaat|mithai|panna/i.test(cat)) {
       return {
-        caption: `#${cleanName} #${cleanLoc}Foodie #MithaiLovers #DesiFlavors #AuthenticTaste`,
-        comment: viralReachCommentTags,
+        caption: `#${cleanName} #${cleanLoc}Foodie #MithaiLovers #DesiFlavors #AuthenticTaste ${viralCaptionTags}`,
+        comment: `#IndianSweets #FoodLovers #TasteOfIndia #DessertGram #SweetTooth ${viralCommentTags}`,
       };
     } else if (/real\s*estate|property|plot|flat|builder|construction|babu|broker/i.test(cat)) {
       return {
-        caption: `#${cleanName} #${cleanLoc}RealEstate #PlotsIn${cleanLoc} #RealEstateIndia #PropertyAdvisory`,
-        comment: viralReachCommentTags,
+        caption: `#${cleanName} #${cleanLoc}RealEstate #PlotsIn${cleanLoc} #RealEstateIndia #PropertyAdvisory ${viralCaptionTags}`,
+        comment: `#PropertyInvestment #DreamHome #InvestSmart #CommercialPlots #HomeBuyers ${viralCommentTags}`,
       };
     } else if (/fashion|saree|ethnic|boutique|cloth|apparel|dress|airawati/i.test(cat)) {
       return {
-        caption: `#${cleanName} #${cleanLoc}Fashion #EthnicWear #SareeLove #IndianCouture`,
-        comment: viralReachCommentTags,
+        caption: `#${cleanName} #${cleanLoc}Fashion #EthnicWear #SareeLove #IndianCouture ${viralCaptionTags}`,
+        comment: `#OOTD #TraditionalWear #DesignerCollection #FestiveWear #StyleInspiration ${viralCommentTags}`,
       };
     } else if (/marketing|digital|agency|brandsetu|social/i.test(cat)) {
       return {
-        caption: `#${cleanName} #SocialMediaMarketing #DigitalGrowth #BrandStrategy #AgencyLife`,
-        comment: viralReachCommentTags,
+        caption: `#${cleanName} #SocialMediaMarketing #DigitalGrowth #BrandStrategy #AgencyLife ${viralCaptionTags}`,
+        comment: `#BusinessGrowth #ContentMarketing #MarketingStrategy #BrandBuilding #OnlineMarketing ${viralCommentTags}`,
       };
     }
     return {
-      caption: `#${cleanName} #${cleanLoc}Business #TopQuality #TrustedService #ProfessionalCare`,
-      comment: viralReachCommentTags,
+      caption: `#${cleanName} #${cleanLoc}Business #TopQuality #TrustedService #ProfessionalCare ${viralCaptionTags}`,
+      comment: `#LocalBusiness #QualityAssurance #CustomerFirst #CommunityChoice #ExcellenceInService ${viralCommentTags}`,
     };
   };
 
@@ -198,8 +199,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
           setHashtags(initialTemplate.hashtags);
         } else {
           const splitted = initialTemplate.hashtags.split(/\s+/).filter(Boolean);
-          const cTags = splitted.slice(0, 5).join(' ');
-          const cmTags = splitted.slice(5, 10).join(' ') || clientTags.comment;
+          const cTags = splitted.slice(0, 10).join(' ');
+          const cmTags = splitted.slice(10, 22).join(' ') || clientTags.comment;
           setCaptionHashtags(cTags);
           setCommentHashtags(cmTags);
           setHashtags(`${cTags} \n---FIRST_COMMENT---\n ${cmTags}`);
@@ -601,13 +602,26 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       if (!capTags) capTags = clientDefaults.caption;
       if (!comTags) comTags = clientDefaults.comment;
 
-      // Strictly limit to 5 SEO hashtags (no more, no less)
-      const strictly5CaptionTags = capTags
+      // High-impact SEO + Viral reach hashtags in caption (up to 10 tags)
+      const captionTagsList = capTags
         .split(/\s+/)
         .map((t: string) => t.trim())
-        .filter((t: string) => t.startsWith('#'))
-        .slice(0, 5)
-        .join(' ');
+        .filter((t: string) => t.startsWith('#'));
+
+      const captionRoots = new Set(
+        captionTagsList.map((t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, ''))
+      );
+
+      const viralCaptionPool = ['#viral', '#trending', '#explore', '#fyp', '#reels', '#reach'];
+      for (const v of viralCaptionPool) {
+        if (captionTagsList.length >= 10) break;
+        const root = v.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (!captionRoots.has(root)) {
+          captionTagsList.push(v);
+          captionRoots.add(root);
+        }
+      }
+      const finalCaptionTags = captionTagsList.slice(0, 10).join(' ');
 
       const rawCommentTags = comTags
         .split(/\s+/)
@@ -615,26 +629,22 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         .filter((t: string) => t.startsWith('#'));
 
       // Strictly enforce that comment tags have ZERO overlap with caption tags
-      const captionRoots = new Set(
-        strictly5CaptionTags.split(/\s+/).map((t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, ''))
-      );
       const filteredComment = rawCommentTags.filter((t: string) => !captionRoots.has(t.toLowerCase().replace(/[^a-z0-9]/g, '')));
-      const viralAlgorithmReach = [
-        '#fyp',
-        '#reach',
-        '#reels',
+      const viralCommentPool = [
         '#growth',
-        '#viral',
-        '#trending',
         '#engagement',
-        '#explore',
+        '#explorepage',
         '#like',
         '#share',
         '#grow',
-        '#ExplorePage',
-        '#TrendingNow',
+        '#trendingnow',
+        '#viralreels',
+        '#reelsindia',
+        '#foryou',
+        '#instareels',
+        '#DailyHighlight',
       ];
-      for (const ge of viralAlgorithmReach) {
+      for (const ge of viralCommentPool) {
         if (filteredComment.length >= 12) break;
         const root = ge.toLowerCase().replace(/[^a-z0-9]/g, '');
         if (!captionRoots.has(root) && !filteredComment.some((c: string) => c.toLowerCase().replace(/[^a-z0-9]/g, '') === root)) {
@@ -643,9 +653,9 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       }
       const finalCommentTags = filteredComment.slice(0, 12).join(' ');
 
-      setCaptionHashtags(strictly5CaptionTags);
+      setCaptionHashtags(finalCaptionTags);
       setCommentHashtags(finalCommentTags);
-      const combined = `${strictly5CaptionTags} \n---FIRST_COMMENT---\n ${finalCommentTags}`;
+      const combined = `${finalCaptionTags} \n---FIRST_COMMENT---\n ${finalCommentTags}`;
 
       setPlatformHashtags((prev) => ({
         ...prev,
@@ -655,7 +665,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
       setStatusMessage({
         type: 'success',
-        text: `✨ Caption + strictly 5 SEO Reach Hashtags + 5 Unique Auto-Comment tags generated for ${platformIcons[platformToUse]?.name || platformToUse} (${res?.aiModelUsed || 'AI Engine'})`,
+        text: `✨ Caption + High-Reach Viral SEO Hashtags + Distinct Auto-Comment tags generated for ${platformIcons[platformToUse]?.name || platformToUse} (${res?.aiModelUsed || 'AI Engine'})`,
       });
     } catch (err: any) {
       console.warn('[CreatePostModal] AI caption error:', err);
@@ -706,39 +716,48 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       if (!capTags) capTags = defaults.caption;
       if (!comTags) comTags = defaults.comment;
 
-      // Strictly limit to 5 SEO hashtags
-      const strictly5CaptionTags = capTags
+      // High-impact SEO + Viral reach hashtags in caption (up to 10 tags)
+      const captionTagsList = capTags
         .split(/\s+/)
         .map((t: string) => t.trim())
-        .filter((t: string) => t.startsWith('#'))
-        .slice(0, 5)
-        .join(' ');
+        .filter((t: string) => t.startsWith('#'));
+
+      const captionRoots = new Set(
+        captionTagsList.map((t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, ''))
+      );
+
+      const viralCaptionPool = ['#viral', '#trending', '#explore', '#fyp', '#reels', '#reach'];
+      for (const v of viralCaptionPool) {
+        if (captionTagsList.length >= 10) break;
+        const root = v.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (!captionRoots.has(root)) {
+          captionTagsList.push(v);
+          captionRoots.add(root);
+        }
+      }
+      const finalCaptionTags = captionTagsList.slice(0, 10).join(' ');
 
       const rawCommentTags = comTags
         .split(/\s+/)
         .map((t: string) => t.trim())
         .filter((t: string) => t.startsWith('#'));
 
-      const captionRoots = new Set(
-        strictly5CaptionTags.split(/\s+/).map((t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, ''))
-      );
       const filteredComment = rawCommentTags.filter((t: string) => !captionRoots.has(t.toLowerCase().replace(/[^a-z0-9]/g, '')));
-      const viralAlgorithmReach = [
-        '#fyp',
-        '#reach',
-        '#reels',
+      const viralCommentPool = [
         '#growth',
-        '#viral',
-        '#trending',
         '#engagement',
-        '#explore',
+        '#explorepage',
         '#like',
         '#share',
         '#grow',
-        '#ExplorePage',
-        '#TrendingNow',
+        '#trendingnow',
+        '#viralreels',
+        '#reelsindia',
+        '#foryou',
+        '#instareels',
+        '#DailyHighlight',
       ];
-      for (const ge of viralAlgorithmReach) {
+      for (const ge of viralCommentPool) {
         if (filteredComment.length >= 12) break;
         const root = ge.toLowerCase().replace(/[^a-z0-9]/g, '');
         if (!captionRoots.has(root) && !filteredComment.some((c: string) => c.toLowerCase().replace(/[^a-z0-9]/g, '') === root)) {
@@ -747,14 +766,14 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       }
       const finalCommentTags = filteredComment.slice(0, 12).join(' ');
 
-      setCaptionHashtags(strictly5CaptionTags);
+      setCaptionHashtags(finalCaptionTags);
       setCommentHashtags(finalCommentTags);
-      const combined = `${strictly5CaptionTags} \n---FIRST_COMMENT---\n ${finalCommentTags}`;
+      const combined = `${finalCaptionTags} \n---FIRST_COMMENT---\n ${finalCommentTags}`;
       setHashtags(combined);
       setPlatformHashtags((prev) => ({ ...prev, [plat]: combined }));
       setStatusMessage({
         type: 'success',
-        text: `✨ Generated strictly 5 SEO caption reach tags + 5 distinct auto-comment tags for ${platformIcons[plat]?.name || plat}!`,
+        text: `✨ Generated high-reach viral caption hashtags + distinct auto-comment tags for ${platformIcons[plat]?.name || plat}!`,
       });
     } catch (err: any) {
       console.warn('[CreatePostModal] AI hashtags fallback:', err);

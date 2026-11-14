@@ -342,12 +342,19 @@ export class AIContentService {
     embeddedTags.forEach(addCaptionTag);
     (fallbackTags?.captionHashtags || '').split(/\s+/).forEach(addCaptionTag);
 
-    // Strictly limit to top 5 SEO reach hashtags
-    const strictly5CaptionTags = captionPool.slice(0, 5).join(' ');
+    // Ensure viral tags are in captionPool as well
+    const viralCaptionTags = ['#viral', '#trending', '#explore', '#fyp', '#reels', '#reach'];
+    for (const v of viralCaptionTags) {
+      if (captionPool.length >= 10) break;
+      addCaptionTag(v);
+    }
+
+    // High-reach SEO & trending hashtags in caption (up to 10 tags)
+    const finalCaptionTags = captionPool.slice(0, 10).join(' ');
 
     // 4. Pool comment hashtags - STRICTLY ENFORCE ZERO OVERLAP WITH CAPTION HASHTAGS
     const captionRoots = new Set(
-      captionPool.slice(0, 6).map((x) => x.toLowerCase().replace(/[^a-z0-9]/g, ''))
+      captionPool.slice(0, 10).map((x) => x.toLowerCase().replace(/[^a-z0-9]/g, ''))
     );
     const commentPool: string[] = [];
     const addCommentTag = (tag: string) => {
@@ -370,23 +377,22 @@ export class AIContentService {
     (rawCommentHashtags || '').split(/\s+/).forEach(addCommentTag);
     (fallbackTags?.commentHashtags || '').split(/\s+/).forEach(addCommentTag);
 
-    // Viral & Algorithm reach hashtags for discovery & high engagement
-    const viralAlgorithmTags = [
-      '#fyp',
-      '#reach',
-      '#reels',
+    // Complementary viral & algorithm growth hashtags for comment (NO OVERLAP with caption)
+    const viralCommentPool = [
       '#growth',
-      '#viral',
-      '#trending',
       '#engagement',
-      '#explore',
+      '#explorepage',
       '#like',
       '#share',
       '#grow',
-      '#ExplorePage',
-      '#TrendingNow',
+      '#trendingnow',
+      '#viralreels',
+      '#reelsindia',
+      '#foryou',
+      '#instareels',
+      '#DailyHighlight',
     ];
-    for (const fb of viralAlgorithmTags) {
+    for (const fb of viralCommentPool) {
       if (commentPool.length >= 12) break;
       addCommentTag(fb);
     }
@@ -396,9 +402,9 @@ export class AIContentService {
 
     return {
       caption: cleanedCaption,
-      captionHashtags: strictly5CaptionTags,
+      captionHashtags: finalCaptionTags,
       commentHashtags: finalCommentTags,
-      hashtags: strictly5CaptionTags,
+      hashtags: finalCaptionTags,
     };
   }
 
@@ -429,23 +435,23 @@ export class AIContentService {
     const cleanLoc = this.extractCity(client.location);
     const categoryLower = ((client.category || '') + ' ' + (rawName || '') + ' ' + (topic || '')).toLowerCase();
 
-    // Viral & algorithm growth hashtags requested for discovery and reach
-    const viralReachTags = [
-      '#fyp',
-      '#reach',
-      '#reels',
+    // Trending viral reach hashtags split smartly between caption and comment (zero overlap)
+    const viralCaptionTags = ['#viral', '#trending', '#explore', '#fyp', '#reels', '#reach'];
+    const viralCommentTags = [
       '#growth',
-      '#viral',
-      '#trending',
       '#engagement',
-      '#explore',
+      '#explorepage',
       '#like',
       '#share',
       '#grow',
+      '#trendingnow',
+      '#viralreels',
+      '#reelsindia',
+      '#foryou',
     ];
 
     let captionTags: string[] = [];
-    let commentTags: string[] = [...viralReachTags];
+    let commentTags: string[] = [...viralCommentTags];
 
     if (/sweet|food|restaurant|cafe|bakery|namkeen|chaat|mithai|dining|kitchen|panna/i.test(categoryLower)) {
       captionTags = [
@@ -515,6 +521,9 @@ export class AIContentService {
       ];
     }
 
+    // Merge viral caption tags so both caption and comment have viral reach
+    captionTags = Array.from(new Set([...captionTags, ...viralCaptionTags]));
+
     // Merge custom brand tags if client configured them
     if (client.brandProfile?.hashtags) {
       const customList = client.brandProfile.hashtags
@@ -523,19 +532,19 @@ export class AIContentService {
         .filter(Boolean)
         .map((t) => (t.startsWith('#') ? t : `#${t}`));
       if (customList.length > 0) {
-        captionTags = [customList[0], ...captionTags.filter((t) => t !== customList[0])].slice(0, 5);
+        captionTags = [customList[0], ...captionTags.filter((t) => t !== customList[0])].slice(0, 10);
         if (customList.length > 1) {
           const cRoots = new Set(captionTags.map((x) => x.toLowerCase().replace(/[^a-z0-9]/g, '')));
           const nonOverlappingCustom = customList.slice(1).filter((x) => !cRoots.has(x.toLowerCase().replace(/[^a-z0-9]/g, '')));
           if (nonOverlappingCustom.length > 0) {
-            commentTags = [nonOverlappingCustom[0], ...commentTags.filter((t) => t !== nonOverlappingCustom[0])].slice(0, 5);
+            commentTags = [nonOverlappingCustom[0], ...commentTags.filter((t) => t !== nonOverlappingCustom[0])].slice(0, 10);
           }
         }
       }
     }
 
-    const cTags = captionTags.slice(0, 5).join(' ');
-    const cmTags = commentTags.slice(0, 11).join(' ');
+    const cTags = captionTags.slice(0, 10).join(' ');
+    const cmTags = commentTags.slice(0, 10).join(' ');
     return {
       captionHashtags: cTags,
       commentHashtags: cmTags,
@@ -594,19 +603,19 @@ CRITICAL RULES:
 5. For TWITTER: Concise, punchy alert with key details and link to website (if available).
 6. For YOUTUBE: Video description format with timestamps, project highlights, contact (if available), and subscribe CTA.
 7. For GOOGLE_BUSINESS: Professional local update, rich SEO keywords${ctx.location ? ` for ${ctx.location}` : ''}, clear directions/call CTA.
-8. HASHTAG STRATEGY (CRITICAL - STRICT 5 SEO REACH HASHTAGS):
+8. HASHTAG STRATEGY (TARGETED SEO + VIRAL REACH):
    - In "caption": DO NOT INCLUDE ANY HASHTAGS WHATSOEVER. The caption text must be pure, clean copy (hook, body, value points, CTA). Do NOT append any hashtags at the end of "caption".
-   - In "captionHashtags": Return STRICTLY 5 high-impact, SEO-optimized keywords/hashtags for search discovery, maximum reach, and views (EXACTLY 5 TAGS, NEVER MORE THAN 5).
+   - In "captionHashtags": Return 8 to 10 high-impact, SEO-optimized keywords/hashtags for search discovery, maximum reach, and views (including niche keywords for ${ctx.businessName} and viral tags like #viral #trending #explore #fyp #reels #reach).
      Must be targeted keywords strictly relevant to ${ctx.businessName} (${ctx.category} in ${ctx.location}).
-   - In "commentHashtags": Return STRICTLY 5 targeted exploration and community boost hashtags for the first comment. CRITICAL: "commentHashtags" MUST BE 100% DIFFERENT from "captionHashtags" (ZERO duplicate or overlapping words/tags).
+   - In "commentHashtags": Return 8 to 12 targeted exploration and algorithmic growth boost hashtags for the first comment (such as #growth #engagement #explorepage #like #share #grow #trendingnow #viralreels #reelsindia #foryou). CRITICAL: "commentHashtags" MUST BE 100% DIFFERENT from "captionHashtags" (ZERO duplicate or overlapping words/tags).
 
 OUTPUT FORMAT:
 Return strictly a valid JSON object without any other text or explanation:
 {
   "caption": "<generated caption with emojis and spacing, WITHOUT any hashtags>",
-  "captionHashtags": "#Tag1 #Tag2 #Tag3 #Tag4 #Tag5",
-  "commentHashtags": "#TagA #TagB #TagC #TagD #TagE",
-  "hashtags": "#Tag1 #Tag2 #Tag3 #Tag4 #Tag5"
+  "captionHashtags": "#Tag1 #Tag2 #Tag3 #Tag4 #Tag5 #Tag6 #Tag7 #Tag8",
+  "commentHashtags": "#TagA #TagB #TagC #TagD #TagE #TagF #TagG #TagH",
+  "hashtags": "#Tag1 #Tag2 #Tag3 #Tag4 #Tag5 #Tag6 #Tag7 #Tag8"
 }`;
 
     // 2. Try Gemini first, then OpenAI ChatGPT with fallback
@@ -861,17 +870,17 @@ ${topic ? `- Post Topic: ${topic}` : ''}
 ${ctx.hashtags ? `- Custom brand tags: ${ctx.hashtags}` : ''}
 
 CRITICAL RULES:
-1. Provide "captionHashtags": STRICTLY 5 high-impact SEO hashtags for maximum search reach and views (EXACTLY 5 TAGS, NEVER MORE THAN 5).
-2. Provide "commentHashtags": STRICTLY 5 targeted community & explore boost hashtags for the first comment.
-3. Every client MUST have unique hashtags matching their specific niche (e.g. Food/Sweets, Real Estate, Fashion, Digital Marketing, etc.).
+1. Provide "captionHashtags": 8 to 10 high-impact SEO & viral reach hashtags (niche keywords for ${ctx.businessName} plus viral tags like #viral #trending #explore #fyp #reels #reach).
+2. Provide "commentHashtags": 8 to 12 targeted algorithmic growth & explore boost hashtags for the first comment (such as #growth #engagement #explorepage #like #share #grow #trendingnow #viralreels #reelsindia #foryou).
+3. CRITICAL: "commentHashtags" MUST BE 100% DIFFERENT from "captionHashtags" (ZERO duplicate or overlapping words/tags). Every client MUST have unique hashtags matching their specific niche.
 
 Format instructions:
 Return strictly a valid JSON object:
 {
   "caption": "",
-  "captionHashtags": "#Tag1 #Tag2 #Tag3 #Tag4 #Tag5",
-  "commentHashtags": "#TagA #TagB #TagC #TagD #TagE",
-  "hashtags": "#Tag1 #Tag2 #Tag3 #Tag4 #Tag5"
+  "captionHashtags": "#Tag1 #Tag2 #Tag3 #Tag4 #Tag5 #Tag6 #Tag7 #Tag8",
+  "commentHashtags": "#TagA #TagB #TagC #TagD #TagE #TagF #TagG #TagH",
+  "hashtags": "#Tag1 #Tag2 #Tag3 #Tag4 #Tag5 #Tag6 #Tag7 #Tag8"
 }`;
 
     try {

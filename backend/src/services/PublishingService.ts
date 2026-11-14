@@ -135,10 +135,10 @@ export class PublishingService {
         .map((t: string) => (t.startsWith('#') ? t : `#${t}`));
 
       if (rawTags.length >= 8) {
-        captionTags = rawTags.slice(0, 5);
-        commentTags = rawTags.slice(5, 10);
+        captionTags = rawTags.slice(0, 10);
+        commentTags = rawTags.slice(10, 22);
       } else if (rawTags.length > 0) {
-        captionTags = rawTags.slice(0, 5);
+        captionTags = rawTags.slice(0, 10);
         commentTags = tailored.commentHashtags.split(/\s+/).filter(Boolean);
       } else {
         captionTags = tailored.captionHashtags.split(/\s+/).filter(Boolean);
@@ -146,11 +146,11 @@ export class PublishingService {
       }
     }
 
-    // Ensure strictly 4 to 5 caption hashtags for maximum reach & clean aesthetics
+    // High-impact SEO & viral reach hashtags in caption (up to 10 tags)
     if (captionTags.length === 0) {
       captionTags = tailored.captionHashtags.split(/\s+/).filter(Boolean);
     }
-    captionTags = captionTags.slice(0, 5);
+    captionTags = captionTags.slice(0, 10);
 
     // Ensure first-comment boost hashtags (up to 12 tags) - NEVER MATCHING CAPTION HASHTAGS
     const captionRoots = new Set(captionTags.map((t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, '')));
@@ -167,19 +167,18 @@ export class PublishingService {
       }
     }
     const viralFallbacks = [
-      '#fyp',
-      '#reach',
-      '#reels',
       '#growth',
-      '#viral',
-      '#trending',
       '#engagement',
-      '#explore',
+      '#explorepage',
       '#like',
       '#share',
       '#grow',
-      '#ExplorePage',
-      '#TrendingNow',
+      '#trendingnow',
+      '#viralreels',
+      '#reelsindia',
+      '#foryou',
+      '#instareels',
+      '#DailyHighlight',
     ];
     for (const fb of viralFallbacks) {
       if (commentTags.length >= 12) break;
@@ -190,12 +189,12 @@ export class PublishingService {
     }
     commentTags = commentTags.slice(0, 12);
 
-    // Clean baseCaption from any trailing hashtag clutter so strictly the top 5 SEO tags are appended
+    // Clean baseCaption from any trailing hashtag clutter
     const cleanBaseCaption = baseCaption.replace(/(?:[\s\r\n]*#[A-Za-z0-9_]+)+$/g, '').trim();
     let fullCaption = cleanBaseCaption;
 
     if (captionTags.length > 0) {
-      const joinedTags = captionTags.slice(0, 5).join(' ');
+      const joinedTags = captionTags.slice(0, 10).join(' ');
       fullCaption = fullCaption ? `${fullCaption}\n\n${joinedTags}` : joinedTags;
     }
 
@@ -369,7 +368,7 @@ export class PublishingService {
 
       let successMessage = 'Post published live successfully!';
       if (commentResult?.success) {
-        successMessage = 'Post published live with 5 client-tailored first-comment hashtags!';
+        successMessage = 'Post published live with viral reach first-comment hashtags!';
       } else if (commentResult?.errorMessage) {
         if (commentResult.errorMessage.includes('permission')) {
           successMessage = `Post live ho gaya! Note: Meta Developer App token me 'instagram_manage_comments' permission add karni hogi taaki comments automatically chale jayein.`;
