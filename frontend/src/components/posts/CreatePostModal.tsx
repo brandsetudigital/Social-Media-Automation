@@ -723,19 +723,33 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         strictly5CaptionTags.split(/\s+/).map((t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, ''))
       );
       const filteredComment = rawCommentTags.filter((t: string) => !captionRoots.has(t.toLowerCase().replace(/[^a-z0-9]/g, '')));
-      const genericExplore = ['#ExplorePage', '#TrendingNow', '#CommunityVibes', '#DailyHighlight', '#MustVisit'];
-      for (const ge of genericExplore) {
-        if (filteredComment.length >= 5) break;
+      const viralAlgorithmReach = [
+        '#fyp',
+        '#reach',
+        '#reels',
+        '#growth',
+        '#viral',
+        '#trending',
+        '#engagement',
+        '#explore',
+        '#like',
+        '#share',
+        '#grow',
+        '#ExplorePage',
+        '#TrendingNow',
+      ];
+      for (const ge of viralAlgorithmReach) {
+        if (filteredComment.length >= 12) break;
         const root = ge.toLowerCase().replace(/[^a-z0-9]/g, '');
         if (!captionRoots.has(root) && !filteredComment.some((c: string) => c.toLowerCase().replace(/[^a-z0-9]/g, '') === root)) {
           filteredComment.push(ge);
         }
       }
-      const strictly5CommentTags = filteredComment.slice(0, 5).join(' ');
+      const finalCommentTags = filteredComment.slice(0, 12).join(' ');
 
       setCaptionHashtags(strictly5CaptionTags);
-      setCommentHashtags(strictly5CommentTags);
-      const combined = `${strictly5CaptionTags} \n---FIRST_COMMENT---\n ${strictly5CommentTags}`;
+      setCommentHashtags(finalCommentTags);
+      const combined = `${strictly5CaptionTags} \n---FIRST_COMMENT---\n ${finalCommentTags}`;
       setHashtags(combined);
       setPlatformHashtags((prev) => ({ ...prev, [plat]: combined }));
       setStatusMessage({

@@ -304,9 +304,9 @@ export class PublishingService {
         data: { status: 'PUBLISHED' },
       });
 
-      // Automated First-Comment Strategy: Post 5 client-tailored hashtags as author's first comment
+      // Automated First-Comment Strategy: Post viral reach & engagement hashtags as author's first comment
       let commentResult: { success: boolean; commentId?: string; errorMessage?: string } | null = null;
-      const commentMessage = commentTags.slice(0, 5).join(' ');
+      const commentMessage = commentTags.slice(0, 12).join(' ');
 
       if (result.externalPostId && commentMessage && (post.platform === 'INSTAGRAM' || post.platform === 'FACEBOOK')) {
         try {
