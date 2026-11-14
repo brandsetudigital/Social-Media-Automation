@@ -152,29 +152,43 @@ export class PublishingService {
     }
     captionTags = captionTags.slice(0, 5);
 
-    // Ensure strictly 5 first-comment boost hashtags - NEVER MATCHING CAPTION HASHTAGS
+    // Ensure first-comment boost hashtags (up to 12 tags) - NEVER MATCHING CAPTION HASHTAGS
     const captionRoots = new Set(captionTags.map((t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, '')));
     commentTags = commentTags.filter((t: string) => !captionRoots.has(t.toLowerCase().replace(/[^a-z0-9]/g, '')));
 
-    if (commentTags.length < 5) {
+    if (commentTags.length < 11) {
       const extraTags = tailored.commentHashtags.split(/\s+/).filter(Boolean);
       for (const t of extraTags) {
         const root = t.toLowerCase().replace(/[^a-z0-9]/g, '');
         if (!captionRoots.has(root) && !commentTags.some((c: string) => c.toLowerCase().replace(/[^a-z0-9]/g, '') === root)) {
           commentTags.push(t);
         }
-        if (commentTags.length >= 5) break;
+        if (commentTags.length >= 12) break;
       }
     }
-    const genericFallbacks = ['#ExplorePage', '#TrendingNow', '#CommunityVibes', '#DailyHighlight', '#MustVisit'];
-    for (const fb of genericFallbacks) {
-      if (commentTags.length >= 5) break;
+    const viralFallbacks = [
+      '#fyp',
+      '#reach',
+      '#reels',
+      '#growth',
+      '#viral',
+      '#trending',
+      '#engagement',
+      '#explore',
+      '#like',
+      '#share',
+      '#grow',
+      '#ExplorePage',
+      '#TrendingNow',
+    ];
+    for (const fb of viralFallbacks) {
+      if (commentTags.length >= 12) break;
       const root = fb.toLowerCase().replace(/[^a-z0-9]/g, '');
       if (!captionRoots.has(root) && !commentTags.some((c: string) => c.toLowerCase().replace(/[^a-z0-9]/g, '') === root)) {
         commentTags.push(fb);
       }
     }
-    commentTags = commentTags.slice(0, 5);
+    commentTags = commentTags.slice(0, 12);
 
     // Clean baseCaption from any trailing hashtag clutter so strictly the top 5 SEO tags are appended
     const cleanBaseCaption = baseCaption.replace(/(?:[\s\r\n]*#[A-Za-z0-9_]+)+$/g, '').trim();

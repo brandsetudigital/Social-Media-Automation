@@ -269,6 +269,32 @@ export class AIContentService {
   }
 
   /**
+   * Helper to extract clean city name from full address string
+   */
+  public static extractCity(loc?: string | null): string {
+    if (!loc) return 'Indore';
+    const clean = loc.trim();
+    const knownCities = [
+      'Indore', 'Bhopal', 'Ujjain', 'Dewas', 'Jabalpur', 'Gwalior',
+      'Mumbai', 'Pune', 'Delhi', 'Jaipur', 'Ahmedabad', 'Bangalore', 'Hyderabad'
+    ];
+    for (const city of knownCities) {
+      if (new RegExp(`\\b${city}\\b`, 'i').test(clean)) {
+        return city;
+      }
+    }
+    const parts = clean.split(',').map((p) => p.trim()).filter(Boolean);
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const raw = parts[i].replace(/\d+/g, '').trim();
+      if (raw && !/madhya\s*pradesh|m\.?p\.?|india|state/i.test(raw)) {
+        const singleWord = raw.split(/\s+/)[0].replace(/[^a-zA-Z]/g, '');
+        if (singleWord.length >= 3) return singleWord;
+      }
+    }
+    return 'Indore';
+  }
+
+  /**
    * Cleans caption body by stripping any trailing hashtag blocks and ensures strictly 5 SEO hashtags
    */
   public static cleanCaptionAndSanitizeTags(
@@ -321,7 +347,7 @@ export class AIContentService {
 
     // 4. Pool comment hashtags - STRICTLY ENFORCE ZERO OVERLAP WITH CAPTION HASHTAGS
     const captionRoots = new Set(
-      captionPool.slice(0, 5).map((x) => x.toLowerCase().replace(/[^a-z0-9]/g, ''))
+      captionPool.slice(0, 6).map((x) => x.toLowerCase().replace(/[^a-z0-9]/g, ''))
     );
     const commentPool: string[] = [];
     const addCommentTag = (tag: string) => {
@@ -344,28 +370,34 @@ export class AIContentService {
     (rawCommentHashtags || '').split(/\s+/).forEach(addCommentTag);
     (fallbackTags?.commentHashtags || '').split(/\s+/).forEach(addCommentTag);
 
-    // If commentPool has fewer than 5 tags due to duplicate filtering, add unique exploration tags
-    const fallbackExploreTags = [
+    // Viral & Algorithm reach hashtags for discovery & high engagement
+    const viralAlgorithmTags = [
+      '#fyp',
+      '#reach',
+      '#reels',
+      '#growth',
+      '#viral',
+      '#trending',
+      '#engagement',
+      '#explore',
+      '#like',
+      '#share',
+      '#grow',
       '#ExplorePage',
       '#TrendingNow',
-      '#CommunityVibes',
-      '#DailyHighlight',
-      '#MustVisit',
-      '#DiscoverMore',
-      '#TopPick',
     ];
-    for (const fb of fallbackExploreTags) {
-      if (commentPool.length >= 5) break;
+    for (const fb of viralAlgorithmTags) {
+      if (commentPool.length >= 12) break;
       addCommentTag(fb);
     }
 
-    // Strictly limit to 5 comment boost hashtags
-    const strictly5CommentTags = commentPool.slice(0, 5).join(' ');
+    // High impact comment boost hashtags (up to 12 tags)
+    const finalCommentTags = commentPool.slice(0, 12).join(' ');
 
     return {
       caption: cleanedCaption,
       captionHashtags: strictly5CaptionTags,
-      commentHashtags: strictly5CommentTags,
+      commentHashtags: finalCommentTags,
       hashtags: strictly5CaptionTags,
     };
   }
@@ -381,12 +413,39 @@ export class AIContentService {
     brandProfile?: { hashtags?: string; keywords?: string; services?: string } | null;
   }, topic?: string): { captionHashtags: string; commentHashtags: string; allHashtags: string } {
     const rawName = client.businessName || 'Brand';
-    const cleanName = rawName.replace(/[^a-zA-Z0-9]/g, '');
-    const cleanLoc = (client.location || 'Indore').replace(/[^a-zA-Z0-9]/g, '');
+    let cleanName = rawName.replace(/[^a-zA-Z0-9]/g, '');
+    if (/panna/i.test(rawName)) cleanName = 'PannaSweets';
+    else if (/property\s*babu/i.test(rawName)) cleanName = 'PropertyBabu';
+    else if (/7th\s*cloud/i.test(rawName)) cleanName = '7thCloudResorts';
+    else if (/cocodan/i.test(rawName)) cleanName = 'HotelCocodan';
+    else if (/airawati/i.test(rawName)) cleanName = 'AirawatiFashions';
+    else if (/dagur/i.test(rawName)) cleanName = 'DagurInfra';
+    else if (/microbhumi/i.test(rawName)) cleanName = 'Microbhumi';
+    else if (/radha\s*ki\s*rasoi/i.test(rawName)) cleanName = 'RadhaKiRasoi';
+    else if (/swastik\s*thal/i.test(rawName)) cleanName = 'SwastikThal';
+    else if (/brandsetu/i.test(rawName)) cleanName = 'BrandSetuDigital';
+    else if (/about\s*us/i.test(rawName)) cleanName = 'AboutUsTheFamilyStore';
+
+    const cleanLoc = this.extractCity(client.location);
     const categoryLower = ((client.category || '') + ' ' + (rawName || '') + ' ' + (topic || '')).toLowerCase();
 
+    // Viral & algorithm growth hashtags requested for discovery and reach
+    const viralReachTags = [
+      '#fyp',
+      '#reach',
+      '#reels',
+      '#growth',
+      '#viral',
+      '#trending',
+      '#engagement',
+      '#explore',
+      '#like',
+      '#share',
+      '#grow',
+    ];
+
     let captionTags: string[] = [];
-    let commentTags: string[] = [];
+    let commentTags: string[] = [...viralReachTags];
 
     if (/sweet|food|restaurant|cafe|bakery|namkeen|chaat|mithai|dining|kitchen|panna/i.test(categoryLower)) {
       captionTags = [
@@ -396,13 +455,6 @@ export class AIContentService {
         `#DesiFlavors`,
         `#AuthenticTaste`,
       ];
-      commentTags = [
-        `#WeekendVibes`,
-        `#${cleanLoc}CityLife`,
-        `#ExploreEats`,
-        `#TrendingBites`,
-        `#FoodCulture`,
-      ];
     } else if (/real\s*estate|property|plot|flat|builder|construction|babu|broker|infra/i.test(categoryLower)) {
       captionTags = [
         `#${cleanName}`,
@@ -410,13 +462,6 @@ export class AIContentService {
         `#PlotsIn${cleanLoc}`,
         `#RealEstateIndia`,
         `#PropertyAdvisory`,
-      ];
-      commentTags = [
-        `#DreamHome`,
-        `#NewHomeVibes`,
-        `#ArchitectureLovers`,
-        `#InvestSmart`,
-        `#CityLiving`,
       ];
     } else if (/fashion|saree|ethnic|boutique|cloth|apparel|dress|kurti|garment|airawati/i.test(categoryLower)) {
       captionTags = [
@@ -426,13 +471,6 @@ export class AIContentService {
         `#SareeLove`,
         `#IndianCouture`,
       ];
-      commentTags = [
-        `#OOTDIndia`,
-        `#FestiveLook`,
-        `#TraditionalVibes`,
-        `#StyleInspiration`,
-        `#WardrobeGoals`,
-      ];
     } else if (/marketing|digital|agency|brandsetu|social\s*media|seo|software|it\s*services|creative/i.test(categoryLower)) {
       captionTags = [
         `#${cleanName}`,
@@ -440,13 +478,6 @@ export class AIContentService {
         `#DigitalGrowth`,
         `#BrandStrategy`,
         `#AgencyLife`,
-      ];
-      commentTags = [
-        `#StartupIndia`,
-        `#BusinessTips`,
-        `#OnlineSuccess`,
-        `#CreatorEconomy`,
-        `#EntrepreneurVibes`,
       ];
     } else if (/health|clinic|doctor|dental|hospital|wellness|fitness|gym|yoga/i.test(categoryLower)) {
       captionTags = [
@@ -456,13 +487,6 @@ export class AIContentService {
         `#WellnessJourney`,
         `#HealthyLife`,
       ];
-      commentTags = [
-        `#SelfCareRoutine`,
-        `#DailyMotivation`,
-        `#MindAndBody`,
-        `#LiveBetter`,
-        `#HealthAwareness`,
-      ];
     } else if (/education|coach|class|school|institute|academy|learn|college/i.test(categoryLower)) {
       captionTags = [
         `#${cleanName}`,
@@ -471,13 +495,6 @@ export class AIContentService {
         `#ExamPreparation`,
         `#AcademicExcellence`,
       ];
-      commentTags = [
-        `#StudentLife`,
-        `#FutureLeaders`,
-        `#KnowledgeIsPower`,
-        `#StudyGoals`,
-        `#DreamBig`,
-      ];
     } else if (/jewel|gold|diamond|silver|bridal|ornament/i.test(categoryLower)) {
       captionTags = [
         `#${cleanName}`,
@@ -485,13 +502,6 @@ export class AIContentService {
         `#GoldCollection`,
         `#BridalJewels`,
         `#FineCraftsmanship`,
-      ];
-      commentTags = [
-        `#LuxuryLifestyle`,
-        `#WeddingSeason`,
-        `#RoyalHeritage`,
-        `#GlowUp`,
-        `#TimelessBeauty`,
       ];
     } else {
       // Dynamic synthesis for any other client category
@@ -502,13 +512,6 @@ export class AIContentService {
         `#BestIn${cleanLoc}`,
         `#${cleanCat}India`,
         `#TrustedBrand`,
-      ];
-      commentTags = [
-        `#ExplorePage`,
-        `#CustomerFirst`,
-        `#DailyInspiration`,
-        `#LocalPride`,
-        `#TrendingNow`,
       ];
     }
 
@@ -532,7 +535,7 @@ export class AIContentService {
     }
 
     const cTags = captionTags.slice(0, 5).join(' ');
-    const cmTags = commentTags.slice(0, 5).join(' ');
+    const cmTags = commentTags.slice(0, 11).join(' ');
     return {
       captionHashtags: cTags,
       commentHashtags: cmTags,

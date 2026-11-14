@@ -174,6 +174,32 @@ export class CreativeAuditService {
 
     const targetPhoneNormalized = this.normalizePhone(targetClient.phone);
 
+    // Known authentic brand aliases & Hindi translations
+    const BRAND_ALIASES: Record<string, string[]> = {
+      'panna': [
+        'पन्नालाल मिठाईवाला', 'पन्नालाल', 'पन्ना स्वीट्स', 'Pannalal Mithaiwala',
+        'Panna Lal', 'Panna Sweets', 'Panna Sweets & Restaurant', 'पन्नालाल हलवाई', 'Panna'
+      ],
+      'property babu': ['प्रॉपर्टी बाबू', 'Property Babu', 'प्रॉपर्टी', 'PropertyBabu'],
+      '7th cloud': ['7th Cloud Resorts', '7th Cloud', 'सेवंथ क्लाउड', '7th क्लाउड', '7th Cloud Club, Bar & Resorts'],
+      'cocodan': ['Hotel Cocodan', 'होटल कोकोडन', 'Cocodan', 'कोकोडन', 'HOTEL COCODAN Rajiv Gandhi', 'HOTEL COCODAN Rau ByPass'],
+      'airawati': ['Airawati', 'एयरवाती', 'ऐरावती', 'Airawati Fashions'],
+      'dagur': ['DagurInfra Reality pvt. ltd', 'Dagur Infra', 'डागुर इंफ्रा', 'डागुर', 'DagurInfra'],
+      'microbhumi': ['Microbhumi', 'माइक्रोभूमि', 'माइक्रो भूमि', 'Micro Bhumi'],
+      'radha ki rasoi': ['Radha Ki Rasoi', 'राधा की रसोई', 'Radha Ki Rasoi ( The fine dine restaurant)'],
+      'about us': ['About Us The Family Store', 'About Us', 'अबाउट अस'],
+      'swastik thal': ['Swastik Thal', 'स्वास्तिक थाल', 'स्वास्तिक'],
+      'brandsetu': ['BrandSetu Digital', 'BrandSetu', 'ब्रांडसेतु', 'BrandSetu Digital agency'],
+    };
+
+    let targetAliases: string[] = [targetClient.businessName];
+    const clientKey = targetClient.businessName.toLowerCase();
+    for (const [key, aliases] of Object.entries(BRAND_ALIASES)) {
+      if (clientKey.includes(key)) {
+        targetAliases = Array.from(new Set([...targetAliases, ...aliases]));
+      }
+    }
+
     // Build Prompt
     const prompt = `
 You are an expert Social Media & Brand Quality Assurance Auditor for an agency managing multiple clients.
@@ -181,6 +207,7 @@ Your job is to thoroughly inspect this graphic/image and verify if it matches th
 
 ### TARGET CLIENT (Who this post is being scheduled for):
 - Business/Brand Name: "${targetClient.businessName}"
+- Known Authentic Brand Aliases (Hindi & English): ${targetAliases.map((a) => `"${a}"`).join(', ')}
 - Official Phone/Mobile Number: "${targetClient.phone || 'N/A'}"
 - Location/Address: "${targetClient.location || 'N/A'}"
 - Category: "${targetClient.category || 'N/A'}"
@@ -197,22 +224,24 @@ ${otherClients.map((c) => `- ${c.businessName} (Phone: ${c.phone || 'N/A'}, Loca
    - Any Websites or social handles visible in the image.
 
 2. Cross-check against TARGET CLIENT:
-   - BRAND CHECK: Does the image contain the brand name or logo of a DIFFERENT client from the agency list? (e.g., uploading Property Babu graphic for BrandSetu Digital or vice-versa).
-     * If another client's branding/logo/handle is found, isBrandMatch=false, and set conflictingClientName to that client's name.
-     * If the graphic only has target client branding or generic quotes/visuals without other branding, isBrandMatch=true.
+   - BRAND CHECK:
+     * IMPORTANT: Businesses frequently display Hindi / Devanagari script or local shop names on their creatives and logos (e.g., "पन्नालाल मिठाईवाला" or "पन्नालाल" is the EXACT authentic Hindi brand identity for "Panna Sweets & Restaurant").
+     * If the creative displays the target client's English name, Hindi name, or any of their known authentic aliases, this is a 100% VALID MATCH: set isBrandMatch=true and conflictingClientName=null.
+     * If the graphic only contains target client branding, products (sweets, food, plots, apparel), or generic quotes/festive greetings without other client branding, isBrandMatch=true.
+     * ONLY set isBrandMatch=false if the image clearly contains the logo or brand name of a COMPLETELY DIFFERENT client from the other registered agency clients list (e.g., uploading a Property Babu graphic for Panna Sweets or vice-versa).
    - PHONE CHECK:
-     * If any 10-digit or 12-digit mobile/phone number is visible on the graphic:
-       - Compare with Target Client's official phone ("${targetClient.phone || ''}").
-       - If the graphic has a phone number and it does NOT match target client's phone, isPhoneMatch=false!
-       - If no phone number is visible in the graphic, isPhoneMatch=true.
+     * If the phone number on the graphic matches the target client's official phone ("${targetClient.phone || ''}"), this confirms the graphic belongs to the target client (isPhoneMatch=true).
+     * If no phone number is visible in the graphic, isPhoneMatch=true.
+     * Only set isPhoneMatch=false if a visible 10-digit number conflicts with the target client's phone.
    - ADDRESS CHECK:
-     * If an address/city/locality is visible in the graphic, does it conflict with target client's location ("${targetClient.location || ''}")?
-     * If it clearly belongs to another city/place belonging to another client, isAddressMatch=false. Otherwise isAddressMatch=true.
+     * If the address/locality on the graphic matches the target client's location, isAddressMatch=true.
+     * Only set isAddressMatch=false if it clearly belongs to another client's address.
 
 3. DECIDE:
-   - "isValid": MUST be false if (isBrandMatch === false OR isPhoneMatch === false OR isAddressMatch === false). true ONLY if all details match or there is no conflicting branding/contact info.
-   - "blockReason": If isValid is false, give a clear, direct, and professional explanation in English why this post cannot be scheduled. Mention the exact discrepancy (e.g. "This graphic displays branding for Property Babu while client BrandSetu Digital is selected" OR "Graphic displays phone number 8357977322, but client's official phone number is +91 7389824231").
-   - "issues": Array of clear bullet points detailing each issue found.
+   - "isValid": true if (isBrandMatch !== false AND isPhoneMatch !== false AND isAddressMatch !== false).
+   - DO NOT raise false discrepancy alerts for authentic Hindi brand logos or shop titles matching the client.
+   - "blockReason": If isValid is false, give a clear explanation why this post cannot be scheduled. Mention the exact conflict.
+   - "issues": Array of clear bullet points detailing real issues found (leave empty [] if genuine match).
    - "extractedTextSummary": Short summary of all text visible on the image.
 
 Return ONLY a valid JSON object matching:
@@ -287,27 +316,31 @@ Return ONLY a valid JSON object matching:
         const cleaned = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
         const parsed = JSON.parse(cleaned);
 
-        // Secondary programmatic validation on phone number if AI extracted a phone
-        let isPhoneMatch = parsed.isPhoneMatch !== false;
-        if (parsed.detectedPhone && targetPhoneNormalized) {
-          const detectedNorm = this.normalizePhone(parsed.detectedPhone);
-          if (detectedNorm && detectedNorm.length >= 10 && detectedNorm !== targetPhoneNormalized) {
-            isPhoneMatch = false;
-            parsed.isValid = false;
-            if (!parsed.issues.some((i: string) => i.toLowerCase().includes('phone') || i.toLowerCase().includes('number'))) {
-              parsed.issues.push(`Phone number mismatch: Graphic displays '${parsed.detectedPhone}', but client's official phone number is '${targetClient.phone}'.`);
-            }
-          }
-        }
-
-        // Secondary programmatic validation on other registered clients
+        // Secondary programmatic validation on brand aliases & other registered clients
         let isBrandMatch = parsed.isBrandMatch !== false;
         let conflictingClientName = parsed.conflictingClientName || null;
+
+        const detectedBrandLower = (parsed.detectedBrand || '').toLowerCase().trim();
+        const detectedSummaryLower = (parsed.extractedTextSummary || '').toLowerCase();
+
+        // Check if detected brand or summary matches any of our known authentic aliases for this client
+        const matchesTargetAlias = targetAliases.some((alias) => {
+          const aLower = alias.toLowerCase();
+          return detectedBrandLower.includes(aLower) || detectedSummaryLower.includes(aLower);
+        });
+
+        if (matchesTargetAlias) {
+          isBrandMatch = true;
+          conflictingClientName = null;
+        }
+
+        // Check against other clients strictly for cross-client contamination
         if (parsed.extractedTextSummary) {
-          const lowerSummary = parsed.extractedTextSummary.toLowerCase();
           for (const oc of otherClients) {
             const ocNameLower = oc.businessName.toLowerCase();
-            if (lowerSummary.includes(ocNameLower) && !lowerSummary.includes(targetClient.businessName.toLowerCase())) {
+            // Don't flag if it's an alias of target client
+            if (matchesTargetAlias) continue;
+            if (detectedSummaryLower.includes(ocNameLower) && !detectedSummaryLower.includes(targetClient.businessName.toLowerCase())) {
               isBrandMatch = false;
               conflictingClientName = oc.businessName;
               parsed.isValid = false;
@@ -318,7 +351,40 @@ Return ONLY a valid JSON object matching:
           }
         }
 
-        const isValid = parsed.isValid !== false && isPhoneMatch && isBrandMatch && (parsed.isAddressMatch !== false);
+        // Secondary programmatic validation on phone number if AI extracted a phone
+        let isPhoneMatch = parsed.isPhoneMatch !== false;
+        if (parsed.detectedPhone && targetPhoneNormalized) {
+          const detectedNorm = this.normalizePhone(parsed.detectedPhone);
+          if (detectedNorm && detectedNorm.length >= 10) {
+            if (detectedNorm === targetPhoneNormalized) {
+              isPhoneMatch = true;
+              // Direct phone match strongly validates the graphic belongs to target client!
+              if (matchesTargetAlias || !conflictingClientName) {
+                isBrandMatch = true;
+                conflictingClientName = null;
+              }
+            } else {
+              isPhoneMatch = false;
+              parsed.isValid = false;
+              if (!parsed.issues.some((i: string) => i.toLowerCase().includes('phone') || i.toLowerCase().includes('number'))) {
+                parsed.issues.push(`Phone number mismatch: Graphic displays '${parsed.detectedPhone}', but client's official phone number is '${targetClient.phone}'.`);
+              }
+            }
+          }
+        }
+
+        // If verified as target alias or phone matches, clear false-alarm brand naming variation warnings
+        if (isBrandMatch && isPhoneMatch) {
+          parsed.issues = (parsed.issues || []).filter(
+            (i: string) =>
+              !i.toLowerCase().includes('naming variation') &&
+              !i.toLowerCase().includes('cross-verification') &&
+              !i.toLowerCase().includes('brand name on the graphic shows') &&
+              !i.toLowerCase().includes('database name')
+          );
+        }
+
+        const isValid = (parsed.issues.length === 0) && isPhoneMatch && isBrandMatch && (parsed.isAddressMatch !== false);
 
         let blockReason = parsed.blockReason;
         if (!isValid && !blockReason) {

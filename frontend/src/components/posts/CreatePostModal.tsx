@@ -90,34 +90,73 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   const getInitialClientTags = (cid: string) => {
     const cl = clients.find((c) => c.id === cid);
     const rawName = cl?.businessName || 'Brand';
-    const cleanName = rawName.replace(/[^a-zA-Z0-9]/g, '');
-    const cleanLoc = (cl?.location || 'Indore').replace(/[^a-zA-Z0-9]/g, '');
+    let cleanName = rawName.replace(/[^a-zA-Z0-9]/g, '');
+    if (/panna/i.test(rawName)) cleanName = 'PannaSweets';
+    else if (/property\s*babu/i.test(rawName)) cleanName = 'PropertyBabu';
+    else if (/7th\s*cloud/i.test(rawName)) cleanName = '7thCloudResorts';
+    else if (/cocodan/i.test(rawName)) cleanName = 'HotelCocodan';
+    else if (/airawati/i.test(rawName)) cleanName = 'AirawatiFashions';
+    else if (/dagur/i.test(rawName)) cleanName = 'DagurInfra';
+    else if (/microbhumi/i.test(rawName)) cleanName = 'Microbhumi';
+    else if (/radha\s*ki\s*rasoi/i.test(rawName)) cleanName = 'RadhaKiRasoi';
+    else if (/swastik\s*thal/i.test(rawName)) cleanName = 'SwastikThal';
+    else if (/brandsetu/i.test(rawName)) cleanName = 'BrandSetuDigital';
+    else if (/about\s*us/i.test(rawName)) cleanName = 'AboutUsTheFamilyStore';
+
+    // Extract ONLY clean city name from full street address
+    const extractCity = (loc?: string | null): string => {
+      if (!loc) return 'Indore';
+      const clean = loc.trim();
+      const knownCities = [
+        'Indore', 'Bhopal', 'Ujjain', 'Dewas', 'Jabalpur', 'Gwalior',
+        'Mumbai', 'Pune', 'Delhi', 'Jaipur', 'Ahmedabad', 'Bangalore', 'Hyderabad'
+      ];
+      for (const city of knownCities) {
+        if (new RegExp(`\\b${city}\\b`, 'i').test(clean)) {
+          return city;
+        }
+      }
+      const parts = clean.split(',').map((p) => p.trim()).filter(Boolean);
+      for (let i = parts.length - 1; i >= 0; i--) {
+        const raw = parts[i].replace(/\d+/g, '').trim();
+        if (raw && !/madhya\s*pradesh|m\.?p\.?|india|state/i.test(raw)) {
+          const singleWord = raw.split(/\s+/)[0].replace(/[^a-zA-Z]/g, '');
+          if (singleWord.length >= 3) return singleWord;
+        }
+      }
+      return 'Indore';
+    };
+
+    const cleanLoc = extractCity(cl?.location);
     const cat = ((cl?.category || '') + ' ' + rawName).toLowerCase();
+
+    // Viral reach & algorithm engagement hashtags requested for maximum reach
+    const viralReachCommentTags = '#fyp #reach #reels #growth #viral #trending #engagement #explore #like #share #grow';
 
     if (/sweet|food|restaurant|cafe|bakery|namkeen|chaat|mithai|panna/i.test(cat)) {
       return {
         caption: `#${cleanName} #${cleanLoc}Foodie #MithaiLovers #DesiFlavors #AuthenticTaste`,
-        comment: `#WeekendVibes #${cleanLoc}CityLife #ExploreEats #TrendingBites #FoodCulture`,
+        comment: viralReachCommentTags,
       };
     } else if (/real\s*estate|property|plot|flat|builder|construction|babu|broker/i.test(cat)) {
       return {
         caption: `#${cleanName} #${cleanLoc}RealEstate #PlotsIn${cleanLoc} #RealEstateIndia #PropertyAdvisory`,
-        comment: `#DreamHome #NewHomeVibes #ArchitectureLovers #InvestSmart #CityLiving`,
+        comment: viralReachCommentTags,
       };
     } else if (/fashion|saree|ethnic|boutique|cloth|apparel|dress|airawati/i.test(cat)) {
       return {
         caption: `#${cleanName} #${cleanLoc}Fashion #EthnicWear #SareeLove #IndianCouture`,
-        comment: `#OOTDIndia #FestiveLook #TraditionalVibes #StyleInspiration #WardrobeGoals`,
+        comment: viralReachCommentTags,
       };
     } else if (/marketing|digital|agency|brandsetu|social/i.test(cat)) {
       return {
         caption: `#${cleanName} #SocialMediaMarketing #DigitalGrowth #BrandStrategy #AgencyLife`,
-        comment: `#StartupIndia #BusinessTips #OnlineSuccess #CreatorEconomy #EntrepreneurVibes`,
+        comment: viralReachCommentTags,
       };
     }
     return {
       caption: `#${cleanName} #${cleanLoc}Business #TopQuality #TrustedService #ProfessionalCare`,
-      comment: `#ExplorePage #CustomerFirst #DailyInspiration #LocalPride #TrendingNow`,
+      comment: viralReachCommentTags,
     };
   };
 
@@ -580,19 +619,33 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         strictly5CaptionTags.split(/\s+/).map((t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, ''))
       );
       const filteredComment = rawCommentTags.filter((t: string) => !captionRoots.has(t.toLowerCase().replace(/[^a-z0-9]/g, '')));
-      const genericExplore = ['#ExplorePage', '#TrendingNow', '#CommunityVibes', '#DailyHighlight', '#MustVisit'];
-      for (const ge of genericExplore) {
-        if (filteredComment.length >= 5) break;
+      const viralAlgorithmReach = [
+        '#fyp',
+        '#reach',
+        '#reels',
+        '#growth',
+        '#viral',
+        '#trending',
+        '#engagement',
+        '#explore',
+        '#like',
+        '#share',
+        '#grow',
+        '#ExplorePage',
+        '#TrendingNow',
+      ];
+      for (const ge of viralAlgorithmReach) {
+        if (filteredComment.length >= 12) break;
         const root = ge.toLowerCase().replace(/[^a-z0-9]/g, '');
         if (!captionRoots.has(root) && !filteredComment.some((c: string) => c.toLowerCase().replace(/[^a-z0-9]/g, '') === root)) {
           filteredComment.push(ge);
         }
       }
-      const strictly5CommentTags = filteredComment.slice(0, 5).join(' ');
+      const finalCommentTags = filteredComment.slice(0, 12).join(' ');
 
       setCaptionHashtags(strictly5CaptionTags);
-      setCommentHashtags(strictly5CommentTags);
-      const combined = `${strictly5CaptionTags} \n---FIRST_COMMENT---\n ${strictly5CommentTags}`;
+      setCommentHashtags(finalCommentTags);
+      const combined = `${strictly5CaptionTags} \n---FIRST_COMMENT---\n ${finalCommentTags}`;
 
       setPlatformHashtags((prev) => ({
         ...prev,
