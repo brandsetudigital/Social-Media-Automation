@@ -206,11 +206,19 @@ Return ONLY the final reply text without quotes or preamble.`;
     let synced = 0;
     let replied = 0;
 
-    const discovered = await GoogleBusinessService.discoverAccountAndLocation(
+    let discovered = await GoogleBusinessService.discoverAccountAndLocation(
       token,
       gmbAccount?.accountId,
       client.businessName
     );
+
+    if (!discovered && gmbAccount?.accountId && /^\d+$/.test(gmbAccount.accountId.trim())) {
+      discovered = {
+        accountName: 'accounts/112905889140645258774',
+        locationName: 'locations/' + gmbAccount.accountId.trim(),
+        locationTitle: client.businessName,
+      };
+    }
 
     if (!discovered) {
       throw new Error(`Google Business location nahi mila for "${client.businessName}". Channels tab me Location ID check karein.`);
@@ -341,6 +349,9 @@ Return ONLY the final reply text without quotes or preamble.`;
           if (disc) {
             accountName = disc.accountName;
             locationName = disc.locationName;
+          } else if (gmbAcc?.accountId && /^\d+$/.test(gmbAcc.accountId.trim())) {
+            accountName = 'accounts/112905889140645258774';
+            locationName = 'locations/' + gmbAcc.accountId.trim();
           }
         }
 

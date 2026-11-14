@@ -232,8 +232,9 @@ export class GoogleBusinessService {
         });
       }
 
+      // STRICT SAFETY: Never silently fall back to locations[0] (which risks cross-client brand pollution)
       if (!matched) {
-        matched = locations[0];
+        return null;
       }
 
       return {
@@ -242,6 +243,15 @@ export class GoogleBusinessService {
         locationTitle: matched.title,
       };
     } catch {
+      // Fallback: If accounts API fails but a clean location ID was explicitly configured for this client
+      const cleanLocId = (preferredLocationId || '').replace(/^locations\//, '').trim();
+      if (cleanLocId && /^\d+$/.test(cleanLocId)) {
+        return {
+          accountName: 'accounts/112905889140645258774',
+          locationName: 'locations/' + cleanLocId,
+          locationTitle: clientName,
+        };
+      }
       return null;
     }
   }
