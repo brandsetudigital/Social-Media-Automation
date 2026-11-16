@@ -487,13 +487,58 @@ export class AIContentService {
     let captionTags: string[] = [];
     let commentTags: string[] = [...viralCommentTags];
 
-    if (/sweet|food|restaurant|cafe|bakery|namkeen|chaat|mithai|dining|kitchen|panna/i.test(categoryLower)) {
+    // 1. Resort, Hotel, Club, Bar, Lounge & Hospitality (e.g. 7th Cloud Resorts, Hotel Cocodan)
+    if (/resort|hotel|club|bar|lounge|staycation|hospitality|cocodan|7th\s*cloud/i.test(categoryLower)) {
       captionTags = [
         `#${cleanName}`,
-        `#${cleanLoc}Foodie`,
+        `#${cleanLoc}Nightlife`,
+        `#ResortLife`,
+        `#WeekendVibes`,
+        `#LuxuryStay`,
+      ];
+      commentTags = [
+        '#PartyDestination',
+        '#ClubVibes',
+        '#CocktailHour',
+        '#StaycationVibes',
+        '#IndoreParties',
+        ...viralCommentTags,
+      ];
+    }
+    // 2. Pure Sweets, Mithai, Bakery & Confectionery (e.g. Panna Sweets)
+    else if (/sweet|mithai|bakery|namkeen|confectionery|dessert|panna\s*sweet/i.test(categoryLower)) {
+      captionTags = [
+        `#${cleanName}`,
+        `#${cleanLoc}Sweets`,
         `#MithaiLovers`,
         `#DesiFlavors`,
         `#AuthenticTaste`,
+      ];
+      commentTags = [
+        '#IndianSweets',
+        '#SweetTooth',
+        '#DessertGram',
+        '#TraditionalMithai',
+        '#MithaiMagic',
+        ...viralCommentTags,
+      ];
+    }
+    // 3. Restaurants, Cafes, Dining & Thal (e.g. Swastik Thal, Radha Ki Rasoi)
+    else if (/restaurant|cafe|dining|kitchen|thal|rasoi|dhaba|bhojanalaya|fast\s*food|food/i.test(categoryLower)) {
+      captionTags = [
+        `#${cleanName}`,
+        `#${cleanLoc}Foodie`,
+        `#IndoreFoodies`,
+        `#FoodLovers`,
+        `#FineDining`,
+      ];
+      commentTags = [
+        '#FoodGram',
+        '#InstaFood',
+        '#DeliciousEats',
+        '#FoodPhotography',
+        '#TasteOfIndore',
+        ...viralCommentTags,
       ];
     } else if (/real\s*estate|property|plot|flat|builder|construction|babu|broker|infra/i.test(categoryLower)) {
       captionTags = [
@@ -503,12 +548,12 @@ export class AIContentService {
         `#RealEstateIndia`,
         `#PropertyAdvisory`,
       ];
-    } else if (/fashion|saree|ethnic|boutique|cloth|apparel|dress|kurti|garment|airawati/i.test(categoryLower)) {
+    } else if (/fashion|saree|ethnic|boutique|cloth|apparel|dress|kurti|garment|family\s*store|about\s*us|airawati/i.test(categoryLower)) {
       captionTags = [
         `#${cleanName}`,
         `#${cleanLoc}Fashion`,
-        `#EthnicWear`,
-        `#SareeLove`,
+        `#FamilyWear`,
+        `#TrendingStyle`,
         `#IndianCouture`,
       ];
     } else if (/marketing|digital|agency|brandsetu|social\s*media|seo|software|it\s*services|creative/i.test(categoryLower)) {
@@ -653,6 +698,12 @@ CRITICAL RULES:
    - In "caption": DO NOT INCLUDE ANY HASHTAGS WHATSOEVER. The caption text must be pure, clean copy (hook, body, value points, CTA). Do NOT append any hashtags at the end of "caption".
    - In "captionHashtags": Return 8 to 10 high-impact, SEO-optimized keywords/hashtags for search discovery, maximum reach, and views (including niche keywords for ${ctx.businessName} and viral tags like #viral #trending #explore #fyp #reels #reach).
      Must be targeted keywords strictly relevant to ${ctx.businessName} (${ctx.category} in ${ctx.location}).
+      STRICT CATEGORY ISOLATION:
+      * If ${ctx.businessName} is a Resort, Hotel, Club, or Bar (e.g. 7th Cloud Resorts, Hotel Cocodan), NEVER use mithai, sweets, or bakery tags. Use #ResortLife #Nightlife #WeekendVibes #LuxuryStay #Staycation.
+      * If ${ctx.businessName} is a pure Sweets/Mithai shop (e.g. Panna Sweets), use #MithaiLovers #IndianSweets.
+      * If ${ctx.businessName} is a Restaurant or Cafe (e.g. Swastik Thal, Radha Ki Rasoi), use #FoodLovers #FineDining #Foodie (NEVER sweet/mithai tags unless specifically sweet dishes).
+      * If Real Estate (e.g. Property Babu, DagurInfra, Microbhumi), use #Plots #RealEstate #PropertyInvestment.
+      * If Fashion (e.g. About Us The Family Store, Airawati), use #Fashion #EthnicWear #FamilyWear.
    - In "commentHashtags": Return 8 to 12 targeted exploration and algorithmic growth boost hashtags for the first comment (such as #growth #engagement #explorepage #like #share #grow #trendingnow #viralreels #reelsindia #foryou). CRITICAL: "commentHashtags" MUST BE 100% DIFFERENT from "captionHashtags" (ZERO duplicate or overlapping words/tags).
 
 OUTPUT FORMAT:

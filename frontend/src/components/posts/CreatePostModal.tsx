@@ -134,22 +134,43 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     const viralCaptionTags = '#viral #trending #explore #fyp #reels #reach';
     const viralCommentTags = '#growth #engagement #explorepage #like #share #grow #trendingnow #viralreels #reelsindia #foryou';
 
-    if (/sweet|food|restaurant|cafe|bakery|namkeen|chaat|mithai|panna/i.test(cat)) {
+    // 1. Resort, Hotel, Club, Bar, Lounge & Hospitality (e.g. 7th Cloud Resorts, Hotel Cocodan)
+    if (/resort|hotel|club|bar|lounge|staycation|hospitality|cocodan|7th\s*cloud/i.test(cat)) {
       return {
-        caption: `#${cleanName} #${cleanLoc}Foodie #MithaiLovers #DesiFlavors #AuthenticTaste ${viralCaptionTags}`,
+        caption: `#${cleanName} #${cleanLoc}Nightlife #ResortLife #WeekendVibes #LuxuryStay ${viralCaptionTags}`,
+        comment: `#PartyDestination #ClubVibes #CocktailHour #StaycationVibes #IndoreParties ${viralCommentTags}`,
+      };
+    }
+    // 2. Pure Sweets, Mithai, Bakery & Confectionery (e.g. Panna Sweets)
+    else if (/sweet|mithai|bakery|namkeen|confectionery|dessert|panna\s*sweet/i.test(cat)) {
+      return {
+        caption: `#${cleanName} #${cleanLoc}Sweets #MithaiLovers #DesiFlavors #AuthenticTaste ${viralCaptionTags}`,
         comment: `#IndianSweets #FoodLovers #TasteOfIndia #DessertGram #SweetTooth ${viralCommentTags}`,
       };
-    } else if (/real\s*estate|property|plot|flat|builder|construction|babu|broker/i.test(cat)) {
+    }
+    // 3. Restaurants, Cafes, Dining & Thal (e.g. Swastik Thal, Radha Ki Rasoi)
+    else if (/restaurant|cafe|dining|kitchen|thal|rasoi|dhaba|bhojanalaya|fast\s*food|food/i.test(cat)) {
+      return {
+        caption: `#${cleanName} #${cleanLoc}Foodie #IndoreFoodies #FoodLovers #FineDining ${viralCaptionTags}`,
+        comment: `#FoodGram #InstaFood #DeliciousEats #FoodPhotography #TasteOfIndore ${viralCommentTags}`,
+      };
+    }
+    // 4. Real Estate, Builders, Plots & Infrastructure (e.g. Property Babu, DagurInfra, Microbhumi)
+    else if (/real\s*estate|property|plot|flat|builder|construction|infra|babu|broker|microbhumi|dagur/i.test(cat)) {
       return {
         caption: `#${cleanName} #${cleanLoc}RealEstate #PlotsIn${cleanLoc} #RealEstateIndia #PropertyAdvisory ${viralCaptionTags}`,
         comment: `#PropertyInvestment #DreamHome #InvestSmart #CommercialPlots #HomeBuyers ${viralCommentTags}`,
       };
-    } else if (/fashion|saree|ethnic|boutique|cloth|apparel|dress|airawati/i.test(cat)) {
+    }
+    // 5. Fashion, Clothing, Ethnic & Family Stores (e.g. About Us The Family Store, Airawati)
+    else if (/fashion|saree|ethnic|boutique|cloth|apparel|dress|family\s*store|about\s*us|airawati/i.test(cat)) {
       return {
-        caption: `#${cleanName} #${cleanLoc}Fashion #EthnicWear #SareeLove #IndianCouture ${viralCaptionTags}`,
+        caption: `#${cleanName} #${cleanLoc}Fashion #FamilyWear #TrendingStyle #IndianCouture ${viralCaptionTags}`,
         comment: `#OOTD #TraditionalWear #DesignerCollection #FestiveWear #StyleInspiration ${viralCommentTags}`,
       };
-    } else if (/marketing|digital|agency|brandsetu|social/i.test(cat)) {
+    }
+    // 6. Marketing, Agency & IT
+    else if (/marketing|digital|agency|brandsetu|social/i.test(cat)) {
       return {
         caption: `#${cleanName} #SocialMediaMarketing #DigitalGrowth #BrandStrategy #AgencyLife ${viralCaptionTags}`,
         comment: `#BusinessGrowth #ContentMarketing #MarketingStrategy #BrandBuilding #OnlineMarketing ${viralCommentTags}`,
