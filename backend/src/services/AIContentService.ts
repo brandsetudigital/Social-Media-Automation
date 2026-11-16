@@ -470,19 +470,8 @@ export class AIContentService {
     const categoryLower = ((client.category || '') + ' ' + (rawName || '') + ' ' + (topic || '')).toLowerCase();
 
     // Trending viral reach hashtags split smartly between caption and comment (zero overlap)
-    const viralCaptionTags = ['#viral', '#trending', '#explore', '#fyp', '#reels', '#reach'];
-    const viralCommentTags = [
-      '#growth',
-      '#engagement',
-      '#explorepage',
-      '#like',
-      '#share',
-      '#grow',
-      '#trendingnow',
-      '#viralreels',
-      '#reelsindia',
-      '#foryou',
-    ];
+    const viralCaptionTags = ['#fyp', '#reach', '#reels', '#viral', '#trending', '#explore'];
+    const viralCommentTags = ['#growth', '#engagement', '#like', '#share', '#grow'];
 
     let captionTags: string[] = [];
     let commentTags: string[] = [...viralCommentTags];
@@ -622,8 +611,18 @@ export class AIContentService {
       }
     }
 
-    const cTags = captionTags.slice(0, 10).join(' ');
-    const cmTags = commentTags.slice(0, 10).join(' ');
+    // Guarantee all 6 viral caption tags + up to 5 niche tags
+    const nicheCap = captionTags.filter((t) => !viralCaptionTags.includes(t.toLowerCase())).slice(0, 5);
+    const cTags = Array.from(new Set([...nicheCap, ...viralCaptionTags])).join(' ');
+
+    // Guarantee all 5 viral comment tags + up to 5 niche comment tags with zero overlap
+    const cRoots = new Set(cTags.toLowerCase().split(/\s+/).map((x) => x.replace(/[^a-z0-9]/g, '')));
+    const nicheCom = commentTags.filter((t) => {
+      const root = t.toLowerCase().replace(/[^a-z0-9]/g, '');
+      return !cRoots.has(root) && !viralCommentTags.includes(t.toLowerCase());
+    }).slice(0, 5);
+    const cmTags = Array.from(new Set([...nicheCom, ...viralCommentTags])).join(' ');
+
     return {
       captionHashtags: cTags,
       commentHashtags: cmTags,
