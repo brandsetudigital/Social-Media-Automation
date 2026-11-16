@@ -130,26 +130,47 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     const cleanLoc = extractCity(cl?.location);
     const cat = ((cl?.category || '') + ' ' + rawName).toLowerCase();
 
-    // Viral reach & algorithm engagement hashtags split between caption and comment (zero duplicate roots)
-    const viralCaptionTags = '#viral #trending #explore #fyp #reels #reach';
-    const viralCommentTags = '#growth #engagement #explorepage #like #share #grow #trendingnow #viralreels #reelsindia #foryou';
+    // Viral reach & algorithm engagement hashtags split evenly between caption (6 tags) and comment (5 tags)
+    const viralCaptionTags = '#fyp #reach #reels #viral #trending #explore';
+    const viralCommentTags = '#growth #engagement #like #share #grow';
 
-    if (/sweet|food|restaurant|cafe|bakery|namkeen|chaat|mithai|panna/i.test(cat)) {
+    // 1. Resort, Hotel, Club, Bar, Lounge & Hospitality (e.g. 7th Cloud Resorts, Hotel Cocodan)
+    if (/resort|hotel|club|bar|lounge|staycation|hospitality|cocodan|7th\s*cloud/i.test(cat)) {
       return {
-        caption: `#${cleanName} #${cleanLoc}Foodie #MithaiLovers #DesiFlavors #AuthenticTaste ${viralCaptionTags}`,
+        caption: `#${cleanName} #${cleanLoc}Nightlife #ResortLife #WeekendVibes #LuxuryStay ${viralCaptionTags}`,
+        comment: `#PartyDestination #ClubVibes #CocktailHour #StaycationVibes #IndoreParties ${viralCommentTags}`,
+      };
+    }
+    // 2. Pure Sweets, Mithai, Bakery & Confectionery (e.g. Panna Sweets)
+    else if (/sweet|mithai|bakery|namkeen|confectionery|dessert|panna\s*sweet/i.test(cat)) {
+      return {
+        caption: `#${cleanName} #${cleanLoc}Sweets #MithaiLovers #DesiFlavors #AuthenticTaste ${viralCaptionTags}`,
         comment: `#IndianSweets #FoodLovers #TasteOfIndia #DessertGram #SweetTooth ${viralCommentTags}`,
       };
-    } else if (/real\s*estate|property|plot|flat|builder|construction|babu|broker/i.test(cat)) {
+    }
+    // 3. Restaurants, Cafes, Dining & Thal (e.g. Swastik Thal, Radha Ki Rasoi)
+    else if (/restaurant|cafe|dining|kitchen|thal|rasoi|dhaba|bhojanalaya|fast\s*food|food/i.test(cat)) {
+      return {
+        caption: `#${cleanName} #${cleanLoc}Foodie #IndoreFoodies #FoodLovers #FineDining ${viralCaptionTags}`,
+        comment: `#FoodGram #InstaFood #DeliciousEats #FoodPhotography #TasteOfIndore ${viralCommentTags}`,
+      };
+    }
+    // 4. Real Estate, Builders, Plots & Infrastructure (e.g. Property Babu, DagurInfra, Microbhumi)
+    else if (/real\s*estate|property|plot|flat|builder|construction|infra|babu|broker|microbhumi|dagur/i.test(cat)) {
       return {
         caption: `#${cleanName} #${cleanLoc}RealEstate #PlotsIn${cleanLoc} #RealEstateIndia #PropertyAdvisory ${viralCaptionTags}`,
         comment: `#PropertyInvestment #DreamHome #InvestSmart #CommercialPlots #HomeBuyers ${viralCommentTags}`,
       };
-    } else if (/fashion|saree|ethnic|boutique|cloth|apparel|dress|airawati/i.test(cat)) {
+    }
+    // 5. Fashion, Clothing, Ethnic & Family Stores (e.g. About Us The Family Store, Airawati)
+    else if (/fashion|saree|ethnic|boutique|cloth|apparel|dress|family\s*store|about\s*us|airawati/i.test(cat)) {
       return {
-        caption: `#${cleanName} #${cleanLoc}Fashion #EthnicWear #SareeLove #IndianCouture ${viralCaptionTags}`,
+        caption: `#${cleanName} #${cleanLoc}Fashion #FamilyWear #TrendingStyle #IndianCouture ${viralCaptionTags}`,
         comment: `#OOTD #TraditionalWear #DesignerCollection #FestiveWear #StyleInspiration ${viralCommentTags}`,
       };
-    } else if (/marketing|digital|agency|brandsetu|social/i.test(cat)) {
+    }
+    // 6. Marketing, Agency & IT
+    else if (/marketing|digital|agency|brandsetu|social/i.test(cat)) {
       return {
         caption: `#${cleanName} #SocialMediaMarketing #DigitalGrowth #BrandStrategy #AgencyLife ${viralCaptionTags}`,
         comment: `#BusinessGrowth #ContentMarketing #MarketingStrategy #BrandBuilding #OnlineMarketing ${viralCommentTags}`,
@@ -576,13 +597,18 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         ? uploadedFileName.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ')
         : `${clientObj?.businessName || 'Brand'} spotlight & updates`);
 
+      // Ensure visual media (image or video thumbnail frame) is forwarded to Multimodal Vision AI
+      const effectiveMediaForAi = (isVideoMedia(mediaUrl, contentType, uploadedFileName) && thumbnailUrl)
+        ? thumbnailUrl
+        : (mediaUrl || undefined);
+
       const res = await api.generateAICaption({
         clientId: activeClientId || undefined,
         topic: defaultTopic,
         tone: 'Trustworthy, secure and engaging',
         platform: platformToUse,
         contentType,
-        mediaUrl: mediaUrl || undefined,
+        mediaUrl: effectiveMediaForAi,
       });
 
       if (res?.caption) {
@@ -602,56 +628,52 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       if (!capTags) capTags = clientDefaults.caption;
       if (!comTags) comTags = clientDefaults.comment;
 
-      // High-impact SEO + Viral reach hashtags in caption (up to 10 tags)
-      const captionTagsList = capTags
+      // Common viral reach tags: 6 in caption, 5 in comment (100% guaranteed on every post)
+      const requiredViralCaption = ['#fyp', '#reach', '#reels', '#viral', '#trending', '#explore'];
+      const viralCapRoots = new Set(requiredViralCaption.map((t) => t.replace(/[^a-z0-9]/g, '')));
+
+      const rawCapTags = capTags
         .split(/\s+/)
         .map((t: string) => t.trim())
         .filter((t: string) => t.startsWith('#'));
+
+      const nicheCapTags: string[] = [];
+      const seenCapRoots = new Set<string>();
+      for (const t of rawCapTags) {
+        const root = t.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (!viralCapRoots.has(root) && !seenCapRoots.has(root)) {
+          nicheCapTags.push(t);
+          seenCapRoots.add(root);
+          if (nicheCapTags.length >= 5) break;
+        }
+      }
+
+      const finalCaptionTags = [...nicheCapTags, ...requiredViralCaption].join(' ');
 
       const captionRoots = new Set(
-        captionTagsList.map((t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, ''))
+        finalCaptionTags.toLowerCase().split(/\s+/).map((t) => t.replace(/[^a-z0-9]/g, ''))
       );
 
-      const viralCaptionPool = ['#viral', '#trending', '#explore', '#fyp', '#reels', '#reach'];
-      for (const v of viralCaptionPool) {
-        if (captionTagsList.length >= 10) break;
-        const root = v.toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (!captionRoots.has(root)) {
-          captionTagsList.push(v);
-          captionRoots.add(root);
-        }
-      }
-      const finalCaptionTags = captionTagsList.slice(0, 10).join(' ');
+      const requiredViralComment = ['#growth', '#engagement', '#like', '#share', '#grow'];
+      const viralComRoots = new Set(requiredViralComment.map((t) => t.replace(/[^a-z0-9]/g, '')));
 
-      const rawCommentTags = comTags
+      const rawComTags = comTags
         .split(/\s+/)
         .map((t: string) => t.trim())
         .filter((t: string) => t.startsWith('#'));
 
-      // Strictly enforce that comment tags have ZERO overlap with caption tags
-      const filteredComment = rawCommentTags.filter((t: string) => !captionRoots.has(t.toLowerCase().replace(/[^a-z0-9]/g, '')));
-      const viralCommentPool = [
-        '#growth',
-        '#engagement',
-        '#explorepage',
-        '#like',
-        '#share',
-        '#grow',
-        '#trendingnow',
-        '#viralreels',
-        '#reelsindia',
-        '#foryou',
-        '#instareels',
-        '#DailyHighlight',
-      ];
-      for (const ge of viralCommentPool) {
-        if (filteredComment.length >= 12) break;
-        const root = ge.toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (!captionRoots.has(root) && !filteredComment.some((c: string) => c.toLowerCase().replace(/[^a-z0-9]/g, '') === root)) {
-          filteredComment.push(ge);
+      const nicheComTags: string[] = [];
+      const seenComRoots = new Set<string>();
+      for (const t of rawComTags) {
+        const root = t.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (!captionRoots.has(root) && !viralComRoots.has(root) && !seenComRoots.has(root)) {
+          nicheComTags.push(t);
+          seenComRoots.add(root);
+          if (nicheComTags.length >= 5) break;
         }
       }
-      const finalCommentTags = filteredComment.slice(0, 12).join(' ');
+
+      const finalCommentTags = [...nicheComTags, ...requiredViralComment].join(' ');
 
       setCaptionHashtags(finalCaptionTags);
       setCommentHashtags(finalCommentTags);
@@ -716,55 +738,52 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       if (!capTags) capTags = defaults.caption;
       if (!comTags) comTags = defaults.comment;
 
-      // High-impact SEO + Viral reach hashtags in caption (up to 10 tags)
-      const captionTagsList = capTags
+      // Common viral reach tags: 6 in caption, 5 in comment (100% guaranteed on every post)
+      const requiredViralCaption = ['#fyp', '#reach', '#reels', '#viral', '#trending', '#explore'];
+      const viralCapRoots = new Set(requiredViralCaption.map((t) => t.replace(/[^a-z0-9]/g, '')));
+
+      const rawCapTags = capTags
         .split(/\s+/)
         .map((t: string) => t.trim())
         .filter((t: string) => t.startsWith('#'));
+
+      const nicheCapTags: string[] = [];
+      const seenCapRoots = new Set<string>();
+      for (const t of rawCapTags) {
+        const root = t.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (!viralCapRoots.has(root) && !seenCapRoots.has(root)) {
+          nicheCapTags.push(t);
+          seenCapRoots.add(root);
+          if (nicheCapTags.length >= 5) break;
+        }
+      }
+
+      const finalCaptionTags = [...nicheCapTags, ...requiredViralCaption].join(' ');
 
       const captionRoots = new Set(
-        captionTagsList.map((t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, ''))
+        finalCaptionTags.toLowerCase().split(/\s+/).map((t) => t.replace(/[^a-z0-9]/g, ''))
       );
 
-      const viralCaptionPool = ['#viral', '#trending', '#explore', '#fyp', '#reels', '#reach'];
-      for (const v of viralCaptionPool) {
-        if (captionTagsList.length >= 10) break;
-        const root = v.toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (!captionRoots.has(root)) {
-          captionTagsList.push(v);
-          captionRoots.add(root);
-        }
-      }
-      const finalCaptionTags = captionTagsList.slice(0, 10).join(' ');
+      const requiredViralComment = ['#growth', '#engagement', '#like', '#share', '#grow'];
+      const viralComRoots = new Set(requiredViralComment.map((t) => t.replace(/[^a-z0-9]/g, '')));
 
-      const rawCommentTags = comTags
+      const rawComTags = comTags
         .split(/\s+/)
         .map((t: string) => t.trim())
         .filter((t: string) => t.startsWith('#'));
 
-      const filteredComment = rawCommentTags.filter((t: string) => !captionRoots.has(t.toLowerCase().replace(/[^a-z0-9]/g, '')));
-      const viralCommentPool = [
-        '#growth',
-        '#engagement',
-        '#explorepage',
-        '#like',
-        '#share',
-        '#grow',
-        '#trendingnow',
-        '#viralreels',
-        '#reelsindia',
-        '#foryou',
-        '#instareels',
-        '#DailyHighlight',
-      ];
-      for (const ge of viralCommentPool) {
-        if (filteredComment.length >= 12) break;
-        const root = ge.toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (!captionRoots.has(root) && !filteredComment.some((c: string) => c.toLowerCase().replace(/[^a-z0-9]/g, '') === root)) {
-          filteredComment.push(ge);
+      const nicheComTags: string[] = [];
+      const seenComRoots = new Set<string>();
+      for (const t of rawComTags) {
+        const root = t.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (!captionRoots.has(root) && !viralComRoots.has(root) && !seenComRoots.has(root)) {
+          nicheComTags.push(t);
+          seenComRoots.add(root);
+          if (nicheComTags.length >= 5) break;
         }
       }
-      const finalCommentTags = filteredComment.slice(0, 12).join(' ');
+
+      const finalCommentTags = [...nicheComTags, ...requiredViralComment].join(' ');
 
       setCaptionHashtags(finalCaptionTags);
       setCommentHashtags(finalCommentTags);
@@ -805,6 +824,10 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         ? uploadedFileName.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ')
         : `${clientObj?.businessName || 'Brand'} spotlight & updates`);
 
+      const effectiveMediaForAi = (isVideoMedia(mediaUrl, contentType, uploadedFileName) && thumbnailUrl)
+        ? thumbnailUrl
+        : (mediaUrl || undefined);
+
       const responses = await Promise.all(
         platformsToGen.map(async (plat) => {
           try {
@@ -814,7 +837,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
               tone: 'Trustworthy, secure and engaging',
               platform: plat,
               contentType,
-              mediaUrl: mediaUrl || undefined,
+              mediaUrl: effectiveMediaForAi,
             });
             return { platform: plat, caption: res?.caption || '', hashtags: res?.hashtags || '' };
           } catch {

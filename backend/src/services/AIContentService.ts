@@ -44,6 +44,40 @@ export class AIContentService {
   }
 
   /**
+   * Asynchronously resolves media URL (including remote http/https images) to base64 data URL for Gemini Vision
+   */
+  private static async resolveMediaAsDataUrlAsync(mediaUrl?: string): Promise<string | undefined> {
+    if (!mediaUrl) return undefined;
+    if (mediaUrl.startsWith('data:image/')) return mediaUrl;
+
+    const localResolved = this.resolveMediaAsDataUrl(mediaUrl);
+    if (localResolved && localResolved.startsWith('data:image/')) {
+      return localResolved;
+    }
+
+    if (mediaUrl.startsWith('http://') || mediaUrl.startsWith('https://')) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        const res = await fetch(mediaUrl, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (res.ok) {
+          const contentType = res.headers.get('content-type') || 'image/jpeg';
+          if (contentType.startsWith('image/')) {
+            const arrayBuffer = await res.arrayBuffer();
+            const base64 = Buffer.from(arrayBuffer).toString('base64');
+            return `data:${contentType};base64,${base64}`;
+          }
+        }
+      } catch (err) {
+        console.warn('[AIContentService] Could not fetch remote media for vision AI:', err);
+      }
+    }
+
+    return mediaUrl;
+  }
+
+  /**
    * Helper to retrieve brand knowledge for a client
    */
   private static async getClientContext(clientId: string) {
@@ -97,8 +131,8 @@ export class AIContentService {
     try {
       const parts: any[] = [{ text: prompt }];
 
-      // Support Multimodal image input if base64 data URL
-      const resolvedMedia = this.resolveMediaAsDataUrl(mediaUrl);
+      // Support Multimodal image input (local or remote base64 data URL)
+      const resolvedMedia = await this.resolveMediaAsDataUrlAsync(mediaUrl);
       if (resolvedMedia && resolvedMedia.startsWith('data:image/')) {
         const mimeType = resolvedMedia.substring(resolvedMedia.indexOf(':') + 1, resolvedMedia.indexOf(';'));
         const base64Data = resolvedMedia.substring(resolvedMedia.indexOf(',') + 1);
@@ -436,30 +470,64 @@ export class AIContentService {
     const categoryLower = ((client.category || '') + ' ' + (rawName || '') + ' ' + (topic || '')).toLowerCase();
 
     // Trending viral reach hashtags split smartly between caption and comment (zero overlap)
-    const viralCaptionTags = ['#viral', '#trending', '#explore', '#fyp', '#reels', '#reach'];
-    const viralCommentTags = [
-      '#growth',
-      '#engagement',
-      '#explorepage',
-      '#like',
-      '#share',
-      '#grow',
-      '#trendingnow',
-      '#viralreels',
-      '#reelsindia',
-      '#foryou',
-    ];
+    const viralCaptionTags = ['#fyp', '#reach', '#reels', '#viral', '#trending', '#explore'];
+    const viralCommentTags = ['#growth', '#engagement', '#like', '#share', '#grow'];
 
     let captionTags: string[] = [];
     let commentTags: string[] = [...viralCommentTags];
 
-    if (/sweet|food|restaurant|cafe|bakery|namkeen|chaat|mithai|dining|kitchen|panna/i.test(categoryLower)) {
+    // 1. Resort, Hotel, Club, Bar, Lounge & Hospitality (e.g. 7th Cloud Resorts, Hotel Cocodan)
+    if (/resort|hotel|club|bar|lounge|staycation|hospitality|cocodan|7th\s*cloud/i.test(categoryLower)) {
       captionTags = [
         `#${cleanName}`,
-        `#${cleanLoc}Foodie`,
+        `#${cleanLoc}Nightlife`,
+        `#ResortLife`,
+        `#WeekendVibes`,
+        `#LuxuryStay`,
+      ];
+      commentTags = [
+        '#PartyDestination',
+        '#ClubVibes',
+        '#CocktailHour',
+        '#StaycationVibes',
+        '#IndoreParties',
+        ...viralCommentTags,
+      ];
+    }
+    // 2. Pure Sweets, Mithai, Bakery & Confectionery (e.g. Panna Sweets)
+    else if (/sweet|mithai|bakery|namkeen|confectionery|dessert|panna\s*sweet/i.test(categoryLower)) {
+      captionTags = [
+        `#${cleanName}`,
+        `#${cleanLoc}Sweets`,
         `#MithaiLovers`,
         `#DesiFlavors`,
         `#AuthenticTaste`,
+      ];
+      commentTags = [
+        '#IndianSweets',
+        '#SweetTooth',
+        '#DessertGram',
+        '#TraditionalMithai',
+        '#MithaiMagic',
+        ...viralCommentTags,
+      ];
+    }
+    // 3. Restaurants, Cafes, Dining & Thal (e.g. Swastik Thal, Radha Ki Rasoi)
+    else if (/restaurant|cafe|dining|kitchen|thal|rasoi|dhaba|bhojanalaya|fast\s*food|food/i.test(categoryLower)) {
+      captionTags = [
+        `#${cleanName}`,
+        `#${cleanLoc}Foodie`,
+        `#IndoreFoodies`,
+        `#FoodLovers`,
+        `#FineDining`,
+      ];
+      commentTags = [
+        '#FoodGram',
+        '#InstaFood',
+        '#DeliciousEats',
+        '#FoodPhotography',
+        '#TasteOfIndore',
+        ...viralCommentTags,
       ];
     } else if (/real\s*estate|property|plot|flat|builder|construction|babu|broker|infra/i.test(categoryLower)) {
       captionTags = [
@@ -469,12 +537,12 @@ export class AIContentService {
         `#RealEstateIndia`,
         `#PropertyAdvisory`,
       ];
-    } else if (/fashion|saree|ethnic|boutique|cloth|apparel|dress|kurti|garment|airawati/i.test(categoryLower)) {
+    } else if (/fashion|saree|ethnic|boutique|cloth|apparel|dress|kurti|garment|family\s*store|about\s*us|airawati/i.test(categoryLower)) {
       captionTags = [
         `#${cleanName}`,
         `#${cleanLoc}Fashion`,
-        `#EthnicWear`,
-        `#SareeLove`,
+        `#FamilyWear`,
+        `#TrendingStyle`,
         `#IndianCouture`,
       ];
     } else if (/marketing|digital|agency|brandsetu|social\s*media|seo|software|it\s*services|creative/i.test(categoryLower)) {
@@ -543,8 +611,18 @@ export class AIContentService {
       }
     }
 
-    const cTags = captionTags.slice(0, 10).join(' ');
-    const cmTags = commentTags.slice(0, 10).join(' ');
+    // Guarantee all 6 viral caption tags + up to 5 niche tags
+    const nicheCap = captionTags.filter((t) => !viralCaptionTags.includes(t.toLowerCase())).slice(0, 5);
+    const cTags = Array.from(new Set([...nicheCap, ...viralCaptionTags])).join(' ');
+
+    // Guarantee all 5 viral comment tags + up to 5 niche comment tags with zero overlap
+    const cRoots = new Set(cTags.toLowerCase().split(/\s+/).map((x) => x.replace(/[^a-z0-9]/g, '')));
+    const nicheCom = commentTags.filter((t) => {
+      const root = t.toLowerCase().replace(/[^a-z0-9]/g, '');
+      return !cRoots.has(root) && !viralCommentTags.includes(t.toLowerCase());
+    }).slice(0, 5);
+    const cmTags = Array.from(new Set([...nicheCom, ...viralCommentTags])).join(' ');
+
     return {
       captionHashtags: cTags,
       commentHashtags: cmTags,
@@ -588,10 +666,22 @@ CLIENT BRAND KNOWLEDGE:
 ${ctx.documentKnowledge ? `\nCLIENT UPLOADED DOCUMENTS & KNOWLEDGE BASE:\n${ctx.documentKnowledge}\n(Use the facts, offers, services and details from these documents to make the caption highly authentic and accurate)\n` : ''}
 POST SPECIFICS:
 
-- Platform: ${params.platform} (INSTAGRAM, FACEBOOK, LINKEDIN, TWITTER, YOUTUBE, or GOOGLE_BUSINESS)
-- Content Type: ${params.contentType} (POST, REEL, STORY, GOOGLE_BUSINESS_POST)
+- Platform: ${params.platform} (${params.platform})
+- Content Type: ${params.contentType} (${params.contentType === 'REEL' ? 'REEL / SHORT VIDEO' : params.contentType})
 - Topic / Creative Title: ${topic}
-${params.mediaUrl ? '- Visual Media is attached with this request. Carefully inspect the image visuals, text in the creative (e.g. location, road name, property highlights), phone, logo, and align the caption directly with what is depicted.' : ''}
+${params.mediaUrl ? `- Visual Media is attached with this request.
+CRITICAL VISUAL MEDIA ANALYSIS RULE:
+1. Carefully inspect the visual elements in the attached image or video frame:
+   - Identify the exact product, food dish, outfit, plot/flat property, or service shown.
+   - Read all visible text on the creative (brand name, headings, price/offers, location, road, phone number).
+   - Write the caption based DIRECTLY on what is visible in this visual media.
+2. For REEL / VIDEO:
+   - Start line 1 with an irresistible 3-second hook (e.g., "Wait for the end! 🔥", "Indore ki sabse famous...", "Save this reel for your next visit 📌").
+   - Keep the rhythm fast, punchy, and sound-friendly with a viral CTA like "Double tap if you want to try this ❤️" or "Share with your foodie squad 🚀".
+3. For POST IMAGE:
+   - Start with an engaging headline/hook highlighting the visual subject.
+   - Describe the authentic taste, quality, craftsmanship, or value points shown in the photo.
+   - Use clean line breaks, aesthetic emojis, and a clear call-to-action.` : ''}
 
 CRITICAL RULES:
 1. FOR CONTACT DETAILS & LOCATION (VERY IMPORTANT):
@@ -607,6 +697,12 @@ CRITICAL RULES:
    - In "caption": DO NOT INCLUDE ANY HASHTAGS WHATSOEVER. The caption text must be pure, clean copy (hook, body, value points, CTA). Do NOT append any hashtags at the end of "caption".
    - In "captionHashtags": Return 8 to 10 high-impact, SEO-optimized keywords/hashtags for search discovery, maximum reach, and views (including niche keywords for ${ctx.businessName} and viral tags like #viral #trending #explore #fyp #reels #reach).
      Must be targeted keywords strictly relevant to ${ctx.businessName} (${ctx.category} in ${ctx.location}).
+      STRICT CATEGORY ISOLATION:
+      * If ${ctx.businessName} is a Resort, Hotel, Club, or Bar (e.g. 7th Cloud Resorts, Hotel Cocodan), NEVER use mithai, sweets, or bakery tags. Use #ResortLife #Nightlife #WeekendVibes #LuxuryStay #Staycation.
+      * If ${ctx.businessName} is a pure Sweets/Mithai shop (e.g. Panna Sweets), use #MithaiLovers #IndianSweets.
+      * If ${ctx.businessName} is a Restaurant or Cafe (e.g. Swastik Thal, Radha Ki Rasoi), use #FoodLovers #FineDining #Foodie (NEVER sweet/mithai tags unless specifically sweet dishes).
+      * If Real Estate (e.g. Property Babu, DagurInfra, Microbhumi), use #Plots #RealEstate #PropertyInvestment.
+      * If Fashion (e.g. About Us The Family Store, Airawati), use #Fashion #EthnicWear #FamilyWear.
    - In "commentHashtags": Return 8 to 12 targeted exploration and algorithmic growth boost hashtags for the first comment (such as #growth #engagement #explorepage #like #share #grow #trendingnow #viralreels #reelsindia #foryou). CRITICAL: "commentHashtags" MUST BE 100% DIFFERENT from "captionHashtags" (ZERO duplicate or overlapping words/tags).
 
 OUTPUT FORMAT:

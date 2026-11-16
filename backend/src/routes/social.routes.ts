@@ -1,4 +1,6 @@
 import { Router, Response } from 'express';
+import fs from 'fs';
+import path from 'path';
 import { AuthRequest, authenticateToken } from '../middleware/auth.middleware';
 import prisma from '../prisma';
 import { AuditService } from '../services/AuditService';
@@ -6,6 +8,41 @@ import { GmbReviewService } from '../services/GmbReviewService';
 import { GoogleBusinessService } from '../services/GoogleBusinessService';
 
 const router = Router();
+
+function persistTokensToEnv(accessToken?: string, refreshToken?: string) {
+  try {
+    const envPath = path.resolve(__dirname, '../../.env');
+    if (!fs.existsSync(envPath)) return;
+    let content = fs.readFileSync(envPath, 'utf8');
+
+    if (accessToken) {
+      if (content.includes('GOOGLE_BUSINESS_ACCESS_TOKEN=')) {
+        content = content.replace(
+          /GOOGLE_BUSINESS_ACCESS_TOKEN="[^"]*"/g,
+          `GOOGLE_BUSINESS_ACCESS_TOKEN="${accessToken}"`
+        );
+      } else {
+        content += `\nGOOGLE_BUSINESS_ACCESS_TOKEN="${accessToken}"`;
+      }
+    }
+
+    if (refreshToken) {
+      if (content.includes('GOOGLE_BUSINESS_REFRESH_TOKEN=')) {
+        content = content.replace(
+          /GOOGLE_BUSINESS_REFRESH_TOKEN="[^"]*"/g,
+          `GOOGLE_BUSINESS_REFRESH_TOKEN="${refreshToken}"`
+        );
+      } else {
+        content += `\nGOOGLE_BUSINESS_REFRESH_TOKEN="${refreshToken}"`;
+      }
+    }
+
+    fs.writeFileSync(envPath, content, 'utf8');
+    console.log('✅ [Env Update] Persisted fresh Google Business tokens to .env');
+  } catch (err: any) {
+    console.warn('[persistTokensToEnv Warning]:', err.message);
+  }
+}
 
 // GET social accounts (optionally filtered by client)
 router.get('/accounts', authenticateToken, async (req: AuthRequest, res: Response) => {
@@ -89,6 +126,78 @@ router.post('/connect', authenticateToken, async (req: AuthRequest, res: Respons
   }
 });
 
+// POST /api/social/gmb/exchange-code - Exchanges Google popup auth code for permanent refresh token + access token
+router.post('/gmb/exchange-code', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { code } = req.body;
+    if (!code) {
+      return res.status(400).json({ error: 'Authorization code is required' });
+    }
+
+    const clientId = process.env.GOOGLE_CLIENT_ID?.trim() || '';
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim() || '';
+
+    if (!clientId || !clientSecret) {
+      return res.status(500).json({ error: 'GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET missing in server environment.' });
+    }
+
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code: code.trim(),
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: 'postmessage',
+        grant_type: 'authorization_code',
+      }),
+    });
+
+    const tokenData: any = await tokenRes.json();
+    if (!tokenRes.ok || !tokenData.access_token) {
+      console.error('[Google Code Exchange Error]:', tokenData);
+      return res.status(400).json({
+        error: `Google code exchange failed: ${tokenData.error_description || tokenData.error || 'Invalid code'}`
+      });
+    }
+
+    const accessToken = tokenData.access_token;
+    const refreshToken = tokenData.refresh_token;
+
+    process.env.GOOGLE_BUSINESS_ACCESS_TOKEN = accessToken;
+    if (refreshToken) {
+      process.env.GOOGLE_BUSINESS_REFRESH_TOKEN = refreshToken;
+    }
+    persistTokensToEnv(accessToken, refreshToken);
+
+    // Update ALL Google Business accounts in the database
+    const updated = await prisma.socialAccount.updateMany({
+      where: { platform: 'GOOGLE_BUSINESS' },
+      data: {
+        status: 'CONNECTED',
+        accessToken: accessToken,
+        tokenExpiresAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
+        lastHealthCheck: new Date(),
+        lastError: null,
+      },
+    });
+
+    // Auto-trigger review sync across all clients in the background
+    GmbReviewService.runAutoReplyWorker().catch((err) => {
+      console.warn('[GMB Code Exchange] Background sync note:', err.message);
+    });
+
+    return res.json({
+      success: true,
+      message: `Google Account connected successfully! Refresh token saved for permanent auto-sync across ${updated.count} client locations.`,
+      accountsUpdated: updated.count,
+      hasRefreshToken: Boolean(refreshToken),
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/social/gmb/update-token - Updates Google OAuth Token across all GMB accounts in 1-click
 router.post('/gmb/update-token', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
@@ -105,9 +214,11 @@ router.post('/gmb/update-token', authenticateToken, async (req: AuthRequest, res
       }
       process.env.GOOGLE_BUSINESS_REFRESH_TOKEN = rawToken;
       process.env.GOOGLE_BUSINESS_ACCESS_TOKEN = finalAccessToken;
+      persistTokensToEnv(finalAccessToken, rawToken);
     } else if (rawToken.startsWith('ya29.')) {
       finalAccessToken = rawToken;
       process.env.GOOGLE_BUSINESS_ACCESS_TOKEN = rawToken;
+      persistTokensToEnv(rawToken);
     } else {
       return res.status(400).json({ error: 'Invalid Google token format. Must start with ya29. (Access Token) or 1// (Refresh Token).' });
     }

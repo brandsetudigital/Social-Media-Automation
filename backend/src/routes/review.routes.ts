@@ -8,7 +8,7 @@ const router = Router();
 // 1. GET /api/reviews - Get reviews for a client or all clients
 router.get('/', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const { clientId, starRating, replyStatus } = req.query;
+    const { clientId, starRating, replyStatus, limit } = req.query;
 
     const where: any = {};
     if (clientId && clientId !== 'ALL' && clientId !== 'undefined') {
@@ -21,6 +21,8 @@ router.get('/', authenticateToken, async (req: AuthRequest, res: Response) => {
       where.replyStatus = replyStatus as string;
     }
 
+    const maxLimit = limit ? Math.min(parseInt(limit as string), 1000) : 500;
+
     const reviews = await prisma.gmbReview.findMany({
       where,
       include: {
@@ -29,7 +31,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res: Response) => {
         },
       },
       orderBy: { reviewCreatedAt: 'desc' },
-      take: 50,
+      take: maxLimit,
     });
 
     const totalCount = await prisma.gmbReview.count({ where });

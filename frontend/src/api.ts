@@ -323,6 +323,8 @@ export const api = {
     apiFetch<any>(`/social/reconnect/${id}`, { method: 'POST', body: token ? JSON.stringify({ accessToken: token }) : undefined }),
   updateGmbToken: (token: string) =>
     apiFetch<any>('/social/gmb/update-token', { method: 'POST', body: JSON.stringify({ token }) }),
+  exchangeGmbCode: (code: string) =>
+    apiFetch<any>('/social/gmb/exchange-code', { method: 'POST', body: JSON.stringify({ code }) }),
   disconnectSocialAccount: (id: string) =>
     apiFetch<any>(`/social/disconnect/${id}`, { method: 'POST' }),
 
