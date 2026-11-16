@@ -303,7 +303,33 @@ router.post('/audit-graphic', authenticateToken, async (req: AuthRequest, res: R
 // POST create manual creative
 router.post('/create', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    let { clientId, title, contentType, mediaUrl, thumbnailUrl, caption, hashtags, platforms, publishMode, scheduledAt, submitForApproval, platformCaptions, platformHashtags, skipAudit } = req.body;
+    let { clientId, title, contentType, mediaUrl, mediaUrls, thumbnailUrl, caption, hashtags, platforms, publishMode, scheduledAt, submitForApproval, platformCaptions, platformHashtags, skipAudit } = req.body;
+
+    // Handle Carousel / Multiple images
+    if (Array.isArray(mediaUrls) && mediaUrls.length > 0) {
+      mediaUrl = JSON.stringify(mediaUrls);
+      if (!contentType || contentType === 'POST') {
+        contentType = mediaUrls.length > 1 ? 'CAROUSEL' : 'POST';
+      }
+      if (!thumbnailUrl) {
+        thumbnailUrl = mediaUrls[0];
+      }
+    } else if (mediaUrl) {
+      try {
+        if (typeof mediaUrl === 'string' && mediaUrl.trim().startsWith('[') && mediaUrl.trim().endsWith(']')) {
+          const parsed = JSON.parse(mediaUrl.trim());
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            mediaUrls = parsed;
+            if (!contentType || contentType === 'POST') {
+              contentType = parsed.length > 1 ? 'CAROUSEL' : 'POST';
+            }
+            if (!thumbnailUrl) {
+              thumbnailUrl = parsed[0];
+            }
+          }
+        }
+      } catch {}
+    }
 
     if (!title || !mediaUrl) {
       return res.status(400).json({ error: 'title and mediaUrl are required' });

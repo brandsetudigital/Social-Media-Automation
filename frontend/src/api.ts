@@ -14,24 +14,46 @@ function cleanBaseUrl(input?: string): string {
 
 const API_BASE = cleanBaseUrl((import.meta as any).env?.VITE_API_URL);
 
+export const parseMediaUrls = (url?: string | null): string[] => {
+  if (!url) return [];
+  try {
+    const trimmed = url.trim();
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.map((item) => (typeof item === 'string' ? item : item?.url || String(item))).filter(Boolean);
+      }
+    }
+  } catch {}
+  if (url.includes(',') && !url.startsWith('http://') && !url.startsWith('https://')) {
+    return url.split(',').map((s) => s.trim()).filter(Boolean);
+  }
+  return [url];
+};
+
 export const getMediaUrl = (url?: string | null): string => {
   if (!url) return '';
+  const trimmed = url.trim();
+  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+    const list = parseMediaUrls(trimmed);
+    if (list.length > 0) return getMediaUrl(list[0]);
+  }
   if (
-    url.startsWith('http://') ||
-    url.startsWith('https://') ||
-    url.startsWith('blob:') ||
-    url.startsWith('data:')
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('blob:') ||
+    trimmed.startsWith('data:')
   ) {
-    if (url.includes('white-goshawk-289802.hostingersite.com/uploads/')) {
-      return url.replace('white-goshawk-289802.hostingersite.com', 'mediumspringgreen-wallaby-731721.hostingersite.com');
+    if (trimmed.includes('white-goshawk-289802.hostingersite.com/uploads/')) {
+      return trimmed.replace('white-goshawk-289802.hostingersite.com', 'mediumspringgreen-wallaby-731721.hostingersite.com');
     }
-    return url;
+    return trimmed;
   }
   let backendBase = API_BASE.replace(/\/api\/?$/, '');
   if (!backendBase || backendBase === '/' || backendBase.includes('white-goshawk-289802')) {
     backendBase = 'https://mediumspringgreen-wallaby-731721.hostingersite.com';
   }
-  const cleanUrl = url.startsWith('/') ? url : `/${url}`;
+  const cleanUrl = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
   return `${backendBase}${cleanUrl}`;
 };
 

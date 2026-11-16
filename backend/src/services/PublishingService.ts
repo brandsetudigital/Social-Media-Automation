@@ -217,7 +217,7 @@ export class PublishingService {
       }
 
       if (post.platform === 'INSTAGRAM') {
-        const igContentType = (post.contentItem.contentType === 'REEL' || post.contentItem.contentType === 'STORY')
+        const igContentType = (post.contentItem.contentType === 'REEL' || post.contentItem.contentType === 'STORY' || post.contentItem.contentType === 'CAROUSEL')
           ? post.contentItem.contentType
           : 'POST';
 
@@ -226,7 +226,7 @@ export class PublishingService {
           accessToken: tokenToUse,
           mediaUrl,
           caption,
-          contentType: igContentType,
+          contentType: igContentType as any,
         });
       } else if (post.platform === 'FACEBOOK') {
         return await MetaService.publishFacebook({
