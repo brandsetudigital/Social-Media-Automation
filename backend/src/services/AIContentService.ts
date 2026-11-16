@@ -44,6 +44,40 @@ export class AIContentService {
   }
 
   /**
+   * Asynchronously resolves media URL (including remote http/https images) to base64 data URL for Gemini Vision
+   */
+  private static async resolveMediaAsDataUrlAsync(mediaUrl?: string): Promise<string | undefined> {
+    if (!mediaUrl) return undefined;
+    if (mediaUrl.startsWith('data:image/')) return mediaUrl;
+
+    const localResolved = this.resolveMediaAsDataUrl(mediaUrl);
+    if (localResolved && localResolved.startsWith('data:image/')) {
+      return localResolved;
+    }
+
+    if (mediaUrl.startsWith('http://') || mediaUrl.startsWith('https://')) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        const res = await fetch(mediaUrl, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (res.ok) {
+          const contentType = res.headers.get('content-type') || 'image/jpeg';
+          if (contentType.startsWith('image/')) {
+            const arrayBuffer = await res.arrayBuffer();
+            const base64 = Buffer.from(arrayBuffer).toString('base64');
+            return `data:${contentType};base64,${base64}`;
+          }
+        }
+      } catch (err) {
+        console.warn('[AIContentService] Could not fetch remote media for vision AI:', err);
+      }
+    }
+
+    return mediaUrl;
+  }
+
+  /**
    * Helper to retrieve brand knowledge for a client
    */
   private static async getClientContext(clientId: string) {
@@ -97,8 +131,8 @@ export class AIContentService {
     try {
       const parts: any[] = [{ text: prompt }];
 
-      // Support Multimodal image input if base64 data URL
-      const resolvedMedia = this.resolveMediaAsDataUrl(mediaUrl);
+      // Support Multimodal image input (local or remote base64 data URL)
+      const resolvedMedia = await this.resolveMediaAsDataUrlAsync(mediaUrl);
       if (resolvedMedia && resolvedMedia.startsWith('data:image/')) {
         const mimeType = resolvedMedia.substring(resolvedMedia.indexOf(':') + 1, resolvedMedia.indexOf(';'));
         const base64Data = resolvedMedia.substring(resolvedMedia.indexOf(',') + 1);
@@ -588,10 +622,22 @@ CLIENT BRAND KNOWLEDGE:
 ${ctx.documentKnowledge ? `\nCLIENT UPLOADED DOCUMENTS & KNOWLEDGE BASE:\n${ctx.documentKnowledge}\n(Use the facts, offers, services and details from these documents to make the caption highly authentic and accurate)\n` : ''}
 POST SPECIFICS:
 
-- Platform: ${params.platform} (INSTAGRAM, FACEBOOK, LINKEDIN, TWITTER, YOUTUBE, or GOOGLE_BUSINESS)
-- Content Type: ${params.contentType} (POST, REEL, STORY, GOOGLE_BUSINESS_POST)
+- Platform: ${params.platform} (${params.platform})
+- Content Type: ${params.contentType} (${params.contentType === 'REEL' ? 'REEL / SHORT VIDEO' : params.contentType})
 - Topic / Creative Title: ${topic}
-${params.mediaUrl ? '- Visual Media is attached with this request. Carefully inspect the image visuals, text in the creative (e.g. location, road name, property highlights), phone, logo, and align the caption directly with what is depicted.' : ''}
+${params.mediaUrl ? `- Visual Media is attached with this request.
+CRITICAL VISUAL MEDIA ANALYSIS RULE:
+1. Carefully inspect the visual elements in the attached image or video frame:
+   - Identify the exact product, food dish, outfit, plot/flat property, or service shown.
+   - Read all visible text on the creative (brand name, headings, price/offers, location, road, phone number).
+   - Write the caption based DIRECTLY on what is visible in this visual media.
+2. For REEL / VIDEO:
+   - Start line 1 with an irresistible 3-second hook (e.g., "Wait for the end! 🔥", "Indore ki sabse famous...", "Save this reel for your next visit 📌").
+   - Keep the rhythm fast, punchy, and sound-friendly with a viral CTA like "Double tap if you want to try this ❤️" or "Share with your foodie squad 🚀".
+3. For POST IMAGE:
+   - Start with an engaging headline/hook highlighting the visual subject.
+   - Describe the authentic taste, quality, craftsmanship, or value points shown in the photo.
+   - Use clean line breaks, aesthetic emojis, and a clear call-to-action.` : ''}
 
 CRITICAL RULES:
 1. FOR CONTACT DETAILS & LOCATION (VERY IMPORTANT):

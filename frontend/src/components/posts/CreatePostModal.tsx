@@ -576,13 +576,18 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         ? uploadedFileName.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ')
         : `${clientObj?.businessName || 'Brand'} spotlight & updates`);
 
+      // Ensure visual media (image or video thumbnail frame) is forwarded to Multimodal Vision AI
+      const effectiveMediaForAi = (isVideoMedia(mediaUrl, contentType, uploadedFileName) && thumbnailUrl)
+        ? thumbnailUrl
+        : (mediaUrl || undefined);
+
       const res = await api.generateAICaption({
         clientId: activeClientId || undefined,
         topic: defaultTopic,
         tone: 'Trustworthy, secure and engaging',
         platform: platformToUse,
         contentType,
-        mediaUrl: mediaUrl || undefined,
+        mediaUrl: effectiveMediaForAi,
       });
 
       if (res?.caption) {
@@ -805,6 +810,10 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         ? uploadedFileName.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ')
         : `${clientObj?.businessName || 'Brand'} spotlight & updates`);
 
+      const effectiveMediaForAi = (isVideoMedia(mediaUrl, contentType, uploadedFileName) && thumbnailUrl)
+        ? thumbnailUrl
+        : (mediaUrl || undefined);
+
       const responses = await Promise.all(
         platformsToGen.map(async (plat) => {
           try {
@@ -814,7 +823,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
               tone: 'Trustworthy, secure and engaging',
               platform: plat,
               contentType,
-              mediaUrl: mediaUrl || undefined,
+              mediaUrl: effectiveMediaForAi,
             });
             return { platform: plat, caption: res?.caption || '', hashtags: res?.hashtags || '' };
           } catch {
