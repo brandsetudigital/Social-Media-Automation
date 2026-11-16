@@ -224,25 +224,46 @@ Return ONLY the final reply text without quotes or preamble.`;
       throw new Error(`Google Business location nahi mila for "${client.businessName}". Channels tab me Location ID check karein.`);
     }
 
-    const endpoint = `https://mybusiness.googleapis.com/v4/${discovered.accountName}/${discovered.locationName}/reviews`;
-    const res = await fetch(endpoint, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    // Fetch all reviews using pagination (supports up to 500 reviews per location)
+    let allReviews: any[] = [];
+    let pageToken: string | undefined = undefined;
+    let pageCount = 0;
+    const MAX_PAGES = 10;
 
-    if (!res.ok) {
-      const errText = await res.text();
-      let errMsg = `Google API returned status ${res.status}`;
-      try {
-        const parsed = JSON.parse(errText);
-        errMsg = parsed.error?.message || errMsg;
-      } catch {}
-      throw new Error(`Google My Business Reviews error: ${errMsg}`);
-    }
+    do {
+      pageCount++;
+      const url = new URL(`https://mybusiness.googleapis.com/v4/${discovered.accountName}/${discovered.locationName}/reviews`);
+      url.searchParams.set('pageSize', '50');
+      if (pageToken) {
+        url.searchParams.set('pageToken', pageToken);
+      }
 
-    const data: any = await res.json();
-    const reviews = data.reviews || [];
+      const res = await fetch(url.toString(), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-    for (const r of reviews) {
+      if (!res.ok) {
+        const errText = await res.text();
+        let errMsg = `Google API returned status ${res.status}`;
+        try {
+          const parsed = JSON.parse(errText);
+          errMsg = parsed.error?.message || errMsg;
+        } catch {}
+        if (allReviews.length === 0) {
+          throw new Error(`Google My Business Reviews error: ${errMsg}`);
+        } else {
+          console.warn(`[GMB Sync] Stopped pagination at page ${pageCount}: ${errMsg}`);
+          break;
+        }
+      }
+
+      const data: any = await res.json();
+      const pageReviews = data.reviews || [];
+      allReviews = allReviews.concat(pageReviews);
+      pageToken = data.nextPageToken;
+    } while (pageToken && pageCount < MAX_PAGES);
+
+    for (const r of allReviews) {
       const reviewId = r.reviewId || r.name;
       const starMap: Record<string, number> = {
         FIVE: 5,
@@ -290,7 +311,16 @@ Return ONLY the final reply text without quotes or preamble.`;
           });
           synced++;
         }
-        if (!existing.replyText && !r.reviewReply && existing.replyStatus === 'PENDING') {
+        if (r.reviewReply && (existing.replyStatus === 'PENDING' || !existing.replyText)) {
+          await prisma.gmbReview.update({
+            where: { id: existing.id },
+            data: {
+              replyStatus: 'REPLIED',
+              replyText: r.reviewReply.comment,
+              repliedAt: r.reviewReply.updateTime ? new Date(r.reviewReply.updateTime) : new Date(),
+            },
+          });
+        } else if (!existing.replyText && !r.reviewReply && existing.replyStatus === 'PENDING') {
           await this.replyToReview(existing.id, token, discovered);
           replied++;
         }
@@ -419,7 +449,7 @@ Return ONLY the final reply text without quotes or preamble.`;
     // Also reply to any PENDING reviews in DB
     const pendingReviews = await prisma.gmbReview.findMany({
       where: { replyStatus: 'PENDING' },
-      take: 20,
+      take: 100,
     });
 
     for (const rev of pendingReviews) {

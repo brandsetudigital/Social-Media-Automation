@@ -593,52 +593,61 @@ export class LiveMetricsService {
 
           if (existingSp) continue;
 
-          const firstLine = (m.caption || '').split('\n')[0].replace(/[#@]\S+/g, '').trim();
-          const postTitle = firstLine ? firstLine.slice(0, 60) : `${acc.client.businessName} ${acc.platform === 'FACEBOOK' ? 'Facebook' : 'Instagram'} Post`;
-          const postDate = new Date(m.timestamp);
+          try {
+            const rawFirstLine = (m.caption || '').split('\n')[0].replace(/[#@]\S+/g, '').trim();
+            // Safe unicode slice using Array.from to prevent splitting multi-byte emoji surrogate pairs
+            const safeTitleChars = Array.from(rawFirstLine).slice(0, 60).join('').trim();
+            const postTitle = safeTitleChars || `${acc.client.businessName} ${acc.platform === 'FACEBOOK' ? 'Facebook' : 'Instagram'} Post`;
+            const postDate = new Date(m.timestamp);
+            const safeCaption = (m.caption || '')
+              .replace(/\0/g, '')
+              .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '');
 
-          await prisma.contentItem.create({
-            data: {
-              clientId: acc.clientId,
-              title: postTitle,
-              contentType: m.media_type === 'VIDEO' ? 'REEL' : 'POST',
-              status: 'PUBLISHED',
-              source: 'META_SYNC',
-              mediaUrl: m.media_url || m.permalink || '',
-              thumbnailUrl: m.thumbnail_url || m.media_url || m.permalink || '',
-              createdAt: postDate,
-              updatedAt: postDate,
-              variants: {
-                create: {
-                  platform: acc.platform,
-                  caption: m.caption || '',
+            await prisma.contentItem.create({
+              data: {
+                clientId: acc.clientId,
+                title: postTitle,
+                contentType: m.media_type === 'VIDEO' ? 'REEL' : 'POST',
+                status: 'PUBLISHED',
+                source: 'META_SYNC',
+                mediaUrl: m.media_url || m.permalink || '',
+                thumbnailUrl: m.thumbnail_url || m.media_url || m.permalink || '',
+                createdAt: postDate,
+                updatedAt: postDate,
+                variants: {
+                  create: {
+                    platform: acc.platform,
+                    caption: safeCaption,
+                  },
                 },
-              },
-              scheduledPosts: {
-                create: {
-                  clientId: acc.clientId,
-                  platform: acc.platform,
-                  socialAccountId: acc.id,
-                  scheduledAt: postDate,
-                  publishedAt: postDate,
-                  status: 'PUBLISHED',
-                  idempotencyKey,
-                  publishingLogs: {
-                    create: {
-                      clientId: acc.clientId,
-                      platform: acc.platform,
-                      status: 'SUCCESS',
-                      responseSummary: JSON.stringify({ id: m.id, permalink: m.permalink }),
-                      latencyMs: 120,
-                      executedAt: postDate,
+                scheduledPosts: {
+                  create: {
+                    clientId: acc.clientId,
+                    platform: acc.platform,
+                    socialAccountId: acc.id,
+                    scheduledAt: postDate,
+                    publishedAt: postDate,
+                    status: 'PUBLISHED',
+                    idempotencyKey,
+                    publishingLogs: {
+                      create: {
+                        clientId: acc.clientId,
+                        platform: acc.platform,
+                        status: 'SUCCESS',
+                        responseSummary: JSON.stringify({ id: m.id, permalink: m.permalink }),
+                        latencyMs: 120,
+                        executedAt: postDate,
+                      },
                     },
                   },
                 },
               },
-            },
-          });
+            });
 
-          totalSynced++;
+            totalSynced++;
+          } catch (itemErr: any) {
+            console.warn(`[LiveMetrics] Skipped syncing malformed media item ${m.id}:`, itemErr.message);
+          }
         }
       }
 

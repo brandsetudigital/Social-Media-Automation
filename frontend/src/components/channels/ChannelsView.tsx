@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useClients } from '../../context/ClientContext';
 import { api } from '../../api';
+import { requestGoogleBusinessAuth } from '../../utils/googleAuth';
 import {
   Facebook,
   Instagram,
@@ -583,35 +584,76 @@ export const ChannelsView: React.FC = () => {
               </div>
 
               {/* Connection Mode Toggle */}
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1.5">Authorization Method</label>
-                <div className="grid grid-cols-2 gap-2 text-xs">
+              {selectedPlatform.id === 'GOOGLE_BUSINESS' ? (
+                <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3.5 space-y-2.5">
+                  <div className="flex items-start gap-2">
+                    <Globe className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-bold text-emerald-950">1-Click Google OAuth Authorization</p>
+                      <p className="text-[11px] text-emerald-800 leading-relaxed">
+                        Sign in with your Google Account below. It will automatically authorize Google Business Profile API and enable review sync across all locations without manual tokens.
+                      </p>
+                    </div>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => setConnectionMethod('oauth')}
-                    className={`p-2.5 rounded-xl border text-left font-semibold transition flex items-center gap-2 ${
-                      connectionMethod === 'oauth'
-                        ? 'border-[#0172F4] bg-blue-50/60 text-[#0172F4]'
-                        : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                    }`}
+                    onClick={async () => {
+                      try {
+                        setIsConnecting(true);
+                        await requestGoogleBusinessAuth({
+                          onSuccess: (msg) => {
+                            setFeedback({ type: 'success', message: msg || 'Google Business authorized successfully!' });
+                            setIsConnecting(false);
+                            setIsConnectModalOpen(false);
+                            fetchAccounts();
+                          },
+                          onError: (err) => {
+                            alert(`Google Login: ${err}`);
+                            setIsConnecting(false);
+                          },
+                        });
+                      } catch (e: any) {
+                        alert(e.message);
+                        setIsConnecting(false);
+                      }
+                    }}
+                    className="w-full py-2 px-3 bg-white hover:bg-emerald-100/60 border border-emerald-300 text-emerald-900 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-2xs transition cursor-pointer"
                   >
-                    <ShieldCheck className="w-4 h-4" />
-                    <span>Instant OAuth</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConnectionMethod('token')}
-                    className={`p-2.5 rounded-xl border text-left font-semibold transition flex items-center gap-2 ${
-                      connectionMethod === 'token'
-                        ? 'border-[#0172F4] bg-blue-50/60 text-[#0172F4]'
-                        : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                    }`}
-                  >
-                    <Key className="w-4 h-4" />
-                    <span>Access Token</span>
+                    <Globe className="w-4 h-4 text-emerald-600" />
+                    <span>Authorize Google Account in 1-Click</span>
                   </button>
                 </div>
-              </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1.5">Authorization Method</label>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setConnectionMethod('oauth')}
+                      className={`p-2.5 rounded-xl border text-left font-semibold transition flex items-center gap-2 ${
+                        connectionMethod === 'oauth'
+                          ? 'border-[#0172F4] bg-blue-50/60 text-[#0172F4]'
+                          : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>Instant OAuth</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConnectionMethod('token')}
+                      className={`p-2.5 rounded-xl border text-left font-semibold transition flex items-center gap-2 ${
+                        connectionMethod === 'token'
+                          ? 'border-[#0172F4] bg-blue-50/60 text-[#0172F4]'
+                          : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      <Key className="w-4 h-4" />
+                      <span>Access Token</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Token Input (if chosen) */}
               {connectionMethod === 'token' && (
