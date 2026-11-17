@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useClients } from '../../context/ClientContext';
-import { api, getMediaUrl } from '../../api';
+import { api, getMediaUrl, parseMediaUrls } from '../../api';
 import {
   X,
   Sparkles,
@@ -37,6 +37,11 @@ import {
   ShieldCheck,
   ShieldAlert,
   AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Trash2,
+  Layers,
 } from 'lucide-react';
 import { openGoogleDrivePicker } from '../../utils/googleDrivePicker';
 
@@ -191,12 +196,29 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   const [hashtags, setHashtags] = useState(
     initialTemplate?.hashtags || `${initialTags.caption} \n---FIRST_COMMENT---\n ${initialTags.comment}`
   );
+
+  const [mediaUrls, setMediaUrls] = useState<string[]>(() => {
+    if (initialTemplate?.mediaUrl) {
+      const parsed = parseMediaUrls(initialTemplate.mediaUrl);
+      if (parsed.length > 0) return parsed;
+    }
+    return [
+      initialTemplate?.mediaUrl ||
+      'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80',
+    ];
+  });
+  const [localPreviewUrls, setLocalPreviewUrls] = useState<string[]>([]);
+  const [activeCarouselSlide, setActiveCarouselSlide] = useState<number>(0);
+  const [uploadProgressText, setUploadProgressText] = useState<string>('');
+
   const [mediaUrl, setMediaUrl] = useState(
     initialTemplate?.mediaUrl ||
     'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80'
   );
   const [localPreviewUrl, setLocalPreviewUrl] = useState<string>('');
-  const displayMediaUrl = localPreviewUrl || getMediaUrl(mediaUrl);
+  const currentActiveUrl = mediaUrls[activeCarouselSlide] || mediaUrls[0] || mediaUrl;
+  const currentActivePreview = localPreviewUrls[activeCarouselSlide] || localPreviewUrl;
+  const displayMediaUrl = currentActivePreview || getMediaUrl(currentActiveUrl);
   const [contentType, setContentType] = useState(defaultContentType || 'POST');
 
   const [scheduleDate, setScheduleDate] = useState(() => initialTemplate?.scheduleDate || getTodayDateStr());
@@ -233,13 +255,22 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       }
 
       if (initialTemplate?.mediaUrl) {
+        const parsed = parseMediaUrls(initialTemplate.mediaUrl);
+        setMediaUrls(parsed.length > 0 ? parsed : [initialTemplate.mediaUrl]);
         setMediaUrl(initialTemplate.mediaUrl);
+        if (parsed.length > 1) {
+          setContentType('CAROUSEL');
+        }
         setLocalPreviewUrl('');
+        setLocalPreviewUrls([]);
+        setActiveCarouselSlide(0);
       }
       setScheduleDate(initialTemplate?.scheduleDate || getTodayDateStr());
       setScheduleTime(initialTemplate?.scheduleTime || getCurrentTimeStr());
     } else {
       setLocalPreviewUrl('');
+      setLocalPreviewUrls([]);
+      setActiveCarouselSlide(0);
     }
   }, [isOpen, defaultClientId, defaultCaption, defaultContentType, initialTemplate]);
 
@@ -429,42 +460,154 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   ];
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+    const files = Array.from(fileList);
 
-    setUploadedFileName(file.name);
-    const localUrl = URL.createObjectURL(file);
-    setLocalPreviewUrl(localUrl);
-    setMediaUrl(localUrl);
+    // Reset input value so user can re-select same file if desired
+    if (fileInputRef.current) fileInputRef.current.value = '';
 
-    const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm|mkv|ogg)$/i.test(file.name);
-    if (isVideo) {
-      setContentType('REEL');
-      setThumbnailUrl(localUrl);
-      extractVideoThumbnail(file).then((thumb) => {
-        if (thumb) setThumbnailUrl(thumb);
-      });
-    } else {
-      setContentType('POST');
-      setThumbnailUrl(localUrl);
-    }
+    const isExistingCarousel = contentType === 'CAROUSEL' && mediaUrls.length > 0 && !mediaUrls[0].includes('unsplash.com');
+    const isMultiple = files.length > 1 || isExistingCarousel;
 
-    // Persist to server uploads
-    try {
+    if (isMultiple) {
+      setContentType('CAROUSEL');
       setIsUploadingMedia(true);
-      const uploaded = await api.uploadMedia(file);
-      if (uploaded?.url) {
-        setMediaUrl(uploaded.url);
-        if (!isVideo) {
-          setThumbnailUrl(uploaded.url);
-          runGraphicAudit(uploaded.url, getEffectiveClientId());
-        }
+      setUploadProgressText(`Uploading ${files.length} images for Carousel...`);
+
+      const tempPreviews = files.map((f) => URL.createObjectURL(f));
+      if (isExistingCarousel) {
+        setLocalPreviewUrls((prev) => [...prev, ...tempPreviews].slice(0, 10));
+      } else {
+        setLocalPreviewUrls(tempPreviews.slice(0, 10));
+        setLocalPreviewUrl(tempPreviews[0] || '');
       }
-    } catch (uploadErr) {
-      console.warn('[CreatePostModal] File upload warning:', uploadErr);
-    } finally {
-      setIsUploadingMedia(false);
+
+      setUploadedFileName(`${(isExistingCarousel ? mediaUrls.length : 0) + files.length} Carousel Images`);
+
+      try {
+        const uploadedUrls: string[] = [];
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          setUploadProgressText(`Uploading slide ${i + 1} of ${files.length} (${file.name})...`);
+          const uploaded = await api.uploadMedia(file);
+          if (uploaded?.url) {
+            uploadedUrls.push(uploaded.url);
+          }
+        }
+
+        if (uploadedUrls.length > 0) {
+          let combinedUrls: string[] = [];
+          if (isExistingCarousel) {
+            combinedUrls = [...mediaUrls, ...uploadedUrls].slice(0, 10);
+          } else {
+            combinedUrls = uploadedUrls.slice(0, 10);
+          }
+          setMediaUrls(combinedUrls);
+          setMediaUrl(JSON.stringify(combinedUrls));
+          setThumbnailUrl(combinedUrls[0]);
+          setUploadedFileName(`${combinedUrls.length} Carousel Images`);
+          setActiveCarouselSlide(0);
+
+          if (combinedUrls[0]) {
+            runGraphicAudit(combinedUrls[0], getEffectiveClientId());
+          }
+        }
+      } catch (uploadErr: any) {
+        console.warn('[CreatePostModal] File upload warning:', uploadErr);
+        setStatusMessage({ type: 'error', text: `Upload failed: ${uploadErr.message || 'Error uploading slides'}` });
+      } finally {
+        setIsUploadingMedia(false);
+        setUploadProgressText('');
+      }
+    } else {
+      // Single file upload
+      const file = files[0];
+      setUploadedFileName(file.name);
+      const localUrl = URL.createObjectURL(file);
+      setLocalPreviewUrl(localUrl);
+      setLocalPreviewUrls([localUrl]);
+      setMediaUrl(localUrl);
+      setMediaUrls([localUrl]);
+      setActiveCarouselSlide(0);
+
+      const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm|mkv|ogg)$/i.test(file.name);
+      if (isVideo) {
+        setContentType('REEL');
+        setThumbnailUrl(localUrl);
+        extractVideoThumbnail(file).then((thumb) => {
+          if (thumb) setThumbnailUrl(thumb);
+        });
+      } else {
+        setContentType('POST');
+        setThumbnailUrl(localUrl);
+      }
+
+      // Persist to server uploads
+      try {
+        setIsUploadingMedia(true);
+        setUploadProgressText(`Uploading ${file.name}...`);
+        const uploaded = await api.uploadMedia(file);
+        if (uploaded?.url) {
+          setMediaUrl(uploaded.url);
+          setMediaUrls([uploaded.url]);
+          if (!isVideo) {
+            setThumbnailUrl(uploaded.url);
+            runGraphicAudit(uploaded.url, getEffectiveClientId());
+          }
+        }
+      } catch (uploadErr) {
+        console.warn('[CreatePostModal] File upload warning:', uploadErr);
+      } finally {
+        setIsUploadingMedia(false);
+        setUploadProgressText('');
+      }
     }
+  };
+
+  const handleRemoveSlide = (indexToRemove: number) => {
+    const updatedUrls = mediaUrls.filter((_, idx) => idx !== indexToRemove);
+    const updatedLocal = localPreviewUrls.filter((_, idx) => idx !== indexToRemove);
+    if (updatedUrls.length <= 1) {
+      setMediaUrls(updatedUrls.length === 1 ? updatedUrls : []);
+      setLocalPreviewUrls(updatedLocal.length === 1 ? updatedLocal : []);
+      setMediaUrl(updatedUrls[0] || '');
+      setLocalPreviewUrl(updatedLocal[0] || '');
+      if (updatedUrls.length === 0) {
+        setUploadedFileName(null);
+      } else {
+        setUploadedFileName('1 image selected');
+      }
+      setActiveCarouselSlide(0);
+    } else {
+      setMediaUrls(updatedUrls);
+      setLocalPreviewUrls(updatedLocal);
+      setMediaUrl(JSON.stringify(updatedUrls));
+      setUploadedFileName(`${updatedUrls.length} Carousel Images`);
+      setActiveCarouselSlide((prev) => Math.min(prev, updatedUrls.length - 1));
+    }
+  };
+
+  const handleMoveSlide = (index: number, direction: 'left' | 'right') => {
+    const targetIndex = direction === 'left' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= mediaUrls.length) return;
+
+    const newMediaUrls = [...mediaUrls];
+    const temp = newMediaUrls[index];
+    newMediaUrls[index] = newMediaUrls[targetIndex];
+    newMediaUrls[targetIndex] = temp;
+    setMediaUrls(newMediaUrls);
+    setMediaUrl(JSON.stringify(newMediaUrls));
+
+    if (localPreviewUrls.length === mediaUrls.length) {
+      const newLocal = [...localPreviewUrls];
+      const tempLocal = newLocal[index];
+      newLocal[index] = newLocal[targetIndex];
+      newLocal[targetIndex] = tempLocal;
+      setLocalPreviewUrls(newLocal);
+    }
+
+    setActiveCarouselSlide(targetIndex);
   };
 
   const handleDriveLinkChange = (link: string) => {
@@ -971,17 +1114,20 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
     const activeClientId = getEffectiveClientId();
     const clientObj = clients.find((c) => c.id === activeClientId);
-    const isVideo = isVideoMedia(mediaUrl, contentType, uploadedFileName);
+    const isCarousel = contentType === 'CAROUSEL' || mediaUrls.length > 1;
+    const effectiveContentType = isCarousel ? 'CAROUSEL' : contentType;
+    const isVideo = isVideoMedia(mediaUrl, effectiveContentType, uploadedFileName);
 
     // AI Graphic Quality & Contact Safety Gate:
     // If scheduling or publishing an image, check graphic details against client profile
     if ((action === 'SCHEDULE' || action === 'PUBLISH') && !isVideo && !adminOverride) {
       let currentAudit = auditResult;
-      if (!currentAudit && mediaUrl && !mediaUrl.startsWith('blob:')) {
+      const targetAuditUrl = isCarousel && mediaUrls.length > 0 ? mediaUrls[0] : mediaUrl;
+      if (!currentAudit && targetAuditUrl && !targetAuditUrl.startsWith('blob:') && !targetAuditUrl.startsWith('[')) {
         setIsSubmitting(true);
         setStatusMessage({ type: 'info', text: 'Verifying brand name and contact details in graphic...' });
         try {
-          currentAudit = await api.auditGraphic({ clientId: activeClientId, mediaUrl });
+          currentAudit = await api.auditGraphic({ clientId: activeClientId, mediaUrl: targetAuditUrl });
           setAuditResult(currentAudit);
         } catch (e) {
           console.warn('Audit error:', e);
@@ -1003,10 +1149,13 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     setStatusMessage(null);
 
     try {
-      const effectiveMediaUrl = mediaUrl || '';
-      const effectiveThumbnail = (thumbnailUrl && !thumbnailUrl.startsWith('blob:'))
+      const effectiveMediaUrl = isCarousel && mediaUrls.length > 0
+        ? JSON.stringify(mediaUrls)
+        : (mediaUrl || '');
+
+      const effectiveThumbnail = (thumbnailUrl && !thumbnailUrl.startsWith('blob:') && !thumbnailUrl.startsWith('['))
         ? thumbnailUrl
-        : (isVideo ? '' : effectiveMediaUrl);
+        : (isCarousel && mediaUrls.length > 0 ? mediaUrls[0] : (isVideo ? '' : effectiveMediaUrl));
 
       const activeCaption = platformCaptions[activePreviewPlatform] || caption;
       const currentCombined = `${captionHashtags.trim()} \n---FIRST_COMMENT---\n ${commentHashtags.trim()}`;
@@ -1024,12 +1173,13 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       await api.createManualContent({
         clientId: activeClientId,
         title: effectiveTitle,
-        contentType,
+        contentType: effectiveContentType,
         caption: activeCaption,
         hashtags: activeHashtags,
         platformCaptions,
         platformHashtags: updatedPlatformHashtags,
         mediaUrl: effectiveMediaUrl,
+        mediaUrls: isCarousel ? mediaUrls : undefined,
         thumbnailUrl: effectiveThumbnail,
         platforms: selectedPlatforms,
         status: action === 'PUBLISH' ? 'PUBLISHED' : action === 'SCHEDULE' ? 'SCHEDULED' : 'DRAFT',
@@ -1190,10 +1340,17 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 <label className="block text-xs font-bold text-gray-700 mb-1">Content Type</label>
                 <select
                   value={contentType}
-                  onChange={(e) => setContentType(e.target.value)}
+                  onChange={(e) => {
+                    const newType = e.target.value;
+                    setContentType(newType);
+                    if (newType === 'CAROUSEL' && mediaUrls.length <= 1) {
+                      fileInputRef.current?.click();
+                    }
+                  }}
                   className="w-full text-xs px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0172F4]"
                 >
-                  <option value="POST">Feed Post (Auto Fit 1:1)</option>
+                  <option value="POST">Feed Post (Single Image 1:1)</option>
+                  <option value="CAROUSEL">Carousel Post (Multiple Slides / Photos 🎠)</option>
                   <option value="REEL">Instagram & Facebook Reel (9:16 Fullscreen Video)</option>
                   <option value="STORY">Instagram & Facebook Story (9:16 Story)</option>
                   <option value="GOOGLE_BUSINESS_POST">Google Business Update</option>
@@ -1258,16 +1415,162 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
               {/* 1. UPLOAD FROM DEVICE */}
               {uploadSource === 'upload' && (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <input
                     type="file"
                     ref={fileInputRef}
                     onChange={handleFileUpload}
                     accept="image/*,video/*"
+                    multiple
                     className="hidden"
                   />
 
-                  {uploadedFileName ? (
+                  {/* CAROUSEL SLIDES MANAGER */}
+                  {(contentType === 'CAROUSEL' || mediaUrls.length > 1) && mediaUrls.length > 0 && !mediaUrls[0].includes('unsplash.com') ? (
+                    <div className="p-3 bg-blue-50/50 border border-blue-200 rounded-2xl space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-lg bg-[#0172F4] text-white flex items-center justify-center shrink-0">
+                            <Layers className="w-3.5 h-3.5" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-gray-900">
+                              Carousel Slides ({mediaUrls.length}/10 images)
+                            </p>
+                            <p className="text-[10px] text-gray-500">
+                              Click any slide to preview. Drag or use arrows to reorder.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {mediaUrls.length < 10 && (
+                            <button
+                              type="button"
+                              onClick={() => fileInputRef.current?.click()}
+                              className="px-2.5 py-1 text-xs font-bold bg-[#0172F4] text-white hover:bg-[#005cd3] rounded-lg transition flex items-center gap-1 shadow-xs cursor-pointer"
+                            >
+                              <Plus className="w-3 h-3" />
+                              <span>Add Images</span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMediaUrls([]);
+                              setLocalPreviewUrls([]);
+                              setMediaUrl('');
+                              setLocalPreviewUrl('');
+                              setUploadedFileName(null);
+                              setActiveCarouselSlide(0);
+                            }}
+                            className="text-[11px] font-semibold text-rose-600 hover:underline cursor-pointer"
+                          >
+                            Clear All
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Upload Progress Indicator */}
+                      {isUploadingMedia && (
+                        <div className="p-2 bg-blue-100/70 border border-blue-300 rounded-xl flex items-center gap-2 text-xs font-medium text-blue-700 animate-pulse">
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>{uploadProgressText || 'Uploading images to server...'}</span>
+                        </div>
+                      )}
+
+                      {/* Slides Grid Strip */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2 max-h-56 overflow-y-auto pr-1">
+                        {mediaUrls.map((url, idx) => {
+                          const previewSrc = localPreviewUrls[idx] || getMediaUrl(url);
+                          const isActive = idx === activeCarouselSlide;
+
+                          return (
+                            <div
+                              key={idx}
+                              onClick={() => setActiveCarouselSlide(idx)}
+                              className={`group relative rounded-xl border-2 overflow-hidden bg-white cursor-pointer transition flex flex-col ${
+                                isActive
+                                  ? 'border-[#0172F4] shadow-sm ring-2 ring-[#0172F4]/20'
+                                  : 'border-gray-200 hover:border-gray-300'
+                              }`}
+                            >
+                              <div className="aspect-square w-full bg-slate-900 relative overflow-hidden">
+                                <img
+                                  src={previewSrc}
+                                  alt={`Slide ${idx + 1}`}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    (e.target as HTMLElement).style.display = 'none';
+                                  }}
+                                />
+                                <span className="absolute top-1 left-1 bg-black/70 backdrop-blur-xs text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
+                                  #{idx + 1}
+                                </span>
+                                {isActive && (
+                                  <span className="absolute top-1 right-1 bg-[#0172F4] text-white text-[8px] font-bold px-1 py-0.5 rounded">
+                                    Active
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Slide control buttons */}
+                              <div className="p-1 bg-gray-50 flex items-center justify-between border-t border-gray-100">
+                                <div className="flex items-center gap-0.5">
+                                  <button
+                                    type="button"
+                                    disabled={idx === 0}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleMoveSlide(idx, 'left');
+                                    }}
+                                    className="p-1 text-gray-500 hover:text-gray-900 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                                    title="Move Left"
+                                  >
+                                    <ChevronLeft className="w-3 h-3" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={idx === mediaUrls.length - 1}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleMoveSlide(idx, 'right');
+                                    }}
+                                    className="p-1 text-gray-500 hover:text-gray-900 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                                    title="Move Right"
+                                  >
+                                    <ChevronRight className="w-3 h-3" />
+                                  </button>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRemoveSlide(idx);
+                                  }}
+                                  className="p-1 text-rose-500 hover:text-rose-700 cursor-pointer"
+                                  title="Delete Slide"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {/* Quick Add Card */}
+                        {mediaUrls.length < 10 && (
+                          <div
+                            onClick={() => fileInputRef.current?.click()}
+                            className="aspect-square border-2 border-dashed border-gray-300 hover:border-[#0172F4] hover:bg-blue-50/30 rounded-xl flex flex-col items-center justify-center p-2 text-center cursor-pointer transition text-gray-500 hover:text-[#0172F4]"
+                          >
+                            <Plus className="w-5 h-5 mb-1" />
+                            <span className="text-[10px] font-bold">Add Slide</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : uploadedFileName ? (
                     <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2.5 min-w-0">
                         <div className="w-8 h-8 rounded-lg bg-[#0172F4] text-white flex items-center justify-center shrink-0">
@@ -1277,7 +1580,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                           <p className="text-xs font-bold text-gray-900 truncate">{uploadedFileName}</p>
                           {isUploadingMedia ? (
                             <p className="text-[10px] text-blue-600 font-semibold flex items-center gap-1 animate-pulse">
-                              <RefreshCw className="w-3 h-3 animate-spin" /> Saving media to server...
+                              <RefreshCw className="w-3 h-3 animate-spin" /> {uploadProgressText || 'Saving media to server...'}
                             </p>
                           ) : (
                             <p className="text-[10px] text-emerald-600 font-medium">✓ Uploaded & ready</p>
@@ -1288,8 +1591,20 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                       <div className="flex items-center gap-2 shrink-0">
                         <button
                           type="button"
+                          onClick={() => {
+                            setContentType('CAROUSEL');
+                            fileInputRef.current?.click();
+                          }}
+                          className="px-2 py-1 text-xs font-semibold bg-blue-50 border border-blue-200 hover:bg-blue-100 rounded-lg text-[#0172F4] flex items-center gap-1 cursor-pointer"
+                          title="Convert to multi-image carousel post"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>Add More (Carousel)</span>
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => fileInputRef.current?.click()}
-                          className="px-2.5 py-1 text-xs font-semibold bg-white border border-gray-200 hover:bg-gray-50 rounded-lg text-gray-700"
+                          className="px-2.5 py-1 text-xs font-semibold bg-white border border-gray-200 hover:bg-gray-50 rounded-lg text-gray-700 cursor-pointer"
                         >
                           Change
                         </button>
@@ -1298,9 +1613,11 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                           onClick={() => {
                             setUploadedFileName(null);
                             setMediaUrl('');
+                            setMediaUrls([]);
                             setLocalPreviewUrl('');
+                            setLocalPreviewUrls([]);
                           }}
-                          className="text-xs font-semibold text-rose-600 hover:underline"
+                          className="text-xs font-semibold text-rose-600 hover:underline cursor-pointer"
                         >
                           Remove
                         </button>
@@ -1313,9 +1630,11 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                     >
                       <UploadCloud className="w-6 h-6 text-gray-400 group-hover:text-[#0172F4] mx-auto mb-1.5 transition" />
                       <p className="text-xs font-bold text-gray-800">
-                        Click to upload image or video from your computer
+                        Click to upload image, video, or select multiple images for Carousel
                       </p>
-                      <p className="text-[11px] text-gray-400 mt-0.5">Supports JPG, PNG, WEBP, MP4 (up to 50MB)</p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">
+                        Supports multiple image selection (Ctrl/Shift + Click) for Instagram & Facebook Carousels
+                      </p>
                     </div>
                   )}
                 </div>
@@ -2115,7 +2434,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                           <img
                             key={displayMediaUrl}
                             src={displayMediaUrl}
-                            alt="Post Visual"
+                            alt={`Post Visual ${activeCarouselSlide + 1}`}
                             className="w-full h-auto max-h-[300px] object-contain block bg-white"
                             onError={(e) => {
                               (e.target as HTMLElement).style.display = 'none';
@@ -2125,6 +2444,63 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                           />
                         )
                       ) : null}
+
+                      {/* Carousel Slide Overlay & Controls */}
+                      {(contentType === 'CAROUSEL' || mediaUrls.length > 1) && mediaUrls.length > 0 && displayMediaUrl && (
+                        <>
+                          {/* Slide Count Badge */}
+                          <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-0.5 rounded-full z-10 flex items-center gap-1 shadow-xs">
+                            <Layers className="w-3 h-3 text-white" />
+                            <span>{activeCarouselSlide + 1}/{mediaUrls.length}</span>
+                          </div>
+
+                          {/* Previous Slide Button */}
+                          {activeCarouselSlide > 0 && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveCarouselSlide((prev) => Math.max(0, prev - 1));
+                              }}
+                              className="absolute left-1.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-black/55 hover:bg-black/80 text-white flex items-center justify-center z-10 transition shadow-xs cursor-pointer"
+                              title="Previous Slide"
+                            >
+                              <ChevronLeft className="w-4 h-4" />
+                            </button>
+                          )}
+
+                          {/* Next Slide Button */}
+                          {activeCarouselSlide < mediaUrls.length - 1 && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveCarouselSlide((prev) => Math.min(mediaUrls.length - 1, prev + 1));
+                              }}
+                              className="absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-black/55 hover:bg-black/80 text-white flex items-center justify-center z-10 transition shadow-xs cursor-pointer"
+                              title="Next Slide"
+                            >
+                              <ChevronRight className="w-4 h-4" />
+                            </button>
+                          )}
+
+                          {/* Dots pagination */}
+                          {mediaUrls.length > 1 && (
+                            <div className="absolute bottom-2 inset-x-0 flex items-center justify-center gap-1.5 z-10 pointer-events-none">
+                              {mediaUrls.map((_, idx) => (
+                                <span
+                                  key={idx}
+                                  className={`h-1.5 rounded-full transition-all duration-200 ${
+                                    idx === activeCarouselSlide
+                                      ? 'w-4 bg-[#0172F4] shadow-xs'
+                                      : 'w-1.5 bg-black/35 backdrop-blur-xs'
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      )}
 
                       {/* Clean styled fallback if no media or load error */}
                       <div

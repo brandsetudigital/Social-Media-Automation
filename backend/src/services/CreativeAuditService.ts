@@ -50,18 +50,30 @@ export class CreativeAuditService {
 
     if (!mediaUrl) return null;
 
-    if (mediaUrl.startsWith('data:image/')) {
-      const mimeType = mediaUrl.substring(mediaUrl.indexOf(':') + 1, mediaUrl.indexOf(';'));
-      const rawBase64 = mediaUrl.substring(mediaUrl.indexOf(',') + 1);
+    let targetUrl: string = mediaUrl;
+    if (targetUrl.trim().startsWith('[') && targetUrl.trim().endsWith(']')) {
+      try {
+        const parsed = JSON.parse(targetUrl.trim());
+        if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'string') {
+          targetUrl = parsed[0];
+        }
+      } catch {}
+    }
+
+    if (!targetUrl) return null;
+
+    if (targetUrl.startsWith('data:image/')) {
+      const mimeType = targetUrl.substring(targetUrl.indexOf(':') + 1, targetUrl.indexOf(';'));
+      const rawBase64 = targetUrl.substring(targetUrl.indexOf(',') + 1);
       return { mimeType, base64: rawBase64 };
     }
 
     try {
       let filename = '';
-      if (mediaUrl.includes('/uploads/')) {
-        filename = mediaUrl.split('/uploads/')[1].split('?')[0];
-      } else if (!mediaUrl.startsWith('http') && !mediaUrl.startsWith('blob:')) {
-        filename = path.basename(mediaUrl);
+      if (targetUrl.includes('/uploads/')) {
+        filename = targetUrl.split('/uploads/')[1].split('?')[0];
+      } else if (!targetUrl.startsWith('http') && !targetUrl.startsWith('blob:')) {
+        filename = path.basename(targetUrl);
       }
 
       if (filename) {

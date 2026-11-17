@@ -1713,17 +1713,24 @@ export const PostsManagerView: React.FC<PostsManagerViewProps> = ({
                             </span>
                           </>
                         ) : (
-                          <img
-                            src={getPostImageUrl(p.thumbnailUrl, p.mediaUrl)}
-                            alt={p.title}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              const target = e.currentTarget as HTMLImageElement;
-                              if (!target.src.includes('unsplash')) {
-                                target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop&q=80';
-                              }
-                            }}
-                          />
+                          <>
+                            <img
+                              src={getPostImageUrl(p.thumbnailUrl, p.mediaUrl)}
+                              alt={p.title}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                const target = e.currentTarget as HTMLImageElement;
+                                if (!target.src.includes('unsplash')) {
+                                  target.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop&q=80';
+                                }
+                              }}
+                            />
+                            {p.contentType === 'CAROUSEL' && (
+                              <span className="absolute bottom-1 right-1 text-[8px] font-bold bg-[#0172F4]/90 text-white px-1 py-0.2 rounded shadow-xs flex items-center gap-0.5">
+                                CAROUSEL
+                              </span>
+                            )}
+                          </>
                         )}
                       </div>
 

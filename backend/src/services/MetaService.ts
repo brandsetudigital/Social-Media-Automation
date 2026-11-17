@@ -55,9 +55,26 @@ async function uploadToPublicCDN(filePath: string): Promise<string | null> {
   return null;
 }
 
+export function parseMediaUrls(mediaUrl?: string | null): string[] {
+  if (!mediaUrl) return [];
+  try {
+    const trimmed = mediaUrl.trim();
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.map((item) => (typeof item === 'string' ? item : item?.url || String(item))).filter(Boolean);
+      }
+    }
+  } catch {}
+  if (mediaUrl.includes(',') && !mediaUrl.startsWith('http://') && !mediaUrl.startsWith('https://')) {
+    return mediaUrl.split(',').map((s) => s.trim()).filter(Boolean);
+  }
+  return [mediaUrl];
+}
+
 export class MetaService {
   /**
-   * Publishes creative to Instagram Graph API (Reels, Posts, Stories)
+   * Publishes creative to Instagram Graph API (Reels, Posts, Stories, Carousels)
    * Supports live Meta Graph API v20.0 calls and proper error propagation.
    */
   static async publishInstagram(params: {
@@ -65,7 +82,7 @@ export class MetaService {
     accessToken: string;
     mediaUrl: string;
     caption: string;
-    contentType: 'POST' | 'REEL' | 'STORY';
+    contentType: 'POST' | 'REEL' | 'STORY' | 'CAROUSEL';
   }): Promise<PublishResult> {
     const token = params.accessToken || process.env.META_DEFAULT_ACCESS_TOKEN || '';
 
@@ -119,7 +136,95 @@ export class MetaService {
         let creationId = '';
         let targetImageUrl = params.mediaUrl;
 
-        if (!isHttpUrl) {
+        const urls = parseMediaUrls(params.mediaUrl);
+        const isCarousel = params.contentType === 'CAROUSEL' || urls.length > 1;
+
+        if (isCarousel && urls.length > 0) {
+          console.log(`[MetaService] Publishing Instagram Carousel with ${urls.length} slides for ${effectiveAccountId}`);
+          const childContainerIds: string[] = [];
+
+          for (let idx = 0; idx < urls.length; idx++) {
+            const itemUrl = urls[idx];
+            const isItemVideo = /\.(mp4|mov|webm|mkv|ogg)$/i.test(itemUrl);
+            let targetItemUrl = itemUrl;
+
+            if (!itemUrl.startsWith('http')) {
+              const localPath = resolveLocalPath(itemUrl);
+              if (!localPath || !fs.existsSync(localPath)) {
+                return {
+                  success: false,
+                  errorCode: 'LOCAL_FILE_MISSING',
+                  errorMessage: `Local creative slide ${idx + 1} not found on server at: ${itemUrl}`,
+                };
+              }
+              const publicUrl = await uploadToPublicCDN(localPath);
+              if (!publicUrl) {
+                return {
+                  success: false,
+                  errorCode: 'PUBLIC_URL_REQUIRED',
+                  errorMessage: `Instagram Carousel requires publicly accessible image URLs. Could not bridge slide ${idx + 1} to public CDN.`,
+                };
+              }
+              targetItemUrl = publicUrl;
+            }
+
+            const itemBody: any = {
+              access_token: token,
+              is_carousel_item: true,
+            };
+            if (isItemVideo) {
+              itemBody.media_type = 'VIDEO';
+              itemBody.video_url = targetItemUrl;
+            } else {
+              itemBody.image_url = targetItemUrl;
+            }
+
+            const itemRes = await fetch(containerUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(itemBody),
+            });
+            const itemData: any = await itemRes.json();
+            if (!itemRes.ok || itemData.error || !itemData.id) {
+              return {
+                success: false,
+                errorCode: itemData.error?.code?.toString() || 'META_CAROUSEL_ITEM_ERROR',
+                errorMessage: `Instagram Carousel Slide ${idx + 1} Error: ${itemData.error?.message || 'Failed to create carousel item container.'}`,
+                rawResponse: itemData,
+              };
+            }
+
+            childContainerIds.push(itemData.id);
+            await new Promise((r) => setTimeout(r, 1200));
+          }
+
+          // Step 2: Create Carousel Container
+          const carouselContainerBody: any = {
+            access_token: token,
+            media_type: 'CAROUSEL',
+            children: childContainerIds.join(','),
+          };
+          if (params.caption) {
+            carouselContainerBody.caption = params.caption;
+          }
+
+          const carouselRes = await fetch(containerUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(carouselContainerBody),
+          });
+          const carouselData: any = await carouselRes.json();
+          if (!carouselRes.ok || carouselData.error || !carouselData.id) {
+            return {
+              success: false,
+              errorCode: carouselData.error?.code?.toString() || 'META_CAROUSEL_ERROR',
+              errorMessage: `Instagram Carousel Container Error: ${carouselData.error?.message || 'Failed to create carousel container.'}`,
+              rawResponse: carouselData,
+            };
+          }
+
+          creationId = carouselData.id;
+        } else if (!isHttpUrl) {
           const localPath = resolveLocalPath(params.mediaUrl);
           if (!localPath || !fs.existsSync(localPath)) {
             return {
@@ -352,7 +457,7 @@ export class MetaService {
     mediaUrl: string;
     caption: string;
     cta?: string;
-    contentType?: 'POST' | 'REEL' | 'STORY';
+    contentType?: 'POST' | 'REEL' | 'STORY' | 'CAROUSEL';
   }): Promise<PublishResult> {
     const token = params.accessToken || process.env.META_DEFAULT_ACCESS_TOKEN || '';
 
@@ -390,6 +495,105 @@ export class MetaService {
           }
         } catch {
           // Fall back to token
+        }
+
+        const urls = parseMediaUrls(params.mediaUrl);
+        const isCarousel = params.contentType === 'CAROUSEL' || urls.length > 1;
+
+        // ==========================================
+        // 0. FACEBOOK MULTI-PHOTO / CAROUSEL POST PUBLISHING
+        // ==========================================
+        if (isCarousel && urls.length > 0 && !isStory) {
+          console.log(`[MetaService] Publishing Facebook Carousel with ${urls.length} images for Page ${params.pageId}`);
+          const photoIds: string[] = [];
+
+          for (let idx = 0; idx < urls.length; idx++) {
+            const itemUrl = urls[idx];
+            const isHttp = itemUrl.startsWith('http');
+
+            if (!isHttp) {
+              const localPath = resolveLocalPath(itemUrl);
+              if (!localPath || !fs.existsSync(localPath)) {
+                return {
+                  success: false,
+                  errorCode: 'LOCAL_FILE_MISSING',
+                  errorMessage: `Local creative file not found on server for slide ${idx + 1}: ${itemUrl}`,
+                };
+              }
+              const fileBuffer = fs.readFileSync(localPath);
+              const blob = new Blob([fileBuffer]);
+              const formData = new FormData();
+              formData.append('source', blob, path.basename(localPath));
+              formData.append('published', 'false');
+              formData.append('access_token', pageAccessToken);
+
+              const photoRes = await fetch(`https://graph.facebook.com/v20.0/${params.pageId}/photos`, {
+                method: 'POST',
+                body: formData,
+              });
+              const photoData: any = await photoRes.json();
+              if (!photoRes.ok || !photoData.id) {
+                return {
+                  success: false,
+                  errorCode: photoData.error?.code?.toString() || 'FB_CAROUSEL_PHOTO_ERROR',
+                  errorMessage: `Facebook Carousel Photo ${idx + 1} Upload Error: ${photoData.error?.message || 'Failed to upload photo.'}`,
+                  rawResponse: photoData,
+                };
+              }
+              photoIds.push(photoData.id);
+            } else {
+              const photoRes = await fetch(`https://graph.facebook.com/v20.0/${params.pageId}/photos`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  url: itemUrl,
+                  published: false,
+                  access_token: pageAccessToken,
+                }),
+              });
+              const photoData: any = await photoRes.json();
+              if (!photoRes.ok || !photoData.id) {
+                return {
+                  success: false,
+                  errorCode: photoData.error?.code?.toString() || 'FB_CAROUSEL_PHOTO_ERROR',
+                  errorMessage: `Facebook Carousel Photo ${idx + 1} Upload Error: ${photoData.error?.message || 'Failed to upload photo.'}`,
+                  rawResponse: photoData,
+                };
+              }
+              photoIds.push(photoData.id);
+            }
+          }
+
+          // Publish feed post attaching all uploaded photos
+          const feedUrl = `https://graph.facebook.com/v20.0/${params.pageId}/feed`;
+          const bodyParams = new URLSearchParams();
+          if (params.caption) {
+            bodyParams.append('message', params.caption);
+          }
+          bodyParams.append('access_token', pageAccessToken);
+          photoIds.forEach((id, idx) => {
+            bodyParams.append(`attached_media[${idx}]`, JSON.stringify({ media_fbid: id }));
+          });
+
+          const feedRes = await fetch(feedUrl, {
+            method: 'POST',
+            body: bodyParams,
+          });
+          const feedData: any = await feedRes.json();
+          if (!feedRes.ok || feedData.error) {
+            return {
+              success: false,
+              errorCode: feedData.error?.code?.toString() || 'FB_CAROUSEL_FEED_ERROR',
+              errorMessage: `Facebook Carousel Feed Post Error: ${feedData.error?.message || 'Failed to publish carousel post.'}`,
+              rawResponse: feedData,
+            };
+          }
+
+          return {
+            success: true,
+            externalPostId: feedData.id,
+            rawResponse: feedData,
+          };
         }
 
         // ==========================================
