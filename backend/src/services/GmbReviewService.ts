@@ -200,6 +200,12 @@ Return ONLY the final reply text without quotes or preamble.`;
     }
 
     if (!token || token.startsWith('gmb_tok_') || token === 'EXPIRED') {
+      if (gmbAccount) {
+        await prisma.socialAccount.update({
+          where: { id: gmbAccount.id },
+          data: { status: 'EXPIRED', lastError: 'Google Access Token missing or expired. Please reconnect in Channels.' },
+        }).catch(() => {});
+      }
       throw new Error(`Google Business Profile real Access Token missing/expired for "${client.businessName}". Channels tab me Google account Reconnect karein.`);
     }
 
@@ -249,6 +255,21 @@ Return ONLY the final reply text without quotes or preamble.`;
           const parsed = JSON.parse(errText);
           errMsg = parsed.error?.message || errMsg;
         } catch {}
+
+        if (res.status === 401 || errMsg.toLowerCase().includes('invalid authentication credentials')) {
+          if (gmbAccount) {
+            await prisma.socialAccount.update({
+              where: { id: gmbAccount.id },
+              data: {
+                status: 'EXPIRED',
+                lastError: 'Google Access Token expired. Please reconnect in Channels tab.',
+                lastHealthCheck: new Date(),
+              },
+            }).catch(() => {});
+          }
+          errMsg = `Google Access Token expired for "${client.businessName}". Please reconnect in Channels tab.`;
+        }
+
         if (allReviews.length === 0) {
           throw new Error(`Google My Business Reviews error: ${errMsg}`);
         } else {
@@ -402,7 +423,22 @@ Return ONLY the final reply text without quotes or preamble.`;
             postedToGoogle = true;
           } else {
             const errText = await response.text();
-            postError = `Google API error: ${errText}`;
+            let parsedMsg = errText;
+            try {
+              const parsed = JSON.parse(errText);
+              parsedMsg = parsed.error?.message || parsedMsg;
+            } catch {}
+            if (response.status === 401 || parsedMsg.toLowerCase().includes('invalid authentication credentials')) {
+              postError = 'Google Access Token expired. Please reconnect in Channels tab.';
+              if (review.socialAccountId) {
+                await prisma.socialAccount.update({
+                  where: { id: review.socialAccountId },
+                  data: { status: 'EXPIRED', lastError: postError, lastHealthCheck: new Date() },
+                }).catch(() => {});
+              }
+            } else {
+              postError = `Google API error: ${parsedMsg}`;
+            }
           }
         }
       } catch (err: any) {
@@ -428,8 +464,17 @@ Return ONLY the final reply text without quotes or preamble.`;
    * Background tick to check and auto-reply to pending reviews across all clients
    */
   static async runAutoReplyWorker(): Promise<{ checked: number; replied: number }> {
+    // Only query clients that actually have a connected Google Business account
     const clients = await prisma.client.findMany({
-      where: { status: 'ACTIVE' },
+      where: {
+        status: 'ACTIVE',
+        socialAccounts: {
+          some: {
+            platform: 'GOOGLE_BUSINESS',
+            status: 'CONNECTED',
+          },
+        },
+      },
       select: { id: true, businessName: true },
     });
 
@@ -442,7 +487,17 @@ Return ONLY the final reply text without quotes or preamble.`;
         totalChecked += res.synced;
         totalReplied += res.replied;
       } catch (err: any) {
-        console.warn(`[GMB AutoReply Worker] Error syncing client "${c.businessName}":`, err.message);
+        // Do not spam console with expected auth or token expiry messages
+        const msg = (err?.message || '').toLowerCase();
+        const isAuthError =
+          msg.includes('invalid authentication credentials') ||
+          msg.includes('access token') ||
+          msg.includes('expired') ||
+          msg.includes('connected nahi hai') ||
+          msg.includes('reconnect');
+        if (!isAuthError) {
+          console.warn(`[GMB AutoReply Worker] Error syncing client "${c.businessName}":`, err.message);
+        }
       }
     }
 
@@ -457,7 +512,14 @@ Return ONLY the final reply text without quotes or preamble.`;
         await this.replyToReview(rev.id);
         totalReplied++;
       } catch (err: any) {
-        console.warn(`[GMB AutoReply Worker] Error replying to pending review ${rev.id}:`, err.message);
+        const msg = (err?.message || '').toLowerCase();
+        const isAuthError =
+          msg.includes('access token') ||
+          msg.includes('expired') ||
+          msg.includes('invalid authentication credentials');
+        if (!isAuthError) {
+          console.warn(`[GMB AutoReply Worker] Error replying to pending review ${rev.id}:`, err.message);
+        }
       }
     }
 

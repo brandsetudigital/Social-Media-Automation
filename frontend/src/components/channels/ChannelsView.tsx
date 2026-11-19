@@ -236,15 +236,66 @@ export const ChannelsView: React.FC = () => {
 
   // Live Ping Test
   const handleTestConnection = async (accId: string, accName: string) => {
-    setTestingAccId(accId);
-    setTimeout(() => {
+    try {
+      setTestingAccId(accId);
+      const res = await api.testSocialAccount(accId);
+      await fetchAccounts();
+      if (res.success) {
+        setFeedback({
+          type: 'success',
+          message: res.message || `Connection Test Passed for ${accName}!`,
+        });
+      } else {
+        setFeedback({
+          type: 'error',
+          message: res.message || `Token expired for ${accName}. Please click Reconnect.`,
+        });
+      }
+    } catch (err: any) {
+      setFeedback({
+        type: 'error',
+        message: err.message || `Failed to test connection for ${accName}`,
+      });
+    } finally {
       setTestingAccId(null);
-      alert(`Connection Test Passed for ${accName}!\n\nAPI Status: 200 OK\nToken Health: VALID (Expires in 59 days)\nLatency: 38ms\nPermissions: Ready for publishing`);
-    }, 800);
+      setTimeout(() => setFeedback(null), 6000);
+    }
   };
 
-  // Connected accounts filter
-  const connectedAccounts = accounts.filter((a) => a.status === 'CONNECTED');
+  const handleReconnectAccount = async (acc: any) => {
+    if (acc.platform === 'GOOGLE_BUSINESS') {
+      try {
+        setIsConnecting(true);
+        await requestGoogleBusinessAuth({
+          onSuccess: async (msg) => {
+            setFeedback({
+              type: 'success',
+              message: msg || 'Google Business reconnected successfully! Review sync active.',
+            });
+            setIsConnecting(false);
+            await fetchAccounts();
+            setTimeout(() => setFeedback(null), 6000);
+          },
+          onError: (err) => {
+            setFeedback({ type: 'error', message: `Google Login: ${err}` });
+            setIsConnecting(false);
+            setTimeout(() => setFeedback(null), 8000);
+          },
+        });
+      } catch (e: any) {
+        setFeedback({ type: 'error', message: e.message || 'Failed to initialize Google Login' });
+        setIsConnecting(false);
+      }
+    } else {
+      const plat = platforms.find((p) => p.id === acc.platform);
+      if (plat) {
+        handleOpenConnectModal(plat);
+      }
+    }
+  };
+
+  // Connected accounts filter - display active, expired and error accounts
+  const connectedAccounts = accounts.filter((a) => a.status !== 'DISCONNECTED');
 
   return (
     <div className="space-y-6 pb-12">
@@ -313,6 +364,8 @@ export const ChannelsView: React.FC = () => {
             const matchedAccounts = connectedAccounts.filter((a) => a.platform === p.id);
             const isConnected = matchedAccounts.length > 0;
             const primaryAcc = matchedAccounts[0];
+            const hasActive = matchedAccounts.some((a) => a.status === 'CONNECTED');
+            const isExpired = matchedAccounts.some((a) => a.status === 'EXPIRED') && !hasActive;
 
             return (
               <div
@@ -325,7 +378,11 @@ export const ChannelsView: React.FC = () => {
                       <Icon className="w-6 h-6" />
                     </div>
 
-                    {isConnected ? (
+                    {isExpired ? (
+                      <span className="text-[10px] font-bold bg-amber-50 text-amber-700 px-2.5 py-1 rounded-full border border-amber-200 flex items-center gap-1 shadow-xs">
+                        <AlertCircle className="w-3 h-3 text-amber-600" /> Token Expired
+                      </span>
+                    ) : isConnected ? (
                       <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full border border-emerald-200 flex items-center gap-1 shadow-xs">
                         <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Connected
                       </span>
@@ -363,23 +420,34 @@ export const ChannelsView: React.FC = () => {
                 <div className="pt-4 mt-4 border-t border-gray-100 flex items-center justify-between gap-2">
                   {isConnected ? (
                     <div className="w-full flex items-center justify-between">
-                      <button
-                        onClick={() =>
-                          setDisconnectModalData({
-                            id: primaryAcc.id,
-                            name: primaryAcc.accountName,
-                            platformName: p.name,
-                          })
-                        }
-                        className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:underline transition flex items-center gap-1"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span>Disconnect</span>
-                      </button>
+                      {isExpired ? (
+                        <button
+                          onClick={() => handleReconnectAccount(primaryAcc)}
+                          disabled={isConnecting}
+                          className="text-xs font-bold text-amber-600 hover:text-amber-700 hover:underline transition flex items-center gap-1 cursor-pointer"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${isConnecting ? 'animate-spin' : ''}`} />
+                          <span>Reconnect Now</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() =>
+                            setDisconnectModalData({
+                              id: primaryAcc.id,
+                              name: primaryAcc.accountName,
+                              platformName: p.name,
+                            })
+                          }
+                          className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:underline transition flex items-center gap-1 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Disconnect</span>
+                        </button>
+                      )}
 
                       <button
                         onClick={() => handleOpenConnectModal(p)}
-                        className="text-xs font-semibold text-[#0172F4] hover:underline flex items-center gap-1"
+                        className="text-xs font-semibold text-[#0172F4] hover:underline flex items-center gap-1 cursor-pointer"
                         title="Connect another account for another brand"
                       >
                         <Plus className="w-3.5 h-3.5" />
@@ -442,6 +510,11 @@ export const ChannelsView: React.FC = () => {
                       <td className="py-3 px-4">
                         <div className="font-bold text-gray-900">{acc.accountName}</div>
                         <div className="text-[11px] text-gray-400 font-mono">{acc.accountId}</div>
+                        {acc.lastError && acc.status === 'EXPIRED' && (
+                          <div className="text-[10px] text-amber-600 font-medium mt-0.5 max-w-xs truncate" title={acc.lastError}>
+                            ⚠️ {acc.lastError}
+                          </div>
+                        )}
                       </td>
                       <td className="py-3 px-4">
                         <span className="font-semibold text-gray-700 flex items-center gap-1.5">
@@ -458,27 +531,62 @@ export const ChannelsView: React.FC = () => {
                         {acc.client?.businessName || selectedClient?.businessName || 'BrandSetu Digital'}
                       </td>
                       <td className="py-3 px-4">
-                        <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1 w-max shadow-xs">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                          ACTIVE
-                        </span>
+                        {acc.status === 'EXPIRED' ? (
+                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1 w-max shadow-xs">
+                            <AlertCircle className="w-3 h-3 text-amber-600" />
+                            TOKEN EXPIRED
+                          </span>
+                        ) : acc.status === 'ERROR' ? (
+                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1 w-max shadow-xs">
+                            <AlertCircle className="w-3 h-3 text-rose-600" />
+                            ERROR
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1 w-max shadow-xs">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            ACTIVE
+                          </span>
+                        )}
                       </td>
                       <td className="py-3 px-4 text-gray-500">
-                        <span className="text-emerald-700 font-medium flex items-center gap-1">
-                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                          Verified (60d)
-                        </span>
+                        {acc.status === 'EXPIRED' ? (
+                          <span className="text-amber-700 font-medium flex items-center gap-1 text-[11px]">
+                            <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                            Needs Reconnection
+                          </span>
+                        ) : acc.status === 'ERROR' ? (
+                          <span className="text-rose-700 font-medium flex items-center gap-1 text-[11px]">
+                            <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                            Connection Error
+                          </span>
+                        ) : (
+                          <span className="text-emerald-700 font-medium flex items-center gap-1">
+                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                            Verified (60d)
+                          </span>
+                        )}
                       </td>
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => handleTestConnection(acc.id, acc.accountName)}
-                            disabled={testingAccId === acc.id}
-                            className="px-2.5 py-1 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition flex items-center gap-1"
-                          >
-                            <Activity className={`w-3 h-3 ${testingAccId === acc.id ? 'animate-spin text-[#0172F4]' : ''}`} />
-                            <span>{testingAccId === acc.id ? 'Pinging...' : 'Test'}</span>
-                          </button>
+                          {acc.status === 'EXPIRED' ? (
+                            <button
+                              onClick={() => handleReconnectAccount(acc)}
+                              disabled={isConnecting}
+                              className="px-2.5 py-1 text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition flex items-center gap-1 shadow-xs cursor-pointer"
+                            >
+                              <RefreshCw className={`w-3 h-3 ${isConnecting ? 'animate-spin' : ''}`} />
+                              <span>Reconnect</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleTestConnection(acc.id, acc.accountName)}
+                              disabled={testingAccId === acc.id}
+                              className="px-2.5 py-1 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition flex items-center gap-1 cursor-pointer"
+                            >
+                              <Activity className={`w-3 h-3 ${testingAccId === acc.id ? 'animate-spin text-[#0172F4]' : ''}`} />
+                              <span>{testingAccId === acc.id ? 'Pinging...' : 'Test'}</span>
+                            </button>
+                          )}
                           <button
                             onClick={() =>
                               setDisconnectModalData({
@@ -487,7 +595,7 @@ export const ChannelsView: React.FC = () => {
                                 platformName: acc.platform,
                               })
                             }
-                            className="px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                            className="px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
                           >
                             Disconnect
                           </button>

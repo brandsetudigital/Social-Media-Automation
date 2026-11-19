@@ -349,6 +349,8 @@ export const api = {
     apiFetch<any>('/social/gmb/exchange-code', { method: 'POST', body: JSON.stringify({ code }) }),
   disconnectSocialAccount: (id: string) =>
     apiFetch<any>(`/social/disconnect/${id}`, { method: 'POST' }),
+  testSocialAccount: (id: string) =>
+    apiFetch<any>(`/social/test/${id}`, { method: 'POST' }),
 
   // AI Content Studio
   generateAICaption: (data: any) =>

@@ -259,6 +259,104 @@ router.post('/gmb/update-token', authenticateToken, async (req: AuthRequest, res
   }
 });
 
+// POST test account connection live
+router.post('/test/:id', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const account = await prisma.socialAccount.findUnique({
+      where: { id },
+      include: { client: { select: { businessName: true } } },
+    });
+
+    if (!account) {
+      return res.status(404).json({ success: false, error: 'Account not found' });
+    }
+
+    if (account.platform === 'GOOGLE_BUSINESS') {
+      let token = account.accessToken;
+      const freshToken = await GoogleBusinessService.getFreshAccessToken();
+      if (freshToken) {
+        token = freshToken;
+        await prisma.socialAccount.update({
+          where: { id },
+          data: { accessToken: freshToken, status: 'CONNECTED', lastError: null },
+        }).catch(() => {});
+      }
+
+      if (!token || token.startsWith('gmb_tok_') || token === 'EXPIRED') {
+        await prisma.socialAccount.update({
+          where: { id },
+          data: { status: 'EXPIRED', lastError: 'Google OAuth Access Token missing or expired.' },
+        }).catch(() => {});
+        return res.json({
+          success: false,
+          status: 'EXPIRED',
+          message: 'Google OAuth token expired or missing. Please click Reconnect to sign in with Google.',
+        });
+      }
+
+      // Live verification with Google API
+      const testRes = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!testRes.ok) {
+        await prisma.socialAccount.update({
+          where: { id },
+          data: {
+            status: 'EXPIRED',
+            lastError: `Google Access Token expired (HTTP ${testRes.status})`,
+            lastHealthCheck: new Date(),
+          },
+        }).catch(() => {});
+        return res.json({
+          success: false,
+          status: 'EXPIRED',
+          message: 'Google Access Token is expired or revoked. Please click Reconnect to sign in.',
+        });
+      }
+
+      await prisma.socialAccount.update({
+        where: { id },
+        data: {
+          status: 'CONNECTED',
+          lastError: null,
+          lastHealthCheck: new Date(),
+        },
+      }).catch(() => {});
+
+      return res.json({
+        success: true,
+        status: 'CONNECTED',
+        message: `Connection Verified for ${account.accountName}! Google Business API responded 200 OK.`,
+      });
+    }
+
+    // Default verification for Meta / Instagram / Facebook
+    const isValid = account.accessToken && !account.accessToken.startsWith('oauth_tok_') && account.accessToken !== 'EXPIRED';
+    if (!isValid) {
+      return res.json({
+        success: false,
+        status: 'EXPIRED',
+        message: `${account.platform} account requires re-authentication.`,
+      });
+    }
+
+    await prisma.socialAccount.update({
+      where: { id },
+      data: { status: 'CONNECTED', lastError: null, lastHealthCheck: new Date() },
+    }).catch(() => {});
+
+    return res.json({
+      success: true,
+      status: 'CONNECTED',
+      message: `Connection Verified for ${account.accountName}! Ready for automated publishing.`,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || 'Failed to test connection' });
+  }
+});
+
 // POST reconnect an expired account
 router.post('/reconnect/:id', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {

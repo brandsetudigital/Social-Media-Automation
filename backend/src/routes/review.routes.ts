@@ -61,11 +61,11 @@ router.post('/sync-all', authenticateToken, async (req: AuthRequest, res: Respon
     const result = await GmbReviewService.runAutoReplyWorker();
     return res.json({
       success: true,
-      message: `Sync completed across all clients. Synced ${result.checked} reviews, sent ${result.replied} AI replies.`,
+      message: `Sync completed across clients. Synced ${result.checked} reviews, sent ${result.replied} AI replies.`,
       result,
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || 'Failed to sync reviews' });
+    return res.status(400).json({ error: err.message || 'Failed to sync reviews' });
   }
 });
 
@@ -80,7 +80,7 @@ router.post('/sync/:clientId', authenticateToken, async (req: AuthRequest, res: 
       result,
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || 'Failed to sync reviews' });
+    return res.status(400).json({ error: err.message || 'Failed to sync reviews' });
   }
 });
 

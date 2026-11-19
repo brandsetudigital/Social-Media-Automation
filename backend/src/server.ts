@@ -219,20 +219,25 @@ setInterval(async () => {
       console.log(`[GMB Reviews Worker] Checked ${res.checked} reviews, sent ${res.replied} AI auto-replies at ${new Date().toLocaleTimeString()}`);
     }
   } catch (err: any) {
-    console.warn('[GMB Reviews Worker Warning]', err.message);
+    const msg = (err?.message || '').toLowerCase();
+    if (!msg.includes('invalid authentication credentials') && !msg.includes('expired') && !msg.includes('access token') && !msg.includes('connected nahi hai')) {
+      console.warn('[GMB Reviews Worker Warning]', err.message);
+    }
   }
 }, GMB_REVIEW_INTERVAL_MS);
 
 // Initial trigger 15s after startup
 setTimeout(async () => {
   try {
-    console.log('[GMB Reviews Worker] Running initial review check on startup...');
     const res = await GmbReviewService.runAutoReplyWorker();
     if (res.checked > 0 || res.replied > 0) {
       console.log(`[GMB Reviews Worker Initial] Checked ${res.checked} reviews, sent ${res.replied} AI auto-replies.`);
     }
   } catch (err: any) {
-    console.warn('[GMB Reviews Worker Startup Warning]:', err.message);
+    const msg = (err?.message || '').toLowerCase();
+    if (!msg.includes('invalid authentication credentials') && !msg.includes('expired') && !msg.includes('access token') && !msg.includes('connected nahi hai')) {
+      console.warn('[GMB Reviews Worker Startup Warning]:', err.message);
+    }
   }
 }, 15000);
 
