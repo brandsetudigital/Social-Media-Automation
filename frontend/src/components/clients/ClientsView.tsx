@@ -417,17 +417,18 @@ export const ClientsView: React.FC = () => {
                           className="w-10 h-10 rounded-xl object-cover shadow-xs border border-gray-100 shrink-0 bg-white"
                           onError={(e) => {
                             (e.currentTarget as HTMLElement).style.display = 'none';
+                            const fb = (e.currentTarget as HTMLElement).nextElementSibling as HTMLElement;
+                            if (fb) fb.classList.remove('hidden');
                           }}
                         />
-                      ) : (
-                        <div
-                          className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-xs shrink-0 ${
-                            isInactive ? 'bg-slate-400' : 'bg-gradient-to-br from-blue-500 to-indigo-600'
-                          }`}
-                        >
-                          {c.businessName.charAt(0).toUpperCase()}
-                        </div>
-                      )}
+                      ) : null}
+                      <div
+                        className={`w-10 h-10 rounded-xl items-center justify-center text-white font-bold text-sm shadow-xs shrink-0 ${
+                          isInactive ? 'bg-slate-400' : 'bg-gradient-to-br from-blue-500 to-indigo-600'
+                        } ${c.logo ? 'hidden' : 'flex'}`}
+                      >
+                        {c.businessName.charAt(0).toUpperCase()}
+                      </div>
                       <div className="min-w-0">
                         <h4 className="text-sm font-bold text-gray-900 truncate">{c.businessName}</h4>
                         <span className="text-[11px] text-gray-500 block truncate">
@@ -496,18 +497,22 @@ export const ClientsView: React.FC = () => {
                         src={getMediaUrl(selectedClient.logo)}
                         alt=""
                         className="w-14 h-14 rounded-2xl object-cover shadow-md border-2 border-white ring-1 ring-gray-200 bg-white"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLElement).style.display = 'none';
+                          const fb = (e.currentTarget as HTMLElement).nextElementSibling as HTMLElement;
+                          if (fb) fb.classList.remove('hidden');
+                        }}
                       />
-                    ) : (
-                      <div
-                        className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-md ${
-                          selectedClient.status === 'INACTIVE'
-                            ? 'bg-slate-500'
-                            : 'bg-gradient-to-br from-blue-600 to-indigo-700'
-                        }`}
-                      >
-                        {selectedClient.businessName.charAt(0).toUpperCase()}
-                      </div>
-                    )}
+                    ) : null}
+                    <div
+                      className={`w-14 h-14 rounded-2xl items-center justify-center text-white font-black text-xl shadow-md ${
+                        selectedClient.status === 'INACTIVE'
+                          ? 'bg-slate-500'
+                          : 'bg-gradient-to-br from-blue-600 to-indigo-700'
+                      } ${selectedClient.logo ? 'hidden' : 'flex'}`}
+                    >
+                      {selectedClient.businessName.charAt(0).toUpperCase()}
+                    </div>
                     <button
                       type="button"
                       onClick={() => logoFileInputRef.current?.click()}

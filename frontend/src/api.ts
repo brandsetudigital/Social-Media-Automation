@@ -12,7 +12,26 @@ function cleanBaseUrl(input?: string): string {
   return clean.replace(/\/+$/, '');
 }
 
-const API_BASE = cleanBaseUrl((import.meta as any).env?.VITE_API_URL);
+export function getApiBase(): string {
+  let base = cleanBaseUrl((import.meta as any).env?.VITE_API_URL);
+
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    // When opened from another device on the network (e.g. mobile at 192.168.x.x) or production domain
+    if (host && host !== 'localhost' && host !== '127.0.0.1') {
+      if (base.includes('localhost') || base.includes('127.0.0.1')) {
+        if (/^(\d{1,3}\.){3}\d{1,3}$/.test(host)) {
+          base = `http://${host}:5000/api`;
+        } else {
+          base = `${window.location.origin}/api`;
+        }
+      }
+    }
+  }
+  return base;
+}
+
+export const API_BASE = getApiBase();
 
 export const parseMediaUrls = (url?: string | null): string[] => {
   if (!url) return [];
@@ -47,9 +66,22 @@ export const getMediaUrl = (url?: string | null): string => {
     if (trimmed.includes('white-goshawk-289802.hostingersite.com/uploads/')) {
       return trimmed.replace('white-goshawk-289802.hostingersite.com', 'mediumspringgreen-wallaby-731721.hostingersite.com');
     }
+    // If the image URL is pointing to localhost but accessed from another device, rewrite localhost to current host
+    if (typeof window !== 'undefined') {
+      const host = window.location.hostname;
+      if (host && host !== 'localhost' && host !== '127.0.0.1') {
+        if (trimmed.includes('localhost:5000') || trimmed.includes('127.0.0.1:5000')) {
+          if (/^(\d{1,3}\.){3}\d{1,3}$/.test(host)) {
+            return trimmed.replace(/(localhost|127\.0\.0\.1):5000/, `${host}:5000`);
+          } else {
+            return trimmed.replace(/https?:\/\/(localhost|127\.0\.0\.1):5000/, window.location.origin);
+          }
+        }
+      }
+    }
     return trimmed;
   }
-  let backendBase = API_BASE.replace(/\/api\/?$/, '');
+  let backendBase = getApiBase().replace(/\/api\/?$/, '');
   if (!backendBase || backendBase === '/' || backendBase.includes('white-goshawk-289802')) {
     backendBase = 'https://mediumspringgreen-wallaby-731721.hostingersite.com';
   }
@@ -94,8 +126,9 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
   };
 
   let res: Response;
+  const currentBase = getApiBase();
   try {
-    res = await fetch(`${API_BASE}${endpoint}`, {
+    res = await fetch(`${currentBase}${endpoint}`, {
       ...options,
       headers,
     });
@@ -103,7 +136,7 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
     // Retry once after 800ms for transient connection drops
     try {
       await new Promise((r) => setTimeout(r, 800));
-      res = await fetch(`${API_BASE}${endpoint}`, {
+      res = await fetch(`${currentBase}${endpoint}`, {
         ...options,
         headers,
       });

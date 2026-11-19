@@ -20,3 +20,10 @@ db_backups/
 backend/uploads/*
 !backend/uploads/sample_reel.mp4
 !backend/uploads/.gitkeep
+!backend/uploads/*propert_Babu*
+!backend/uploads/*favicon*
+!backend/uploads/*7_th_clude*
+!backend/uploads/*about_us*
+!backend/uploads/*panna*
+!backend/uploads/*Airawati*
+!backend/uploads/*MICROBHUMI*

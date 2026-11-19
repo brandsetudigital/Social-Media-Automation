@@ -299,14 +299,19 @@ export const AnalyticsView: React.FC = () => {
                   alt={activeClientInfo.businessName}
                   className="w-14 h-14 rounded-2xl object-cover shadow-sm border border-gray-200 bg-white"
                   onError={(e) => {
-                    (e.currentTarget as HTMLElement).style.opacity = '0.4';
+                    (e.currentTarget as HTMLElement).style.display = 'none';
+                    const fb = (e.currentTarget as HTMLElement).nextElementSibling as HTMLElement;
+                    if (fb) fb.classList.remove('hidden');
                   }}
                 />
-              ) : (
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#0172F4] to-blue-700 text-white font-black text-xl flex items-center justify-center shadow-md">
-                  {activeClientInfo.businessName?.charAt(0).toUpperCase()}
-                </div>
-              )}
+              ) : null}
+              <div
+                className={`w-14 h-14 rounded-2xl bg-gradient-to-br from-[#0172F4] to-blue-700 text-white font-black text-xl items-center justify-center shadow-md ${
+                  activeClientInfo.logo ? 'hidden' : 'flex'
+                }`}
+              >
+                {activeClientInfo.businessName?.charAt(0).toUpperCase()}
+              </div>
             </div>
           ) : (
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-black text-xl flex items-center justify-center shadow-md">
@@ -1237,12 +1242,20 @@ export const AnalyticsView: React.FC = () => {
                     src={getMediaUrl(activeClientInfo.logo)}
                     alt={activeClientInfo.businessName}
                     className="w-12 h-12 rounded-xl object-cover border border-gray-200 bg-white"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLElement).style.display = 'none';
+                      const fb = (e.currentTarget as HTMLElement).nextElementSibling as HTMLElement;
+                      if (fb) fb.classList.remove('hidden');
+                    }}
                   />
-                ) : (
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#0172F4] to-blue-700 text-white font-black text-lg flex items-center justify-center shadow-xs">
-                    {activeClientInfo?.businessName?.charAt(0).toUpperCase() || 'B'}
-                  </div>
-                )}
+                ) : null}
+                <div
+                  className={`w-12 h-12 rounded-xl bg-gradient-to-br from-[#0172F4] to-blue-700 text-white font-black text-lg items-center justify-center shadow-xs ${
+                    activeClientInfo?.logo ? 'hidden' : 'flex'
+                  }`}
+                >
+                  {activeClientInfo?.businessName?.charAt(0).toUpperCase() || 'B'}
+                </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-lg font-black text-gray-900">

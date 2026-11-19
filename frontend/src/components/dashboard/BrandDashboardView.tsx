@@ -341,13 +341,18 @@ export const BrandDashboardView: React.FC<BrandDashboardViewProps> = ({
               className="w-12 h-12 rounded-xl object-cover shadow-xs border border-gray-200 bg-white"
               onError={(e) => {
                 (e.currentTarget as HTMLElement).style.display = 'none';
+                const fb = (e.currentTarget as HTMLElement).nextElementSibling as HTMLElement;
+                if (fb) fb.classList.remove('hidden');
               }}
             />
-          ) : (
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-black text-xl flex items-center justify-center shadow-xs">
-              {selectedClient?.businessName?.charAt(0).toUpperCase() || 'B'}
-            </div>
-          )}
+          ) : null}
+          <div
+            className={`w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-black text-xl items-center justify-center shadow-xs ${
+              selectedClient?.logo ? 'hidden' : 'flex'
+            }`}
+          >
+            {selectedClient?.businessName?.charAt(0).toUpperCase() || 'B'}
+          </div>
           <div>
             <h2 className="text-2xl font-black text-slate-900 tracking-tight">
               {selectedClient?.businessName || 'BrandSetu Digital'} Dashboard

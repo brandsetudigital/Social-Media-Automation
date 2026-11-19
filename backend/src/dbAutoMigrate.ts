@@ -172,7 +172,6 @@ export async function ensureAnalyticsTablesExist(): Promise<void> {
       CREATE INDEX IF NOT EXISTS "GmbReview_replyStatus_idx" ON "GmbReview"("replyStatus");
     `);
 
-    console.log('✅ [Database Auto-Migration] Instagram analytics & GMB review tables verified/created successfully.');
   } catch (err: any) {
     console.warn('[Database Auto-Migration Warning]:', err.message);
   }
