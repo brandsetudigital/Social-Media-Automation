@@ -62,10 +62,26 @@ export const VERIFIED_AI_MODELS: Record<string, ModelMetadata> = {
   },
 
   // Google Gemini Models
+  'gemini-3.5-flash': {
+    id: 'gemini-3.5-flash',
+    provider: 'gemini',
+    displayName: 'Gemini 3.5 Flash (Ultra Fast Multimodal)',
+    supportsVision: true,
+    contextWindow: 1000000,
+    pricing: { inputPer1MTokensUSD: 0.15, outputPer1MTokensUSD: 0.60 },
+  },
+  'gemini-3.5-flash-lite': {
+    id: 'gemini-3.5-flash-lite',
+    provider: 'gemini',
+    displayName: 'Gemini 3.5 Flash Lite (Sub-Second Ultra Fast)',
+    supportsVision: true,
+    contextWindow: 1000000,
+    pricing: { inputPer1MTokensUSD: 0.075, outputPer1MTokensUSD: 0.30 },
+  },
   'gemini-2.5-flash': {
     id: 'gemini-2.5-flash',
     provider: 'gemini',
-    displayName: 'Gemini 2.5 Flash (Ultra Fast Multimodal)',
+    displayName: 'Gemini 2.5 Flash',
     supportsVision: true,
     contextWindow: 1000000,
     pricing: { inputPer1MTokensUSD: 0.15, outputPer1MTokensUSD: 0.60 },
@@ -101,13 +117,13 @@ export const VERIFIED_AI_MODELS: Record<string, ModelMetadata> = {
 export const DEFAULT_PROVIDER_MODELS: Record<SupportedAIProvider, string> = {
   openai: 'gpt-4o-mini',
   anthropic: 'claude-3-5-haiku-20241022',
-  gemini: 'gemini-2.5-flash',
+  gemini: 'gemini-3.5-flash',
   groq: 'llama-3.3-70b-versatile',
 };
 
 export const AI_CONFIG = {
   defaultProvider: (process.env.DEFAULT_AI_PROVIDER || 'gemini') as SupportedAIProvider,
-  defaultModel: process.env.DEFAULT_AI_MODEL || 'gemini-2.5-flash',
+  defaultModel: process.env.DEFAULT_AI_MODEL || 'gemini-3.5-flash',
   timeoutMs: parseInt(process.env.AI_REQUEST_TIMEOUT_MS || '15000', 10),
   fallbackChain: ['gemini', 'openai', 'groq', 'anthropic'] as SupportedAIProvider[],
   keys: {
