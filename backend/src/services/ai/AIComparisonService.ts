@@ -3,6 +3,7 @@ import {
   DEFAULT_PROVIDER_MODELS,
 } from '../../config/ai.config';
 import { aiFactory } from './AIFactory';
+import { contentHistoryService } from './ContentHistoryService';
 import {
   buildComparisonPrompt,
   INSTAGRAM_SYSTEM_PROMPT,
@@ -197,6 +198,17 @@ export class AIComparisonService {
       );
       lowestCostProvider = sortedByCost[0].provider;
     }
+
+    // Auto-persist comparison run to database
+    contentHistoryService
+      .saveComparisonLog({
+        topic: input.topic,
+        providersAttempted: targetProviders,
+        results,
+        fastestProvider,
+        lowestCostProvider,
+      })
+      .catch((err) => console.warn('[AIComparisonService AutoPersist Warning]:', err.message));
 
     return {
       topic: input.topic,

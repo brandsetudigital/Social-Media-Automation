@@ -2,6 +2,9 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { instagramContentController } from '../controllers/InstagramContentController';
 import { aiComparisonController } from '../controllers/AIComparisonController';
 import { brandVoiceController } from '../controllers/BrandVoiceController';
+import { visionContentController } from '../controllers/VisionContentController';
+import { contentHistoryController } from '../controllers/ContentHistoryController';
+import { imageUploadMiddleware } from '../middleware/upload.middleware';
 import { AuthRequest, authenticateToken } from '../middleware/auth.middleware';
 
 const router = Router();
@@ -67,6 +70,50 @@ router.post('/feedback', flexibleAuth, (req: Request, res: Response) => {
 // GET /api/ai/instagram/feedback (Retrieve feedback history)
 router.get('/feedback', flexibleAuth, (req: Request, res: Response) => {
   brandVoiceController.getFeedbackLogs(req, res);
+});
+
+// POST /api/ai/instagram/vision/caption (Image-based caption and hashtag generation)
+router.post(
+  '/vision/caption',
+  flexibleAuth,
+  imageUploadMiddleware.single('image'),
+  (req: Request, res: Response) => {
+    visionContentController.generateImageCaption(req, res);
+  }
+);
+
+// ==========================================
+// Phase 9: Content History & API Usage Routes
+// ==========================================
+
+// GET /api/ai/instagram/history (Paginated content history with filters)
+router.get('/history', flexibleAuth, (req: Request, res: Response) => {
+  contentHistoryController.getHistory(req, res);
+});
+
+// GET /api/ai/instagram/history/:id (Single content item by ID)
+router.get('/history/:id', flexibleAuth, (req: Request, res: Response) => {
+  contentHistoryController.getContentById(req, res);
+});
+
+// PATCH /api/ai/instagram/history/:id/status (Workflow status transition: DRAFT, APPROVED, etc.)
+router.patch('/history/:id/status', flexibleAuth, (req: Request, res: Response) => {
+  contentHistoryController.updateStatus(req, res);
+});
+
+// DELETE /api/ai/instagram/history/:id (Delete content item)
+router.delete('/history/:id', flexibleAuth, (req: Request, res: Response) => {
+  contentHistoryController.deleteContent(req, res);
+});
+
+// GET /api/ai/instagram/usage-stats (Aggregated token usage and cost metrics)
+router.get('/usage-stats', flexibleAuth, (req: Request, res: Response) => {
+  contentHistoryController.getUsageStats(req, res);
+});
+
+// GET /api/ai/instagram/comparisons (Multi-provider comparison execution logs)
+router.get('/comparisons', flexibleAuth, (req: Request, res: Response) => {
+  contentHistoryController.getComparisonHistory(req, res);
 });
 
 export default router;

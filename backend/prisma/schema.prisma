@@ -60,6 +60,7 @@ model Client {
   postingTimeRecommendations PostingTimeRecommendation[]
   analyticsSyncRuns   AnalyticsSyncRun[]
   gmbReviews          GmbReview[]
+  generatedContents   GeneratedContent[]
 }
 
 model ClientBrandProfile {
@@ -454,4 +455,80 @@ model GmbReview {
 
   @@index([clientId, starRating])
   @@index([replyStatus])
+}
+
+model GeneratedContent {
+  id              String            @id @default(uuid())
+  clientId        String?
+  client          Client?           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  topic           String
+  contentType     String            // CAPTION, HASHTAGS, IDEAS, VISION, REFINED
+  provider        String            // gemini, openai, anthropic, groq
+  modelId         String
+  hook            String?
+  caption         String
+  callToAction    String?
+  hashtags        String?           // Space-separated or JSON
+  variationsJson  String?           // JSON array of variations
+  visualElements  String?           // JSON array if vision
+  inputTokens     Int               @default(0)
+  outputTokens    Int               @default(0)
+  totalTokens     Int               @default(0)
+  latencyMs       Int               @default(0)
+  costUSD         Float             @default(0.0)
+  usedFallback    Boolean           @default(false)
+  status          String            @default("DRAFT") // DRAFT, APPROVED, SCHEDULED, PUBLISHED, ARCHIVED
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  feedbacks       ContentFeedback[]
+
+  @@index([clientId, contentType])
+  @@index([createdAt])
+}
+
+model ContentComparisonLog {
+  id                 String   @id @default(uuid())
+  topic              String
+  providersAttempted String   // JSON array ["gemini", "openai", "groq", "anthropic"]
+  resultsJson        String   // JSON array of ProviderComparisonResult
+  fastestProvider    String?
+  lowestCostProvider String?
+  selectedProvider   String?
+  createdAt          DateTime @default(now())
+}
+
+model ContentFeedback {
+  id              String            @id @default(uuid())
+  contentId       String?
+  content         GeneratedContent? @relation(fields: [contentId], references: [id], onDelete: SetNull)
+  caption         String
+  rating          Int               // 1 to 5 stars
+  feedbackNotes   String?
+  likedAspects    String?           // JSON array
+  dislikedAspects String?           // JSON array
+  provider        String?
+  modelId         String?
+  createdAt       DateTime          @default(now())
+
+  @@index([contentId])
+  @@index([rating])
+}
+
+model APIUsageLog {
+  id           String   @id @default(uuid())
+  provider     String   // gemini, openai, groq, anthropic
+  modelId      String
+  endpoint     String   // captions, hashtags, ideas, vision, refine, compare
+  inputTokens  Int
+  outputTokens Int
+  totalTokens  Int
+  latencyMs    Int
+  costUSD      Float
+  status       String   // SUCCESS, ERROR
+  errorMessage String?
+  createdAt    DateTime @default(now())
+
+  @@index([provider, createdAt])
+  @@index([endpoint])
 }

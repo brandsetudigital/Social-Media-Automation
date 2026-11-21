@@ -135,55 +135,55 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     const cleanLoc = extractCity(cl?.location);
     const cat = ((cl?.category || '') + ' ' + rawName).toLowerCase();
 
-    // Viral reach & algorithm engagement hashtags split evenly between caption (6 tags) and comment (5 tags)
-    const viralCaptionTags = '#fyp #reach #reels #viral #trending #explore';
-    const viralCommentTags = '#growth #engagement #like #share #grow';
+    // Viral reach in comment & algorithm growth hashtags in caption as requested
+    const growthCaptionTags = '#growth #engagement #like #share #grow';
+    const viralCommentTags = '#fyp #reach #reels #viral #trending #explore';
 
     // 1. Resort, Hotel, Club, Bar, Lounge & Hospitality (e.g. 7th Cloud Resorts, Hotel Cocodan)
     if (/resort|hotel|club|bar|lounge|staycation|hospitality|cocodan|7th\s*cloud/i.test(cat)) {
       return {
-        caption: `#${cleanName} #${cleanLoc}Nightlife #ResortLife #WeekendVibes #LuxuryStay ${viralCaptionTags}`,
-        comment: `#PartyDestination #ClubVibes #CocktailHour #StaycationVibes #IndoreParties ${viralCommentTags}`,
+        caption: `#${cleanLoc}Nightlife #ResortLife #WeekendVibes #LuxuryStay #IndoreParties ${growthCaptionTags}`,
+        comment: `#${cleanName} #PartyDestination #ClubVibes #CocktailHour #StaycationVibes ${viralCommentTags}`,
       };
     }
     // 2. Pure Sweets, Mithai, Bakery & Confectionery (e.g. Panna Sweets)
     else if (/sweet|mithai|bakery|namkeen|confectionery|dessert|panna\s*sweet/i.test(cat)) {
       return {
-        caption: `#${cleanName} #${cleanLoc}Sweets #MithaiLovers #DesiFlavors #AuthenticTaste ${viralCaptionTags}`,
-        comment: `#IndianSweets #FoodLovers #TasteOfIndia #DessertGram #SweetTooth ${viralCommentTags}`,
+        caption: `#${cleanLoc}Sweets #MithaiLovers #DesiFlavors #AuthenticTaste #TraditionalMithai ${growthCaptionTags}`,
+        comment: `#${cleanName} #IndianSweets #FoodLovers #DessertGram #SweetTooth ${viralCommentTags}`,
       };
     }
     // 3. Restaurants, Cafes, Dining & Thal (e.g. Swastik Thal, Radha Ki Rasoi)
     else if (/restaurant|cafe|dining|kitchen|thal|rasoi|dhaba|bhojanalaya|fast\s*food|food/i.test(cat)) {
       return {
-        caption: `#${cleanName} #${cleanLoc}Foodie #IndoreFoodies #FoodLovers #FineDining ${viralCaptionTags}`,
-        comment: `#FoodGram #InstaFood #DeliciousEats #FoodPhotography #TasteOfIndore ${viralCommentTags}`,
+        caption: `#${cleanLoc}Foodie #IndoreFoodies #FoodLovers #FineDining #TasteOfIndore ${growthCaptionTags}`,
+        comment: `#${cleanName} #FoodGram #InstaFood #DeliciousEats #FoodPhotography ${viralCommentTags}`,
       };
     }
     // 4. Real Estate, Builders, Plots & Infrastructure (e.g. Property Babu, DagurInfra, Microbhumi)
     else if (/real\s*estate|property|plot|flat|builder|construction|infra|babu|broker|microbhumi|dagur/i.test(cat)) {
       return {
-        caption: `#${cleanName} #${cleanLoc}RealEstate #PlotsIn${cleanLoc} #RealEstateIndia #PropertyAdvisory ${viralCaptionTags}`,
-        comment: `#PropertyInvestment #DreamHome #InvestSmart #CommercialPlots #HomeBuyers ${viralCommentTags}`,
+        caption: `#${cleanLoc}RealEstate #PlotsIn${cleanLoc} #RealEstateIndia #PropertyAdvisory #IndoreProperties ${growthCaptionTags}`,
+        comment: `#${cleanName} #PropertyInvestment #DreamHome #InvestSmart #CommercialPlots ${viralCommentTags}`,
       };
     }
     // 5. Fashion, Clothing, Ethnic & Family Stores (e.g. About Us The Family Store, Airawati)
     else if (/fashion|saree|ethnic|boutique|cloth|apparel|dress|family\s*store|about\s*us|airawati/i.test(cat)) {
       return {
-        caption: `#${cleanName} #${cleanLoc}Fashion #FamilyWear #TrendingStyle #IndianCouture ${viralCaptionTags}`,
-        comment: `#OOTD #TraditionalWear #DesignerCollection #FestiveWear #StyleInspiration ${viralCommentTags}`,
+        caption: `#${cleanLoc}Fashion #FamilyWear #TrendingStyle #IndianCouture #EthnicFashion ${growthCaptionTags}`,
+        comment: `#${cleanName} #OOTD #TraditionalWear #DesignerCollection #FestiveWear ${viralCommentTags}`,
       };
     }
     // 6. Marketing, Agency & IT
     else if (/marketing|digital|agency|brandsetu|social/i.test(cat)) {
       return {
-        caption: `#${cleanName} #SocialMediaMarketing #DigitalGrowth #BrandStrategy #AgencyLife ${viralCaptionTags}`,
-        comment: `#BusinessGrowth #ContentMarketing #MarketingStrategy #BrandBuilding #OnlineMarketing ${viralCommentTags}`,
+        caption: `#SocialMediaMarketing #DigitalGrowth #BrandStrategy #AgencyLife #BusinessMarketing ${growthCaptionTags}`,
+        comment: `#${cleanName} #BusinessGrowth #ContentMarketing #MarketingStrategy #BrandBuilding ${viralCommentTags}`,
       };
     }
     return {
-      caption: `#${cleanName} #${cleanLoc}Business #TopQuality #TrustedService #ProfessionalCare ${viralCaptionTags}`,
-      comment: `#LocalBusiness #QualityAssurance #CustomerFirst #CommunityChoice #ExcellenceInService ${viralCommentTags}`,
+      caption: `#${cleanLoc}Business #TopQuality #TrustedService #ProfessionalCare #CustomerFirst ${growthCaptionTags}`,
+      comment: `#${cleanName} #LocalBusiness #QualityAssurance #CommunityChoice #ExcellenceInService ${viralCommentTags}`,
     };
   };
 
@@ -353,43 +353,64 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     return new Promise((resolve) => {
       try {
         const video = document.createElement('video');
-        video.preload = 'metadata';
+        video.preload = 'auto';
         video.muted = true;
         video.playsInline = true;
         const objectUrl = URL.createObjectURL(file);
         video.src = objectUrl;
-        video.onloadeddata = () => {
-          video.currentTime = Math.min(1, (video.duration || 1) / 2);
+
+        let resolved = false;
+        const finish = (result: string) => {
+          if (resolved) return;
+          resolved = true;
+          resolve(result);
+          setTimeout(() => { try { URL.revokeObjectURL(objectUrl); } catch { } }, 5000);
         };
-        video.onseeked = () => {
+
+        const captureFrame = () => {
           try {
             const canvas = document.createElement('canvas');
             canvas.width = video.videoWidth || 640;
             canvas.height = video.videoHeight || 360;
             const ctx = canvas.getContext('2d');
-            if (ctx) {
+            if (ctx && canvas.width > 0 && canvas.height > 0) {
               ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-              const thumbUrl = canvas.toDataURL('image/jpeg', 0.8);
-              resolve(thumbUrl);
-              setTimeout(() => { try { URL.revokeObjectURL(objectUrl); } catch {} }, 5000);
-              return;
+              const thumbUrl = canvas.toDataURL('image/jpeg', 0.85);
+              finish(thumbUrl);
+              return true;
             }
-          } catch {
-            // fallback
+          } catch { }
+          return false;
+        };
+
+        video.onloadedmetadata = () => {
+          video.currentTime = Math.min(1.0, (video.duration || 1) / 2);
+        };
+
+        video.onseeked = () => {
+          captureFrame();
+        };
+
+        video.onloadeddata = () => {
+          if (!resolved) {
+            captureFrame();
           }
-          resolve('https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=800&auto=format&fit=crop&q=80');
-          setTimeout(() => { try { URL.revokeObjectURL(objectUrl); } catch {} }, 5000);
         };
+
         video.onerror = () => {
-          resolve('https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=800&auto=format&fit=crop&q=80');
-          setTimeout(() => { try { URL.revokeObjectURL(objectUrl); } catch {} }, 5000);
+          finish('');
         };
+
+        // Fallback after 6s
         setTimeout(() => {
-          resolve('https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=800&auto=format&fit=crop&q=80');
-          setTimeout(() => { try { URL.revokeObjectURL(objectUrl); } catch {} }, 5000);
-        }, 3000);
+          if (!resolved) {
+            if (!captureFrame()) {
+              finish('');
+            }
+          }
+        }, 6000);
       } catch {
-        resolve('https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=800&auto=format&fit=crop&q=80');
+        resolve('');
       }
     });
   };
@@ -535,8 +556,21 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       if (isVideo) {
         setContentType('REEL');
         setThumbnailUrl(localUrl);
-        extractVideoThumbnail(file).then((thumb) => {
-          if (thumb) setThumbnailUrl(thumb);
+        extractVideoThumbnail(file).then(async (thumb) => {
+          if (thumb && thumb.startsWith('data:image/')) {
+            setThumbnailUrl(thumb);
+            try {
+              // Upload extracted video frame as thumbnail to backend so AI vision inspects the real creative frame
+              const thumbBlob = await (await fetch(thumb)).blob();
+              const thumbFile = new File([thumbBlob], `${file.name.replace(/\.[^/.]+$/, '')}_thumb.jpg`, { type: 'image/jpeg' });
+              const uploadedThumb = await api.uploadMedia(thumbFile);
+              if (uploadedThumb?.url) {
+                setThumbnailUrl(uploadedThumb.url);
+              }
+            } catch (err) {
+              console.warn('[CreatePostModal] Video thumbnail upload note:', err);
+            }
+          }
         });
       } else {
         setContentType('POST');
@@ -741,9 +775,24 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         : `${clientObj?.businessName || 'Brand'} spotlight & updates`);
 
       // Ensure visual media (image or video thumbnail frame) is forwarded to Multimodal Vision AI
-      const effectiveMediaForAi = (isVideoMedia(mediaUrl, contentType, uploadedFileName) && thumbnailUrl)
+      let effectiveMediaForAi = (isVideoMedia(mediaUrl, contentType, uploadedFileName) && thumbnailUrl)
         ? thumbnailUrl
         : (mediaUrl || undefined);
+
+      if (effectiveMediaForAi && effectiveMediaForAi.startsWith('blob:')) {
+        try {
+          const blobRes = await fetch(effectiveMediaForAi);
+          const blobData = await blobRes.blob();
+          if (blobData.type.startsWith('image/')) {
+            const reader = new FileReader();
+            const dataUrlPromise = new Promise<string>((res) => {
+              reader.onload = () => res(reader.result as string);
+              reader.readAsDataURL(blobData);
+            });
+            effectiveMediaForAi = await dataUrlPromise;
+          }
+        } catch { }
+      }
 
       const res = await api.generateAICaption({
         clientId: activeClientId || undefined,
@@ -771,9 +820,9 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       if (!capTags) capTags = clientDefaults.caption;
       if (!comTags) comTags = clientDefaults.comment;
 
-      // Common viral reach tags: 6 in caption, 5 in comment (100% guaranteed on every post)
-      const requiredViralCaption = ['#fyp', '#reach', '#reels', '#viral', '#trending', '#explore'];
-      const viralCapRoots = new Set(requiredViralCaption.map((t) => t.replace(/[^a-z0-9]/g, '')));
+      // Growth tags for caption (strictly 5 tags)
+      const requiredGrowthCaption = ['#growth', '#engagement', '#like', '#share', '#grow'];
+      const growthCapRoots = new Set(requiredGrowthCaption.map((t) => t.replace(/[^a-z0-9]/g, '')));
 
       const rawCapTags = capTags
         .split(/\s+/)
@@ -784,20 +833,21 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       const seenCapRoots = new Set<string>();
       for (const t of rawCapTags) {
         const root = t.toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (!viralCapRoots.has(root) && !seenCapRoots.has(root)) {
+        if (!growthCapRoots.has(root) && !seenCapRoots.has(root)) {
           nicheCapTags.push(t);
           seenCapRoots.add(root);
           if (nicheCapTags.length >= 5) break;
         }
       }
 
-      const finalCaptionTags = [...nicheCapTags, ...requiredViralCaption].join(' ');
+      const finalCaptionTags = [...nicheCapTags, ...requiredGrowthCaption].join(' ');
 
       const captionRoots = new Set(
         finalCaptionTags.toLowerCase().split(/\s+/).map((t) => t.replace(/[^a-z0-9]/g, ''))
       );
 
-      const requiredViralComment = ['#growth', '#engagement', '#like', '#share', '#grow'];
+      // Viral reach tags for first comment (#fyp #reach #reels #viral #trending #explore)
+      const requiredViralComment = ['#fyp', '#reach', '#reels', '#viral', '#trending', '#explore'];
       const viralComRoots = new Set(requiredViralComment.map((t) => t.replace(/[^a-z0-9]/g, '')));
 
       const rawComTags = comTags
@@ -812,7 +862,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         if (!captionRoots.has(root) && !viralComRoots.has(root) && !seenComRoots.has(root)) {
           nicheComTags.push(t);
           seenComRoots.add(root);
-          if (nicheComTags.length >= 5) break;
+          if (nicheComTags.length >= 6) break;
         }
       }
 
@@ -845,7 +895,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       if (clientObj?.website) contactItems.push(`🌐 ${clientObj.website}`);
       const contactSection = contactItems.length > 0 ? `\n\n${contactItems.join(' | ')}` : '';
 
-      const fallbackCaption = `✨ ${title || `${brandName} Showcase`}\n\nWe are committed to delivering the highest quality and value to our community. Connect with us to learn more! 🚀${contactSection}`;
+      const fallbackCaption = `${title || `${brandName} Showcase`}\n\nWe are committed to delivering premium-quality solutions and value to our community. Connect with us to learn more.${contactSection}`;
       const plat = (typeof targetPlatform === 'string' && targetPlatform) ? targetPlatform : (activePreviewPlatform || 'INSTAGRAM');
 
       const clientDefaults = getInitialClientTags(activeClientId);
@@ -881,9 +931,9 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       if (!capTags) capTags = defaults.caption;
       if (!comTags) comTags = defaults.comment;
 
-      // Common viral reach tags: 6 in caption, 5 in comment (100% guaranteed on every post)
-      const requiredViralCaption = ['#fyp', '#reach', '#reels', '#viral', '#trending', '#explore'];
-      const viralCapRoots = new Set(requiredViralCaption.map((t) => t.replace(/[^a-z0-9]/g, '')));
+      // Growth tags for caption (strictly 5 tags)
+      const requiredGrowthCaption = ['#growth', '#engagement', '#like', '#share', '#grow'];
+      const growthCapRoots = new Set(requiredGrowthCaption.map((t) => t.replace(/[^a-z0-9]/g, '')));
 
       const rawCapTags = capTags
         .split(/\s+/)
@@ -894,20 +944,21 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       const seenCapRoots = new Set<string>();
       for (const t of rawCapTags) {
         const root = t.toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (!viralCapRoots.has(root) && !seenCapRoots.has(root)) {
+        if (!growthCapRoots.has(root) && !seenCapRoots.has(root)) {
           nicheCapTags.push(t);
           seenCapRoots.add(root);
           if (nicheCapTags.length >= 5) break;
         }
       }
 
-      const finalCaptionTags = [...nicheCapTags, ...requiredViralCaption].join(' ');
+      const finalCaptionTags = [...nicheCapTags, ...requiredGrowthCaption].join(' ');
 
       const captionRoots = new Set(
         finalCaptionTags.toLowerCase().split(/\s+/).map((t) => t.replace(/[^a-z0-9]/g, ''))
       );
 
-      const requiredViralComment = ['#growth', '#engagement', '#like', '#share', '#grow'];
+      // Viral reach tags for first comment (#fyp #reach #reels #viral #trending #explore)
+      const requiredViralComment = ['#fyp', '#reach', '#reels', '#viral', '#trending', '#explore'];
       const viralComRoots = new Set(requiredViralComment.map((t) => t.replace(/[^a-z0-9]/g, '')));
 
       const rawComTags = comTags
@@ -922,7 +973,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         if (!captionRoots.has(root) && !viralComRoots.has(root) && !seenComRoots.has(root)) {
           nicheComTags.push(t);
           seenComRoots.add(root);
-          if (nicheComTags.length >= 5) break;
+          if (nicheComTags.length >= 6) break;
         }
       }
 
@@ -967,9 +1018,24 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         ? uploadedFileName.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ')
         : `${clientObj?.businessName || 'Brand'} spotlight & updates`);
 
-      const effectiveMediaForAi = (isVideoMedia(mediaUrl, contentType, uploadedFileName) && thumbnailUrl)
+      let effectiveMediaForAi = (isVideoMedia(mediaUrl, contentType, uploadedFileName) && thumbnailUrl)
         ? thumbnailUrl
         : (mediaUrl || undefined);
+
+      if (effectiveMediaForAi && effectiveMediaForAi.startsWith('blob:')) {
+        try {
+          const blobRes = await fetch(effectiveMediaForAi);
+          const blobData = await blobRes.blob();
+          if (blobData.type.startsWith('image/')) {
+            const reader = new FileReader();
+            const dataUrlPromise = new Promise<string>((res) => {
+              reader.onload = () => res(reader.result as string);
+              reader.readAsDataURL(blobData);
+            });
+            effectiveMediaForAi = await dataUrlPromise;
+          }
+        } catch { }
+      }
 
       const responses = await Promise.all(
         platformsToGen.map(async (plat) => {
@@ -1023,7 +1089,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     }
   };
 
-    const handleApplyBestTime = async () => {
+  const handleApplyBestTime = async () => {
     setIsLoadingBestTime(true);
     setBestTimeRationale(null);
     try {
@@ -1253,13 +1319,12 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         {/* Feedback Alert */}
         {statusMessage && (
           <div
-            className={`mx-6 mt-4 p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${
-              statusMessage.type === 'success'
+            className={`mx-6 mt-4 p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${statusMessage.type === 'success'
                 ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                 : statusMessage.type === 'info'
-                ? 'bg-blue-50 text-blue-800 border border-blue-200 animate-pulse'
-                : 'bg-rose-50 text-rose-800 border border-rose-200'
-            }`}
+                  ? 'bg-blue-50 text-blue-800 border border-blue-200 animate-pulse'
+                  : 'bg-rose-50 text-rose-800 border border-rose-200'
+              }`}
           >
             {statusMessage.type === 'success' ? (
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -1311,8 +1376,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                       type="button"
                       onClick={() => togglePlatform(pKey)}
                       className={`flex items-center gap-2 p-2.5 rounded-xl border text-xs font-semibold transition ${isSelected
-                          ? 'border-[#0172F4] bg-blue-50/60 text-[#0172F4] ring-1 ring-[#0172F4]'
-                          : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                        ? 'border-[#0172F4] bg-blue-50/60 text-[#0172F4] ring-1 ring-[#0172F4]'
+                        : 'border-gray-200 text-gray-600 hover:bg-gray-50'
                         }`}
                     >
                       <Icon className={`w-4 h-4 ${isSelected ? 'text-[#0172F4]' : item.color}`} />
@@ -1368,8 +1433,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   type="button"
                   onClick={() => setUploadSource('upload')}
                   className={`py-1.5 rounded-lg transition flex items-center justify-center gap-1.5 ${uploadSource === 'upload'
-                      ? 'bg-white text-[#0172F4] font-bold shadow-xs'
-                      : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-white text-[#0172F4] font-bold shadow-xs'
+                    : 'text-gray-600 hover:text-gray-900'
                     }`}
                 >
                   <UploadCloud className="w-3.5 h-3.5" />
@@ -1380,8 +1445,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   type="button"
                   onClick={() => setUploadSource('drive')}
                   className={`py-1.5 rounded-lg transition flex items-center justify-center gap-1.5 ${uploadSource === 'drive'
-                      ? 'bg-white text-[#0172F4] font-bold shadow-xs'
-                      : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-white text-[#0172F4] font-bold shadow-xs'
+                    : 'text-gray-600 hover:text-gray-900'
                     }`}
                 >
                   <HardDrive className="w-3.5 h-3.5" />
@@ -1392,8 +1457,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   type="button"
                   onClick={() => setUploadSource('url')}
                   className={`py-1.5 rounded-lg transition flex items-center justify-center gap-1.5 ${uploadSource === 'url'
-                      ? 'bg-white text-[#0172F4] font-bold shadow-xs'
-                      : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-white text-[#0172F4] font-bold shadow-xs'
+                    : 'text-gray-600 hover:text-gray-900'
                     }`}
                 >
                   <LinkIcon className="w-3.5 h-3.5" />
@@ -1404,8 +1469,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   type="button"
                   onClick={() => setUploadSource('sample')}
                   className={`py-1.5 rounded-lg transition flex items-center justify-center gap-1.5 ${uploadSource === 'sample'
-                      ? 'bg-white text-[#0172F4] font-bold shadow-xs'
-                      : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-white text-[#0172F4] font-bold shadow-xs'
+                    : 'text-gray-600 hover:text-gray-900'
                     }`}
                 >
                   <ImageIcon className="w-3.5 h-3.5" />
@@ -1489,11 +1554,10 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                             <div
                               key={idx}
                               onClick={() => setActiveCarouselSlide(idx)}
-                              className={`group relative rounded-xl border-2 overflow-hidden bg-white cursor-pointer transition flex flex-col ${
-                                isActive
+                              className={`group relative rounded-xl border-2 overflow-hidden bg-white cursor-pointer transition flex flex-col ${isActive
                                   ? 'border-[#0172F4] shadow-sm ring-2 ring-[#0172F4]/20'
                                   : 'border-gray-200 hover:border-gray-300'
-                              }`}
+                                }`}
                             >
                               <div className="aspect-square w-full bg-slate-900 relative overflow-hidden">
                                 <img
@@ -1784,8 +1848,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                         }
                       }}
                       className={`p-2 rounded-lg border cursor-pointer transition flex items-center gap-2 ${mediaUrl === item.url
-                          ? 'border-[#0172F4] bg-blue-50/60 ring-1 ring-[#0172F4]'
-                          : 'border-gray-200 bg-white hover:bg-gray-50'
+                        ? 'border-[#0172F4] bg-blue-50/60 ring-1 ring-[#0172F4]'
+                        : 'border-gray-200 bg-white hover:bg-gray-50'
                         }`}
                     >
                       <div className="relative w-10 h-10 rounded-md overflow-hidden border border-gray-200 shrink-0 bg-gray-900 flex items-center justify-center">
@@ -1816,28 +1880,26 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
             {/* AI Graphic Brand & Contact Safety Verification Banner */}
             {!isVideoMedia(displayMediaUrl, contentType, uploadedFileName) && displayMediaUrl && (
               <div
-                className={`p-3.5 rounded-xl border transition-all ${
-                  isAuditing
+                className={`p-3.5 rounded-xl border transition-all ${isAuditing
                     ? 'bg-blue-50/70 border-blue-200'
                     : auditResult?.isValid
-                    ? 'bg-emerald-50/80 border-emerald-300'
-                    : auditResult && !auditResult.isValid
-                    ? 'bg-rose-50 border-rose-300 ring-1 ring-rose-200 shadow-xs'
-                    : 'bg-gray-50 border-gray-200'
-                }`}
+                      ? 'bg-emerald-50/80 border-emerald-300'
+                      : auditResult && !auditResult.isValid
+                        ? 'bg-rose-50 border-rose-300 ring-1 ring-rose-200 shadow-xs'
+                        : 'bg-gray-50 border-gray-200'
+                  }`}
               >
                 <div className="flex items-start justify-between gap-2.5">
                   <div className="flex items-start gap-2.5">
                     <div
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-                        isAuditing
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${isAuditing
                           ? 'bg-blue-600 text-white animate-pulse'
                           : auditResult?.isValid
-                          ? 'bg-emerald-600 text-white'
-                          : auditResult && !auditResult.isValid
-                          ? 'bg-rose-600 text-white animate-bounce'
-                          : 'bg-gray-400 text-white'
-                      }`}
+                            ? 'bg-emerald-600 text-white'
+                            : auditResult && !auditResult.isValid
+                              ? 'bg-rose-600 text-white animate-bounce'
+                              : 'bg-gray-400 text-white'
+                        }`}
                     >
                       {isAuditing ? (
                         <RefreshCw className="w-4 h-4 animate-spin" />
@@ -1856,10 +1918,10 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                           {isAuditing
                             ? 'AI Vision Graphic Inspection (Verifying...)'
                             : auditResult?.isValid
-                            ? '✅ Graphic Verified (Client Details Match)'
-                            : auditResult && !auditResult.isValid
-                            ? '🚫 Verification Alert: Graphic Discrepancy Detected'
-                            : 'AI Graphic Safety Check'}
+                              ? '✅ Graphic Verified (Client Details Match)'
+                              : auditResult && !auditResult.isValid
+                                ? '🚫 Verification Alert: Graphic Discrepancy Detected'
+                                : 'AI Graphic Safety Check'}
                         </h4>
                         {auditResult?.isValid && (
                           <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
@@ -1877,10 +1939,10 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                         {isAuditing
                           ? 'Verifying brand name, phone number, and address against client profile...'
                           : auditResult?.isValid
-                          ? `Brand name and contact details in graphic match client (${clients.find(c => c.id === getEffectiveClientId())?.businessName}).`
-                          : auditResult && !auditResult.isValid
-                          ? auditResult.blockReason
-                          : 'AI will automatically verify graphic details upon upload.'}
+                            ? `Brand name and contact details in graphic match client (${clients.find(c => c.id === getEffectiveClientId())?.businessName}).`
+                            : auditResult && !auditResult.isValid
+                              ? auditResult.blockReason
+                              : 'AI will automatically verify graphic details upon upload.'}
                       </p>
 
                       {/* Details / Issues */}
@@ -1988,7 +2050,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                     title={`Generate tailored caption for ${platformIcons[activePreviewPlatform]?.name || activePreviewPlatform}`}
                   >
                     <Sparkles className={`w-3.5 h-3.5 ${isAiGenerating ? 'animate-spin' : ''}`} />
-                    <span>{isAiGenerating ? 'Writing...' : `✨ AI Write (${platformIcons[activePreviewPlatform]?.name || activePreviewPlatform})`}</span>
+                    <span>{isAiGenerating ? 'Writing...' : `✨ Write  Caption(${platformIcons[activePreviewPlatform]?.name || activePreviewPlatform})`}</span>
                   </button>
 
                   <button
@@ -1999,7 +2061,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                     title="Generate unique, custom-tailored captions for every selected platform simultaneously"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>⚡ AI Auto-Write All Channels</span>
+                    <span>⚡Auto-Write All Channels</span>
                   </button>
                 </div>
               </div>
@@ -2021,11 +2083,10 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                         if (platformCaptions[pKey]) setCaption(platformCaptions[pKey]);
                         if (platformHashtags[pKey] !== undefined) setHashtags(platformHashtags[pKey]);
                       }}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition shrink-0 cursor-pointer ${
-                        isActive
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition shrink-0 cursor-pointer ${isActive
                           ? 'bg-[#0172F4] text-white shadow-xs'
                           : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
+                        }`}
                     >
                       <Icon className="w-3.5 h-3.5" />
                       <span>{item?.name || pKey}</span>
@@ -2165,7 +2226,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                     title="Auto-select the highest view & reach time slot recommended by AI for this client"
                   >
                     <Sparkles className={`w-3.5 h-3.5 ${isLoadingBestTime ? 'animate-spin' : ''}`} />
-                    <span>{isLoadingBestTime ? 'Calculating...' : '✨ Apply AI Best Time'}</span>
+                    <span>{isLoadingBestTime ? 'Calculating...' : '✨ Apply Best Time'}</span>
                   </button>
 
                   <button
@@ -2189,7 +2250,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 <div className="p-2.5 bg-gradient-to-r from-amber-50 to-pink-50 border border-amber-200 rounded-lg text-[11px] text-amber-900 flex items-start gap-2 shadow-2xs">
                   <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                   <div className="leading-relaxed">
-                    <span className="font-bold block text-pink-900">AI Viral Timing Selected</span>
+                    <span className="font-bold block text-pink-900"> Viral Timing Selected</span>
                     <span>{bestTimeRationale}</span>
                   </div>
                 </div>
@@ -2490,11 +2551,10 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                               {mediaUrls.map((_, idx) => (
                                 <span
                                   key={idx}
-                                  className={`h-1.5 rounded-full transition-all duration-200 ${
-                                    idx === activeCarouselSlide
+                                  className={`h-1.5 rounded-full transition-all duration-200 ${idx === activeCarouselSlide
                                       ? 'w-4 bg-[#0172F4] shadow-xs'
                                       : 'w-1.5 bg-black/35 backdrop-blur-xs'
-                                  }`}
+                                    }`}
                                 />
                               ))}
                             </div>
@@ -2594,11 +2654,10 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
               type="button"
               disabled={isSubmitting}
               onClick={() => handleSubmit('SCHEDULE')}
-              className={`px-4 py-2 text-xs font-semibold rounded-lg transition flex items-center gap-1.5 cursor-pointer ${
-                auditResult && !auditResult.isValid && !adminOverride
+              className={`px-4 py-2 text-xs font-semibold rounded-lg transition flex items-center gap-1.5 cursor-pointer ${auditResult && !auditResult.isValid && !adminOverride
                   ? 'border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-700'
                   : 'border border-blue-200 bg-blue-50 hover:bg-blue-100 text-[#0172F4]'
-              }`}
+                }`}
             >
               {auditResult && !auditResult.isValid && !adminOverride ? (
                 <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
@@ -2612,11 +2671,10 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
               type="button"
               disabled={isSubmitting}
               onClick={() => handleSubmit('PUBLISH')}
-              className={`px-4 py-2 text-xs font-semibold rounded-lg transition flex items-center gap-1.5 shadow-xs cursor-pointer ${
-                auditResult && !auditResult.isValid && !adminOverride
+              className={`px-4 py-2 text-xs font-semibold rounded-lg transition flex items-center gap-1.5 shadow-xs cursor-pointer ${auditResult && !auditResult.isValid && !adminOverride
                   ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-500/20'
                   : 'bg-[#0172F4] hover:bg-[#005cd3] text-white shadow-blue-500/20'
-              }`}
+                }`}
             >
               {auditResult && !auditResult.isValid && !adminOverride ? (
                 <ShieldAlert className="w-3.5 h-3.5" />

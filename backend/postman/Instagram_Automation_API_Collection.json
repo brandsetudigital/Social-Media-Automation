@@ -1,0 +1,431 @@
+{
+  "info": {
+    "_postman_id": "b7899b24-411a-4c28-971c- brandsetu-ig-automation",
+    "name": "Instagram Social Media Automation API Engine",
+    "description": "Comprehensive Postman collection for the AI-Powered Instagram Social Media Automation System (Phases 1-12).\nCovers Captions, Hashtags, Content Ideas, AI Comparison, Brand Voice Refinement, Quality Evaluation, Vision AI, History & Usage, Instagram Graph API Publishing, and Automated Scheduling.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000",
+      "type": "string"
+    },
+    {
+      "key": "authToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "clientId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. AI Content Generation",
+      "item": [
+        {
+          "name": "Generate 3 Caption Variations",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"topic\": \"Modern Minimalist Interior Design for Studio Apartments\",\n  \"brandName\": \"StudioAura\",\n  \"targetAudience\": \"Urban renters and young professionals aged 22-35\",\n  \"tone\": \"relatable\",\n  \"ctaType\": \"save\",\n  \"keywords\": [\"space saving\", \"neutral aesthetic\", \"smart furniture\"],\n  \"provider\": \"gemini\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/instagram/captions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "instagram", "captions"]
+            },
+            "description": "Generates 3 distinct caption variations (Story, Punchy, Educational) with hooks, bodies, and organic CTAs."
+          }
+        },
+        {
+          "name": "Generate Categorized Hashtags",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"topic\": \"Specialty Artisanal Pour Over Coffee Brewing\",\n  \"brandNiche\": \"Specialty Coffee Cafe\",\n  \"count\": 12,\n  \"provider\": \"gemini\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/instagram/hashtags",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "instagram", "hashtags"]
+            },
+            "description": "Generates 5-15 relevant, non-spam hashtags categorized into niche, audience, and topic."
+          }
+        },
+        {
+          "name": "Generate Content Ideas (Post, Carousel, Reel)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"theme\": \"Daily Skincare Habits for Glowing Skin\",\n  \"brandNiche\": \"Clean Organic Skincare\",\n  \"targetAudience\": \"Women 20-40 interested in clean beauty\",\n  \"count\": 5,\n  \"provider\": \"gemini\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/instagram/ideas",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "instagram", "ideas"]
+            },
+            "description": "Generates creative post concepts across feed posts, carousels (with slide breakdowns), and reels."
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Multi-Provider AI Comparison",
+      "item": [
+        {
+          "name": "Compare Providers Side-by-Side (OpenAI, Claude, Gemini, Groq)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"topic\": \"Why 10,000 steps a day transforms energy and mental clarity\",\n  \"brandName\": \"PeakVitality\",\n  \"targetAudience\": \"Busy desk workers\",\n  \"tone\": \"inspirational\",\n  \"ctaType\": \"comment\",\n  \"providers\": [\"gemini\", \"groq\", \"openai\", \"anthropic\"],\n  \"timeoutMs\": 30000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/instagram/compare",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "instagram", "compare"]
+            },
+            "description": "Concurrent execution across all 4 LLMs for the same topic. Reports latency, token counts, cost estimate, and responses."
+          }
+        },
+        {
+          "name": "Get Comparison History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/instagram/comparisons?limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "instagram", "comparisons"],
+              "query": [{ "key": "limit", "value": "10" }]
+            },
+            "description": "Retrieves past multi-provider comparison benchmark runs."
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Brand Voice & Refinement",
+      "item": [
+        {
+          "name": "Save Brand Voice Profile",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"brandName\": \"UrbanKicks\",\n  \"industry\": \"Streetwear & Sneakers\",\n  \"targetAudience\": \"Sneakerheads & Gen-Z fashion enthusiasts\",\n  \"writingTone\": \"bold\",\n  \"preferredVocabulary\": [\"drop\", \"silhouette\", \"rotation\", \"heat\", \"clean\"],\n  \"wordsToAvoid\": [\"delve\", \"game-changer\", \"unleash\", \"cutting-edge\"],\n  \"emojiPreference\": \"minimal\",\n  \"ctaStyle\": \"comment\",\n  \"captionLength\": \"medium\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/instagram/brand-voice",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "instagram", "brand-voice"]
+            },
+            "description": "Persists brand voice settings (vocabulary, words to avoid, tone, emoji preference)."
+          }
+        },
+        {
+          "name": "Get Brand Voice Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/instagram/brand-voice/UrbanKicks",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "instagram", "brand-voice", "UrbanKicks"]
+            },
+            "description": "Fetches a saved brand voice configuration by brand name or clientId."
+          }
+        },
+        {
+          "name": "Refine & Rewrite Caption with Brand Voice",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rawCaption\": \"Delve into our game-changing cutting-edge sneakers that will unleash your ultimate style potential! Buy now!\",\n  \"brandName\": \"UrbanKicks\",\n  \"improvementGoal\": \"Make it sound authentic and conversational, remove buzzwords\",\n  \"provider\": \"gemini\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/instagram/refine",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "instagram", "refine"]
+            },
+            "description": "Purges repetitive AI buzzwords and rewrites captions naturally according to brand guidelines."
+          }
+        },
+        {
+          "name": "Evaluate Content Quality (AI Multi-Factor)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"caption\": \"Weekend rotations just got cleaner. The all-white low tops are back in stock for a limited drop.\\n\\nWhich pair is in your daily rotation? Drop a comment below!\",\n  \"topic\": \"Sneaker restock announcement\",\n  \"brandName\": \"UrbanKicks\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/instagram/evaluate",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "instagram", "evaluate"]
+            },
+            "description": "Evaluates content across 6 pillars: natural language, originality, brand voice, grammar, hook strength, CTA quality."
+          }
+        },
+        {
+          "name": "Submit Human User Rating & Feedback",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"caption\": \"Weekend rotations just got cleaner. The all-white low tops are back in stock for a limited drop.\",\n  \"rating\": 5,\n  \"feedbackNotes\": \"Perfect tone, matched the sneaker community vocabulary exactly!\",\n  \"likedAspects\": [\"Conversational\", \"Community slang\", \"Strong hook\"],\n  \"dislikedAspects\": [],\n  \"provider\": \"gemini\",\n  \"modelId\": \"gemini-3.5-flash-lite\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/instagram/feedback",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "instagram", "feedback"]
+            },
+            "description": "Stores human star rating (1-5) and feedback for reinforcement."
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Vision AI (Multimodal Image Analysis)",
+      "item": [
+        {
+          "name": "Generate Caption from Image URL",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"imageUrl\": \"https://images.unsplash.com/photo-1517248135467-4c7edcad34c4\",\n  \"contextHint\": \"Cozy restaurant interior with warm ambient lighting during dinner service\",\n  \"brandName\": \"Bistro Lumiere\",\n  \"tone\": \"friendly\",\n  \"ctaType\": \"save\",\n  \"provider\": \"gemini\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/instagram/vision/caption",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "instagram", "vision", "caption"]
+            },
+            "description": "Analyzes visible context in an image and generates grounded, non-hallucinated captions and hashtags."
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Content History & API Usage",
+      "item": [
+        {
+          "name": "Get Paginated Content History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/instagram/history?page=1&limit=20&contentType=ALL&status=ALL",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "instagram", "history"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "contentType", "value": "ALL" },
+                { "key": "status", "value": "ALL" }
+              ]
+            },
+            "description": "Lists generated content with filters by client, type, provider, or workflow status."
+          }
+        },
+        {
+          "name": "Update Content Status (Workflow Transition)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"APPROVED\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/instagram/history/{{contentId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "instagram", "history", "{{contentId}}", "status"]
+            },
+            "description": "Transitions content workflow state: DRAFT -> APPROVED / SCHEDULED / ARCHIVED."
+          }
+        },
+        {
+          "name": "Get Aggregated API Usage & Cost Summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/instagram/usage-stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "instagram", "usage-stats"]
+            },
+            "description": "Returns total tokens, costs in USD, request counts, and latencies grouped overall and by provider."
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Instagram Graph API Publishing",
+      "item": [
+        {
+          "name": "Connect Instagram Professional Account",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": \"{{clientId}}\",\n  \"accountId\": \"17841400012345678\",\n  \"accountName\": \"@yourbrand (Official)\",\n  \"accessToken\": \"EAAB...\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/instagram/accounts/connect",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "instagram", "accounts", "connect"]
+            },
+            "description": "Maps an Instagram Professional account to a client with 60-day token lifecycle."
+          }
+        },
+        {
+          "name": "Get Connected Instagram Accounts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/instagram/accounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "instagram", "accounts"]
+            },
+            "description": "Lists connected Instagram accounts with client details."
+          }
+        },
+        {
+          "name": "Publish Photo Post",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": \"{{clientId}}\",\n  \"imageUrl\": \"https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe\",\n  \"caption\": \"Creative studio mornings ✨ Aesthetic workspace inspiration.\\n\\nSave this for your dream desk setup!\",\n  \"firstComment\": \"#OfficeAesthetics #DeskGoals #CreativeLife\",\n  \"isApproved\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/instagram/publish/image",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "instagram", "publish", "image"]
+            },
+            "description": "Publishes a photo post to Instagram Graph API with automated first-comment hashtags."
+          }
+        },
+        {
+          "name": "Publish Reel Post",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": \"{{clientId}}\",\n  \"videoUrl\": \"https://assets.mixkit.co/videos/preview/mixkit-working-on-laptop-in-a-coffee-shop-40243-large.mp4\",\n  \"caption\": \"Behind the scenes 🎥 Building our new design system.\\n\\nDrop a comment if you want a walkthrough!\",\n  \"shareToFeed\": true,\n  \"firstComment\": \"#ReelsViral #DesignProcess #TechLife\",\n  \"isApproved\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/instagram/publish/reel",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "instagram", "publish", "reel"]
+            },
+            "description": "Publishes a Reel (video) with resumable container processing to Instagram."
+          }
+        },
+        {
+          "name": "Publish Carousel Post",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": \"{{clientId}}\",\n  \"mediaUrls\": [\n    \"https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe\",\n    \"https://images.unsplash.com/photo-1513542789411-b6a5d4f31634\"\n  ],\n  \"caption\": \"Swipe to see how we transformed this studio space ➡️\\n\\nWhich vibe do you prefer? 1 or 2?\",\n  \"firstComment\": \"#CarouselDesign #InteriorMakeover\",\n  \"isApproved\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/instagram/publish/carousel",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "instagram", "publish", "carousel"]
+            },
+            "description": "Publishes a multi-slide carousel to Instagram."
+          }
+        },
+        {
+          "name": "Schedule Post for Future",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": \"{{clientId}}\",\n  \"mediaUrl\": \"https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe\",\n  \"caption\": \"Scheduled automated post! 🚀\",\n  \"contentType\": \"POST\",\n  \"scheduledAt\": \"2026-11-25T18:30:00.000Z\",\n  \"firstComment\": \"#ScheduledContent #Automation\",\n  \"isApproved\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/instagram/schedule",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "instagram", "schedule"]
+            },
+            "description": "Creates a scheduled post record dispatched automatically by the background cron worker."
+          }
+        },
+        {
+          "name": "Get Publishing History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/instagram/history?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "instagram", "history"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            },
+            "description": "Retrieves logs of live and scheduled Instagram publish operations."
+          }
+        }
+      ]
+    }
+  ]
+}

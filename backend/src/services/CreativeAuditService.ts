@@ -275,11 +275,10 @@ Return ONLY a valid JSON object matching:
 
     // Try reliable Gemini Flash models with fallback
     const candidateModels = [
+      'gemini-3.5-flash-lite',
+      'gemini-3.5-flash',
       'gemini-flash-lite-latest',
       'gemini-3.1-flash-lite',
-      'gemini-3.5-flash-lite',
-      'gemini-3-flash-preview',
-      'gemini-flash-latest',
     ];
 
     for (const model of candidateModels) {

@@ -62,7 +62,7 @@ Return ONLY the final reply text without quotes or preamble.`;
 
     // Try Gemini if available
     if (geminiKey) {
-      const candidateModels = ['gemini-2.5-flash-lite', 'gemini-flash-latest'];
+      const candidateModels = ['gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-flash-lite-latest'];
       for (const modelName of candidateModels) {
         try {
           const controller = new AbortController();

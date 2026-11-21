@@ -34,3 +34,6 @@ backend/uploads/*
 !backend/uploads/*IMG_20260903_185913_369*
 !backend/uploads/*4574bc99*
 !backend/uploads/*3A020E35*
+backend/uploads/*.mp4
+backend/uploads/*.MP4
+!backend/uploads/sample_reel.mp4

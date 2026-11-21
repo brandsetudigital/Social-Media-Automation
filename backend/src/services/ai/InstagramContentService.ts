@@ -1,4 +1,5 @@
 import { aiFactory } from './AIFactory';
+import { contentHistoryService } from './ContentHistoryService';
 import {
   buildCaptionPrompt,
   buildContentIdeasPrompt,
@@ -131,6 +132,7 @@ export class InstagramContentService {
       brandName: input.brandName,
       targetAudience: input.targetAudience,
       tone: input.tone,
+      postPurpose: (input as any).postPurpose,
       ctaType: input.ctaType,
       keywords: input.keywords,
     });
@@ -165,6 +167,34 @@ export class InstagramContentService {
         ],
       };
     }
+
+    const firstVar = (parsed.variations && parsed.variations[0]) || {
+      hook: '',
+      body: aiResult.rawText,
+      callToAction: '',
+    };
+
+    // Auto-persist in database in background
+    contentHistoryService
+      .saveGeneratedContent({
+        clientId: (input as any).clientId,
+        topic: input.topic,
+        contentType: 'CAPTION',
+        provider: aiResult.provider,
+        modelId: aiResult.modelId,
+        hook: firstVar.hook,
+        caption: firstVar.fullCaption || firstVar.body,
+        callToAction: firstVar.callToAction,
+        variationsJson: JSON.stringify(parsed.variations || []),
+        inputTokens: aiResult.inputTokens,
+        outputTokens: aiResult.outputTokens,
+        totalTokens: aiResult.totalTokens,
+        latencyMs: aiResult.latencyMs,
+        costUSD: aiResult.costUSD,
+        usedFallback: aiResult.usedFallback || false,
+        status: 'DRAFT',
+      })
+      .catch((err) => console.warn('[InstagramContentService AutoPersist Warning]:', err.message));
 
     return {
       topic: parsed.topic || input.topic,
@@ -235,6 +265,34 @@ export class InstagramContentService {
     const allHashtags = (parsed.allHashtags || []).map((t: string) =>
       t.startsWith('#') ? t : `#${t}`
     );
+
+    const firstVar = (parsed.variations && parsed.variations[0]) || {
+      hook: '',
+      body: aiResult.rawText,
+      callToAction: '',
+    };
+
+    // Auto-persist in database in background
+    contentHistoryService
+      .saveGeneratedContent({
+        clientId: (input as any).clientId,
+        topic: input.topic,
+        contentType: 'CAPTION',
+        provider: aiResult.provider,
+        modelId: aiResult.modelId,
+        hook: firstVar.hook,
+        caption: firstVar.fullCaption || firstVar.body,
+        callToAction: firstVar.callToAction,
+        variationsJson: JSON.stringify(parsed.variations || []),
+        inputTokens: aiResult.inputTokens,
+        outputTokens: aiResult.outputTokens,
+        totalTokens: aiResult.totalTokens,
+        latencyMs: aiResult.latencyMs,
+        costUSD: aiResult.costUSD,
+        usedFallback: aiResult.usedFallback || false,
+        status: 'DRAFT',
+      })
+      .catch((err) => console.warn('[InstagramContentService AutoPersist Warning]:', err.message));
 
     return {
       topic: parsed.topic || input.topic,

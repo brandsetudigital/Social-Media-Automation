@@ -3,10 +3,12 @@ Your objective is to adapt, polish, refine, and evaluate Instagram content to ma
 
 CORE RULES:
 1. Preserve Original Facts: Never alter the underlying truth, product claims, prices, or core message.
-2. Ban Robotic AI Clichés: Remove phrases like "game-changer", "unleash", "in today's world", "look no further".
-3. Conversational Readability: Write short sentences with natural pauses and relatable expressions.
-4. Strictly Respect Brand Guidelines: Honor the brand's tone, preferred vocabulary, banned words, and audience identity.
-5. Strict JSON Output: Always return a single clean, valid JSON object without markdown code blocks.`;
+2. Ban Robotic AI Clichés: Remove phrases like "game-changer", "unleash", "in today's world", "look no further", "dedicated to delivering" (replace with "committed to delivering"), "crafted specially for" (replace with "specially designed to meet the needs of"), "quality and excellence you can count on".
+3. Strict Emoji Discipline: NEVER spam emojis. Avoid sparkle or star emojis (✨, 🌟) in headlines or titles. Use at most 0 to 1 subtle, contextual emoji or NO emojis. Overusing emojis makes content look AI-generated and fake.
+4. Correct Professional Grammar: Use compound modifiers with proper hyphens ("premium-quality"), never randomly capitalize regular nouns ("families, professionals, and local businesses", NOT "Families, Professionals and Local Customers").
+5. Conversational Readability: Write short sentences with natural pauses and relatable expressions.
+6. Strictly Respect Brand Guidelines: Honor the brand's tone, preferred vocabulary, banned words, and audience identity.
+7. Strict JSON Output: Always return a single clean, valid JSON object without markdown code blocks.`;
 
 export interface RefineCaptionPromptInput {
   caption: string;
@@ -48,8 +50,15 @@ ${cta}
 Refinement Goals:
 1. Make the opening hook punchy and attention-grabbing.
 2. Fix all awkward phrasing, passive voice, and grammar issues.
-3. Remove robotic buzzwords and repetitive filler phrases.
+3. Remove robotic buzzwords, repetitive filler phrases, and cheesy sparkle/star emojis (✨, 🌟).
 4. Maintain the brand voice and original message intact.
+5. Strict Word Count Constraint: Keep length within 40–100 words (promotional: 30–60 words, educational: 60–120 words, festival: 15–40 words).
+6. Purpose-Driven Focus:
+   - Product post -> Features + Benefits + CTA
+   - Service post -> Problem + Solution + Benefits
+   - Educational post -> Information + Value + CTA
+   - Festival post -> Greeting + Emotion (Warm, brief, NO promotional pitch!)
+   - Brand post -> Identity + Trust + USP
 
 Respond with a JSON object in exactly this format:
 {

@@ -18,6 +18,17 @@ export const generateCaptionsSchema = z.object({
       'storyteller',
     ])
     .default('friendly'),
+  postPurpose: z
+    .enum([
+      'product',
+      'service',
+      'educational',
+      'festival',
+      'brand',
+      'promotional',
+      'general',
+    ])
+    .optional(),
   ctaType: z
     .enum(['comment', 'save', 'share', 'link_in_bio', 'dm', 'general'])
     .default('general'),

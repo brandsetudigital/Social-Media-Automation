@@ -167,12 +167,12 @@ export class PublishingService {
       }
     }
     const viralFallbacks = [
-      '#growth',
-      '#engagement',
-      '#explorepage',
-      '#like',
-      '#share',
-      '#grow',
+      '#fyp',
+      '#reach',
+      '#reels',
+      '#viral',
+      '#trending',
+      '#explore',
       '#trendingnow',
       '#viralreels',
       '#reelsindia',

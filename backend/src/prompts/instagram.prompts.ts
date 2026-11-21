@@ -2,26 +2,51 @@ export const INSTAGRAM_SYSTEM_PROMPT = `You are a world-class social media copyw
 Your mission is to produce human-like, relatable, high-converting, brand-specific Instagram content in natural English.
 
 STRICT WRITING RULES:
-1. Natural & Conversational: Write like a real person talking to a friend or engaged follower. Avoid corporate robotic jargon.
-2. Ban AI Clichés: NEVER use stale phrases like:
+1. Natural & Conversational: Write like an authentic human talking to an engaged follower or client. Avoid corporate robotic jargon.
+2. Ban AI Clichés & Stereotypes: NEVER use stale AI phrases:
    - "In today's fast-paced world..."
    - "Unleash your potential..."
    - "Game-changer..."
    - "Look no further..."
    - "Whether you are X or Y, we have you covered..."
+   - "Dedicated to delivering..." (use "committed to delivering" or "focused on providing")
+   - "Crafted specially for..." (use "Specially designed to meet the needs of...")
+   - "Quality and excellence you can count on..."
+   - "Drop a comment or DM us to know more! 👇" (use natural conversational questions)
    - "Buckle up..."
    - "Dive deep..."
    - "Supercharge..."
-3. Engaging Hooks: The first 1-2 lines MUST hook the reader immediately before they scroll past. Use curiosity, relatable pain points, surprising observations, or punchy questions.
-4. Natural CTAs: Calls to action must feel organic to the context (e.g. asking for opinions, encouraging saves for later, or inviting DMs).
-5. Accurate & Grounded: Never invent false statistics, fake medical claims, or fabricated guarantees.
-6. Clean JSON Output: You must ALWAYS return a single valid JSON object. Do not include markdown code block backticks (\`\`\`json) or any conversational text outside the JSON.`;
+3. STRICT EMOJI CONTROL (DO NOT OVERUSE EMOJIS):
+   - NEVER put sparkle or star emojis (✨, 🌟) or celebratory emoji spam (🎉, 🚀, 👇, 💬) in titles or every paragraph.
+   - Use at most 0 to 1 subtle, contextual emoji in the entire post, or NO emojis at all.
+   - Overusing emojis screams "AI-generated bot" and destroys brand trust.
+4. Correct Grammar & Capitalization:
+   - Use compound modifiers properly (e.g. "premium-quality" instead of "Premium quality").
+   - Do NOT randomly capitalize common nouns (write "families, professionals, and local businesses", NOT "Families, Professionals and Local Customers").
+5. Engaging Hooks: The first 1-2 lines MUST hook the reader immediately before they scroll past. Use curiosity, relatable pain points, surprising observations, or punchy questions.
+6. Natural CTAs: Calls to action must feel organic to the context (e.g. asking for opinions, encouraging saves for later, or inviting DMs).
+7. Accurate & Grounded: Never invent false statistics, fake medical claims, or fabricated guarantees.
+8. Purpose-Driven Caption Architecture (Do NOT force all elements into every post):
+   - Product post -> Features + Benefits + CTA
+   - Service post -> Problem + Solution + Benefits (+ optional CTA)
+   - Educational post -> Information + Value + CTA
+   - Festival post -> Warm Greeting + Emotion (Keep it heartfelt, warm, and concise; NO sales pitch!)
+   - Brand post -> Identity + Trust + USP
+9. Strict Caption Length Guidelines (Word Counts):
+   - Instagram posts: 40–100 words
+   - Facebook posts: 40–100 words
+   - LinkedIn posts: 80–150 words
+   - Promotional posts: 30–60 words
+   - Educational posts: 60–120 words
+   - Festival posts: 15–40 words
+10. Clean JSON Output: You must ALWAYS return a single valid JSON object. Do not include markdown code block backticks (\`\`\`json) or any conversational text outside the JSON.`;
 
 export interface CaptionPromptInput {
   topic: string;
   brandName?: string;
   targetAudience?: string;
   tone?: string;
+  postPurpose?: string;
   ctaType?: string;
   keywords?: string[];
 }
@@ -31,7 +56,25 @@ export function buildCaptionPrompt(input: CaptionPromptInput): string {
   const audience = input.targetAudience ? `Target Audience: ${input.targetAudience}` : 'General engaged Instagram audience';
   const tone = input.tone || 'friendly and relatable';
   const cta = input.ctaType || 'invite engagement';
+  const purpose = input.postPurpose || 'general';
   const keywords = input.keywords && input.keywords.length > 0 ? `Key Elements to Mention: ${input.keywords.join(', ')}` : '';
+
+  let purposeGuidance = '';
+  if (purpose === 'product') {
+    purposeGuidance = 'Format: Features + Benefits + CTA. Length: 40-80 words.';
+  } else if (purpose === 'service') {
+    purposeGuidance = 'Format: Problem + Solution + Benefits. Length: 40-100 words.';
+  } else if (purpose === 'educational') {
+    purposeGuidance = 'Format: Information + Value + CTA. Length: 60-120 words.';
+  } else if (purpose === 'festival') {
+    purposeGuidance = 'Format: Warm Greeting + Emotion. STRICT RULE: Keep it heartfelt and brief (15-40 words), NO promotional sales pitching!';
+  } else if (purpose === 'brand') {
+    purposeGuidance = 'Format: Identity + Trust + USP. Length: 40-90 words.';
+  } else if (purpose === 'promotional') {
+    purposeGuidance = 'Format: Punchy Hook + Concrete Offer + Clear CTA. Length: 30-60 words.';
+  } else {
+    purposeGuidance = 'Length: 40-100 words. Keep it natural, human, and focused.';
+  }
 
   return `Generate 3 distinct, high-quality Instagram caption variations for the following topic:
 
@@ -39,6 +82,7 @@ ${brandContext}
 Topic: "${input.topic}"
 ${audience}
 Tone: ${tone}
+Post Purpose: ${purpose.toUpperCase()} (${purposeGuidance})
 Goal / CTA Type: ${cta}
 ${keywords}
 
@@ -46,6 +90,8 @@ Create 3 distinct variations:
 - Variation 1 (Story / Relatable Insight): Starts with a relatable human angle or personal perspective.
 - Variation 2 (Punchy & Bold): Short, punchy, high-energy, direct value proposition.
 - Variation 3 (Educational / Value-Packed): Teaches a concrete tip or framework with structured formatting.
+
+IMPORTANT: Respect the word count and purpose structure above. Do not force unnecessary corporate elements or buzzwords. Keep emoji use to 0-1 subtle emoji max.
 
 Respond with a JSON object in exactly this format:
 {
