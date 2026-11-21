@@ -3,10 +3,13 @@ import { SupportedAIProvider } from '../../../config/ai.config';
 export interface AIGenerationOptions {
   prompt: string;
   systemPrompt?: string;
+  provider?: SupportedAIProvider;
   modelId?: string;
   temperature?: number;
   maxTokens?: number;
   timeoutMs?: number;
+  fallbackChain?: SupportedAIProvider[];
+  allowFallback?: boolean;
 }
 
 export interface AIVisionOptions {
@@ -14,10 +17,13 @@ export interface AIVisionOptions {
   systemPrompt?: string;
   imageBase64: string;
   mimeType?: string;
+  provider?: SupportedAIProvider;
   modelId?: string;
   temperature?: number;
   maxTokens?: number;
   timeoutMs?: number;
+  fallbackChain?: SupportedAIProvider[];
+  allowFallback?: boolean;
 }
 
 export interface AIGenerationResult {
@@ -29,6 +35,9 @@ export interface AIGenerationResult {
   totalTokens: number;
   latencyMs: number;
   costUSD: number;
+  usedFallback?: boolean;
+  originalProvider?: SupportedAIProvider;
+  attemptedProviders?: string[];
 }
 
 export class AIProviderError extends Error {
@@ -54,6 +63,18 @@ export class AIProviderError extends Error {
     this.isTimeout = options.isTimeout ?? false;
     this.originalError = options.originalError;
     Object.setPrototypeOf(this, AIProviderError.prototype);
+  }
+}
+
+export class AIFallbackExhaustedError extends Error {
+  public readonly attemptedProviders: Array<{ provider: SupportedAIProvider; error: string }>;
+
+  constructor(attempted: Array<{ provider: SupportedAIProvider; error: string }>) {
+    const summary = attempted.map((a) => `${a.provider}: ${a.error}`).join(' | ');
+    super(`All AI providers failed in fallback chain: [${summary}]`);
+    this.name = 'AIFallbackExhaustedError';
+    this.attemptedProviders = attempted;
+    Object.setPrototypeOf(this, AIFallbackExhaustedError.prototype);
   }
 }
 

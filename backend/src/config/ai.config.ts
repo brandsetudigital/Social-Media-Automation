@@ -117,13 +117,13 @@ export const VERIFIED_AI_MODELS: Record<string, ModelMetadata> = {
 export const DEFAULT_PROVIDER_MODELS: Record<SupportedAIProvider, string> = {
   openai: 'gpt-4o-mini',
   anthropic: 'claude-3-5-haiku-20241022',
-  gemini: 'gemini-3.5-flash',
+  gemini: 'gemini-3.5-flash-lite',
   groq: 'llama-3.3-70b-versatile',
 };
 
 export const AI_CONFIG = {
   defaultProvider: (process.env.DEFAULT_AI_PROVIDER || 'gemini') as SupportedAIProvider,
-  defaultModel: process.env.DEFAULT_AI_MODEL || 'gemini-3.5-flash',
+  defaultModel: process.env.DEFAULT_AI_MODEL || 'gemini-3.5-flash-lite',
   timeoutMs: parseInt(process.env.AI_REQUEST_TIMEOUT_MS || '15000', 10),
   fallbackChain: ['gemini', 'openai', 'groq', 'anthropic'] as SupportedAIProvider[],
   keys: {

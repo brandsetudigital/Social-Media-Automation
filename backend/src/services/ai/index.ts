@@ -4,3 +4,4 @@ export * from './providers/OpenAIService';
 export * from './providers/ClaudeService';
 export * from './providers/GeminiService';
 export * from './providers/GroqService';
+export * from './AIFactory';
