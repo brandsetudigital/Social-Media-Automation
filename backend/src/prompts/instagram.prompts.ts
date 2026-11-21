@@ -163,3 +163,39 @@ Respond with a JSON object in exactly this format:
   ]
 }`;
 }
+
+export interface ComparisonPromptInput {
+  topic: string;
+  brandName?: string;
+  targetAudience?: string;
+  tone?: string;
+  ctaType?: string;
+}
+
+export function buildComparisonPrompt(input: ComparisonPromptInput): string {
+  const brand = input.brandName ? `Brand: ${input.brandName}` : 'Brand: Independent Business';
+  const audience = input.targetAudience ? `Target Audience: ${input.targetAudience}` : 'Engaged Instagram users';
+  const tone = input.tone || 'friendly and relatable';
+  const cta = input.ctaType || 'invite engagement';
+
+  return `Generate an engaging Instagram post package (hook, caption body, call to action, and 5-8 hashtags) for the following topic:
+
+Topic: "${input.topic}"
+${brand}
+${audience}
+Tone: ${tone}
+CTA Style: ${cta}
+
+Strict requirements:
+- Natural, conversational human tone. Zero AI buzzwords.
+- Hook must be scroll-stopping.
+- Provide 5-8 relevant hashtags in an array (each starting with '#').
+
+Respond strictly in pure JSON in this format:
+{
+  "hook": "Opening 1-2 punchy sentences that stop the scroll",
+  "caption": "The main caption text, well-spaced with organic emojis and clear value",
+  "callToAction": "Clear natural CTA",
+  "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"]
+}`;
+}

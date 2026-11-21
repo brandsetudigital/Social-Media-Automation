@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { instagramContentController } from '../controllers/InstagramContentController';
+import { aiComparisonController } from '../controllers/AIComparisonController';
 import { AuthRequest, authenticateToken } from '../middleware/auth.middleware';
 
 const router = Router();
@@ -30,6 +31,11 @@ router.post('/hashtags', flexibleAuth, (req: Request, res: Response) => {
 // POST /api/ai/instagram/ideas
 router.post('/ideas', flexibleAuth, (req: Request, res: Response) => {
   instagramContentController.generateIdeas(req, res);
+});
+
+// POST /api/ai/instagram/compare
+router.post('/compare', flexibleAuth, (req: Request, res: Response) => {
+  aiComparisonController.compareProviders(req, res);
 });
 
 export default router;
