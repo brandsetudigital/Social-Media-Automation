@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { instagramContentController } from '../controllers/InstagramContentController';
 import { aiComparisonController } from '../controllers/AIComparisonController';
+import { brandVoiceController } from '../controllers/BrandVoiceController';
 import { AuthRequest, authenticateToken } from '../middleware/auth.middleware';
 
 const router = Router();
@@ -36,6 +37,36 @@ router.post('/ideas', flexibleAuth, (req: Request, res: Response) => {
 // POST /api/ai/instagram/compare
 router.post('/compare', flexibleAuth, (req: Request, res: Response) => {
   aiComparisonController.compareProviders(req, res);
+});
+
+// POST /api/ai/instagram/brand-voice (Save/update brand voice preferences)
+router.post('/brand-voice', flexibleAuth, (req: Request, res: Response) => {
+  brandVoiceController.saveBrandVoice(req, res);
+});
+
+// GET /api/ai/instagram/brand-voice/:identifier (Get brand voice profile)
+router.get('/brand-voice/:identifier', flexibleAuth, (req: Request, res: Response) => {
+  brandVoiceController.getBrandVoice(req, res);
+});
+
+// POST /api/ai/instagram/refine (Rewrite & refine captions with brand voice)
+router.post('/refine', flexibleAuth, (req: Request, res: Response) => {
+  brandVoiceController.refineCaption(req, res);
+});
+
+// POST /api/ai/instagram/evaluate (AI multi-factor quality scoring)
+router.post('/evaluate', flexibleAuth, (req: Request, res: Response) => {
+  brandVoiceController.evaluateQuality(req, res);
+});
+
+// POST /api/ai/instagram/feedback (Submit human 1-5 star rating)
+router.post('/feedback', flexibleAuth, (req: Request, res: Response) => {
+  brandVoiceController.submitFeedback(req, res);
+});
+
+// GET /api/ai/instagram/feedback (Retrieve feedback history)
+router.get('/feedback', flexibleAuth, (req: Request, res: Response) => {
+  brandVoiceController.getFeedbackLogs(req, res);
 });
 
 export default router;
