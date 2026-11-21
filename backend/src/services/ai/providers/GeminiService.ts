@@ -88,6 +88,16 @@ export class GeminiService implements IAIService {
         costUSD,
       };
     } catch (error: any) {
+      if (
+        (error?.status === 503 || error?.statusCode === 503 || String(error?.message).includes('503')) &&
+        model !== 'gemini-3.5-flash-lite'
+      ) {
+        console.warn(`[GeminiService] Text model "${model}" experienced 503 high demand spike. Retrying with "gemini-3.5-flash-lite"...`);
+        try {
+          return await this.generateText({ ...options, modelId: 'gemini-3.5-flash-lite' });
+        } catch {}
+      }
+
       if (error instanceof AIProviderError) {
         throw error;
       }
@@ -168,6 +178,16 @@ export class GeminiService implements IAIService {
         costUSD,
       };
     } catch (error: any) {
+      if (
+        (error?.status === 503 || error?.statusCode === 503 || String(error?.message).includes('503')) &&
+        model !== 'gemini-3.5-flash-lite'
+      ) {
+        console.warn(`[GeminiService] Vision model "${model}" experienced 503 high demand spike. Retrying with "gemini-3.5-flash-lite"...`);
+        try {
+          return await this.generateVision({ ...options, modelId: 'gemini-3.5-flash-lite' });
+        } catch {}
+      }
+
       if (error instanceof AIProviderError) {
         throw error;
       }
